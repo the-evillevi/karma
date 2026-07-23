@@ -1,0 +1,23 @@
+/* Global CSS ported from the two <helmet><style> blocks of the DC artifacts.
+   Shared resets + keyframes here; body background differs per page and is set
+   via the body class (.pos / .comanda) so the two entries don't collide. */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  color: #141413;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+body.pos { background: #f0eee6; }
+body.comanda { background: #141413; }
+
+a { color: #836953; text-decoration: none; }
+a:hover { color: #141413; }
+
+button { font-family: inherit; }
+input, select, textarea { font-family: inherit; color: #141413; }
+::placeholder { color: #a8a69c; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

@@ -1,0 +1,4 @@
+# Allow esbuild (a transitive dep of Vite) to run its install script.
+# pnpm 11 blocks dependency build scripts until explicitly approved here.
+allowBuilds:
+  esbuild: true
