@@ -23,10 +23,22 @@ The values below are read from `src/PosApp.jsx`, `src/ComandaApp.jsx`, `src/styl
 | `--background` | `#f0eee6` | Warm ivory application canvas and input surface |
 | `--card` | `#faf9f5` | Paper cards, fields, and navigation |
 | `--foreground` | `#141413` | Charcoal body text and dark Comanda canvas |
+| `--card-foreground` | `#141413` | Text and content on paper cards |
+| `--popover` | `#faf9f5` | Paper menus, popovers, and floating content |
+| `--popover-foreground` | `#141413` | Text in menus and floating content |
 | `--primary` | `#836953` | Toasted brown primary action, link, and emphasis |
 | `--primary-foreground` | `#faf9f5` | Text on toasted-brown actions |
+| `--secondary` | `#f0eee6` | Ivory secondary action surface |
+| `--secondary-foreground` | `#141413` | Text on secondary actions |
+| `--muted` | `#f0eee6` | Ivory quiet surface |
 | `--muted-foreground` | `#6b6a63` | Secondary text |
+| `--accent-foreground` | `#141413` | Text on muted clay accent surfaces |
+| `--destructive` | `#141413` | Charcoal destructive action surface, paired with explicit warning copy |
+| `--destructive-foreground` | `#faf9f5` | Text on destructive actions |
 | `--border` | `#e2e0d6` | Dividers and outlines |
+| `--input` | `#e2e0d6` | Default input border; use a stronger existing palette color where the boundary itself must be perceivable |
+| `--ring` | `#836953` | Keyboard focus ring |
+| `--radius` | `12px` | Base shadcn radius; component-specific aliases below |
 | `--accent` | `#f6e5df` | Muted clay selection and pending-state surface |
 | `--placeholder` | `#a8a69c` | Existing placeholder text only; do not use for required information |
 
@@ -34,7 +46,7 @@ Do not add new palette colors during the token migration without recording the r
 
 ### Contrast behavior
 
-Use WCAG 2.2 AA as the implementation target: at least 4.5:1 for normal text, 3:1 for large text and meaningful non-text boundaries, and a clearly visible focus indicator. Calculations from the verified sRGB values give approximately 4.85:1 for primary on paper, 5.15:1 for muted text on paper, and 17.50:1 for charcoal on paper. Primary on the clay surface is approximately 4.18:1, so do not use that pairing for normal-size text; use charcoal text on clay or put primary text on paper. Placeholder gray on paper is approximately 2.32:1, so labels and help text must carry the meaning independently of placeholder text. Recheck every actual semantic foreground/background pairing when implementing states.
+Use WCAG 2.2 AA as the implementation target: at least 4.5:1 for normal text, 3:1 for large text and meaningful non-text boundaries, and a clearly visible focus indicator. Calculations from the verified sRGB values give approximately 4.67:1 for muted text on ivory, 5.15:1 for muted text on paper, 4.85:1 for primary on paper, and 17.50:1 for charcoal on paper. The proposed semantic foreground pairings also pass: charcoal on ivory is 15.87:1; charcoal on clay is 15.09:1; paper on toasted brown is 4.85:1; and paper on charcoal is 17.50:1. Primary on the clay surface is approximately 4.18:1, so do not use that pairing for normal-size text; use charcoal text on clay or put primary text on paper. Placeholder gray on paper is approximately 2.32:1, so labels and help text must carry the meaning independently of placeholder text. The existing divider/input border `#e2e0d6` against paper is approximately 1.26:1; reserve it for decorative separators and use the primary color for a meaningful control boundary or focus treatment. Use a 2px primary focus ring with a 2px offset. These are palette contrast calculations, not a substitute for checking rendered states and focus visibility.
 
 ## Typography
 
@@ -67,6 +79,8 @@ The UI currently uses 6px, 7px, 8px, 9px, 10px, 12px, and 14px corner radii, wit
 | `--radius-card` | 12px | POS panels and cards |
 | `--radius-card-large` | 14px | Comanda cards |
 | `--radius-pill` | 999px | Category filters and badges |
+
+Map shadcn's base `--radius` to 12px. Use the component aliases above for smaller controls, buttons, cards, and pills; do not derive a visibly different shape by changing the shared base radius.
 
 Use a 4px base spacing scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48px. This makes current 6px and 10px gaps legacy exceptions rather than scale anchors. On desktop, content gutters are 24px in the POS shell and 14–24px in secondary views. Keep one primary action per visual group. Use the verified `--border` color for card outlines and dividers; the current design does not use elevation shadows. Prefer border and surface contrast over shadow. Add a shadow only when a floating layer must be distinguished from content beneath it.
 
@@ -123,10 +137,10 @@ Use these synchronization meanings consistently:
 | Syncing | “Sincronizando…”; prevent duplicate sync, keep pending count visible, and allow the operator to continue only where safe |
 | Synced | “Sincronizada”; show only after an actual server acknowledgment |
 | Conflict | “Conflicto”; identify the order and affected values, offer review/resolve actions, and preserve both versions until an operator choice is recorded |
-| Blocked | Explain the dependency and next step, such as card terminal unavailable offline; do not show payment success |
+| Blocked | Explain which dependency failed and the next step. If the automatic terminal is unavailable offline, block terminal authorization only; keep a distinct manual card-tender recording flow available. Mark that manual record as pending/unverified and never imply terminal authorization or settlement. |
 | Failed | Explain whether data remains safely local, provide retry where safe, and preserve the original operation |
 
-Important evidence boundary: the repository currently persists the prototype state to `localStorage`, syncs the POS and Comanda pages through browser `storage` events/polling, simulates connectivity with a toggle, and simulates synchronization with a timeout. Some settings, reports, printing, and backup feedback are explicitly simulated. This is useful prototype behavior; it does not prove durable storage, remote sync, conflict reconciliation, payment-terminal operation, printing, or recovery guarantees. The shadcn migration must not relabel these as production capabilities. A real conflict resolution flow must retain both server and local versions until an explicit, auditable choice; the current prototype's “keep local version” action is not sufficient evidence for a safe production merge.
+Important evidence boundary: the repository currently persists the prototype state to `localStorage`, syncs the POS and Comanda pages through browser `storage` events/polling, simulates connectivity with a toggle, and simulates synchronization with a timeout. Some settings, reports, printing, and backup feedback are explicitly simulated. This is useful prototype behavior; it does not prove durable storage, remote sync, conflict reconciliation, payment-terminal operation, printing, or recovery guarantees. The current checkout prototype blocks its card payment path while offline and offers cash or transfer as alternatives; the manual card-tender path above is a required design rule for future implementation, not an existing capability. The shadcn migration must not relabel simulated behavior as production capability. A real conflict resolution flow must retain both server and local versions until an explicit, auditable choice; the current prototype's “keep local version” action is not sufficient evidence for a safe production merge.
 
 ## Accessibility and motion
 
@@ -145,7 +159,7 @@ Use concise, consistent Spanish for operator-facing copy. Prefer verbs that desc
 
 ## Tailwind and shadcn mapping
 
-Map the existing values into shadcn's semantic CSS variables in `:root`; do not paste the palette independently into every component. At minimum map `background`, `foreground`, `card`, `card-foreground`, `popover`, `popover-foreground`, `primary`, `primary-foreground`, `secondary`, `secondary-foreground`, `muted`, `muted-foreground`, `accent`, `accent-foreground`, `destructive`, `destructive-foreground`, `border`, `input`, `ring`, and `radius`. `popover` can use the paper surface. Keep every variable tied to the verified tokens above; where the current prototype lacks a dedicated semantic color (such as destructive or focus ring), document and approve the chosen mapping before shipping rather than silently inventing a brand color.
+Use the explicit provisional defaults in the palette table above for all shadcn semantic CSS variables. They reuse verified source colors and fully specify text/surface pairing; no new hue is introduced. `--input` remains the existing border token for neutral input outlines, but any boundary that must independently meet non-text contrast uses `--primary`. Use `--ring: #836953` as a 2px outline with 2px offset. These are implementation defaults that can be reviewed by the team; their existence does not claim approval. Destructive actions use the existing charcoal/paper pair and explicit warning copy. Keep every variable centralized in `:root` instead of repeating values in components.
 
 Expose radii through Tailwind utilities backed by `--radius`; retain the component-specific radius table above. Keep typography roles in a small set of named utilities rather than ad hoc pixel values. Use semantic variants such as `default`, `secondary`, `outline`, `ghost`, and `destructive` only when their resulting contrast and meaning match Karma's roles. The migration issue EVL-156 should consume this document after the foundation dependency is ready; EVL-158 should apply the responsive and mobile navigation rules after the shared layer exists.
 
