@@ -4,7 +4,7 @@ function owns(record, key) {
   return !!record && Object.prototype.hasOwnProperty.call(record, key);
 }
 
-function lineIdentity(line, index) {
+export function splitLineId(line, index) {
   return typeof line?.lineId === 'string' && line.lineId.length > 0
     ? line.lineId
     : `legacy-line-${index}`;
@@ -86,7 +86,7 @@ export function suggestSplitSelection(items) {
     if (!Number.isSafeInteger(line?.qty) || line.qty < 1) throw new TypeError('split item quantities must be positive safe integers');
     totalQuantity += line.qty;
     if (!Number.isSafeInteger(totalQuantity)) throw new RangeError('split item quantity total exceeds the safe integer range');
-    return lineIdentity(line, index);
+    return splitLineId(line, index);
   });
   if (totalQuantity < 2) return new Map();
   let remaining = Math.floor(totalQuantity / 2) + totalQuantity % 2;
@@ -122,7 +122,7 @@ export function planOrderSplit(order, selection) {
   order.items.forEach((line, index) => {
     if (!line || typeof line !== 'object' || Array.isArray(line)) throw new TypeError('each split item must be a record');
     if (!Number.isSafeInteger(line.qty) || line.qty < 1) throw new TypeError('split item quantities must be positive safe integers');
-    const lineId = lineIdentity(line, index);
+    const lineId = splitLineId(line, index);
     if (seenIds.has(lineId)) throw new TypeError('split order contains duplicate line ids');
     seenIds.add(lineId);
     const selectedQty = selectionById.get(lineId) || 0;
