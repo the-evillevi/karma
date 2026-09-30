@@ -1,0 +1,113 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  allocateDiscount,
+  applyEventBatch,
+  canTransitionPreparation,
+  FINANCIAL_STATUS,
+  PREPARATION_STATUS,
+  recordPayment,
+  reversePayment,
+  validateEvent,
+  validateLineSnapshot,
+} from "./order-domain.js";
+
+test("discount allocation conserves centavos and breaks remainder ties by stable lineId", () => {
+  const allocation = allocateDiscount(1, [
+    { lineId: "line-b", subtotalCents: 100 },
+    { lineId: "line-a", subtotalCents: 100 },
+    { lineId: "line-c", subtotalCents: 100 },
+  ]);
+  assert.deepEqual(allocation, [
+    { lineId: "line-b", cents: 0 },
+    { lineId: "line-a", cents: 1 },
+    { lineId: "line-c", cents: 0 },
+  ]);
+  assert.equal(allocation.reduce((sum, line) => sum + line.cents, 0), 1);
+});
+
+test("discount allocation rejects duplicate lines, fractional money, and over-discounting", () => {
+  assert.throws(() => allocateDiscount(1, [{ lineId: "x", subtotalCents: 1 }, { lineId: "x", subtotalCents: 1 }]), /duplicate lineId/);
+  assert.throws(() => allocateDiscount(1.5, [{ lineId: "x", subtotalCents: 2 }]), /safe integer/);
+  assert.throws(() => allocateDiscount(3, [{ lineId: "x", subtotalCents: 2 }]), /must not exceed/);
+});
+
+test("captured line snapshots require immutable labels and integer-cent prices", () => {
+  assert.equal(validateLineSnapshot({ lineId: "l1", productId: "p1", productNameSnapshot: "Café", unitPriceCents: 5500, quantity: 1, modifierSnapshots: [{ modifierId: "m1", nameSnapshot: "Avena", priceDeltaCents: 1000 }] }), true);
+  assert.throws(() => validateLineSnapshot({ lineId: "l1", productId: "p1", productNameSnapshot: "Café", unitPriceCents: 55.5, quantity: 1, modifierSnapshots: [] }), /safe integer/);
+});
+
+test("preparation transitions are independent from financial transitions", () => {
+  assert.equal(canTransitionPreparation(PREPARATION_STATUS.NOT_SENT, PREPARATION_STATUS.QUEUED), true);
+  assert.equal(canTransitionPreparation(PREPARATION_STATUS.QUEUED, PREPARATION_STATUS.SERVED), false);
+  assert.equal(canTransitionPreparation(PREPARATION_STATUS.SERVED, PREPARATION_STATUS.QUEUED), false);
+  assert.equal(FINANCIAL_STATUS.PAID, "paid");
+});
+
+test("cash tender and change remain distinct from net payment and duplicate payment is idempotent", () => {
+  const cash = { paymentId: "pay-1", method: "cash", netAmountCents: 6500, tipCents: 500, cashReceivedCents: 10000, changeCents: 3500 };
+  const first = recordPayment([], cash, 6500);
+  assert.equal(first.paidNetCents, 6500);
+  assert.equal(first.dueCents, 0);
+  assert.equal(first.financialStatus, FINANCIAL_STATUS.PAID);
+  assert.equal(first.payments[0].cashReceivedCents, 10000);
+  assert.equal(first.payments[0].changeCents, 3500);
+  const retry = recordPayment(first.payments, cash, 6500);
+  assert.equal(retry.changed, false);
+  assert.equal(retry.paidNetCents, 6500);
+  assert.throws(() => recordPayment(first.payments, { ...cash, netAmountCents: 6400, changeCents: 3600 }, 6500), /reused/);
+  assert.throws(() => recordPayment([], { ...cash, changeCents: 0 }, 6500), /change must equal/);
+  assert.throws(() => recordPayment([], { ...cash, netAmountCents: 6600, cashReceivedCents: 6600, changeCents: 0 }, 6500), /exceed amount due/);
+});
+
+test("split payments settle exactly and a compensating reversal restores due", () => {
+  const card = recordPayment([], { paymentId: "pay-card", method: "card", netAmountCents: 3000, tipCents: 0 }, 5000);
+  const cash = recordPayment(card.payments, { paymentId: "pay-cash", method: "cash", netAmountCents: 2000, tipCents: 0, cashReceivedCents: 2000, changeCents: 0 }, 5000);
+  assert.equal(cash.paidNetCents, 5000);
+  assert.equal(cash.financialStatus, FINANCIAL_STATUS.PAID);
+  const reversed = reversePayment(cash.payments, "rev-1", "pay-card", 1000, 5000);
+  assert.equal(reversed.paidNetCents, 4000);
+  assert.equal(reversed.dueCents, 1000);
+  assert.equal(reversed.financialStatus, FINANCIAL_STATUS.PARTIALLY_PAID);
+  assert.equal(reversePayment(reversed.payments, "rev-1", "pay-card", 1000, 5000).changed, false);
+  assert.throws(() => reversePayment(reversed.payments, "rev-2", "pay-card", 3000, 5000), /cannot exceed/);
+});
+
+test("event envelopes carry stable identity, actor, device, schema and timestamp", () => {
+  assert.equal(validateEvent(event("evt-1")), true);
+  assert.throws(() => validateEvent({ ...event("evt-2"), actorId: "" }), /actorId is required/);
+  assert.throws(() => validateEvent({ ...event("evt-3"), schemaVersion: 0 }), /schemaVersion/);
+});
+
+test("event batch replay is idempotent and conflicting event IDs fail", () => {
+  const original = { events: [], count: 0 };
+  const first = applyEventBatch(original, [event("evt-1")], (projection) => ({ ...projection, count: projection.count + 1 }));
+  assert.equal(first.projection.count, 1);
+  const replay = applyEventBatch(first.projection, [event("evt-1")], (projection) => ({ ...projection, count: projection.count + 1 }));
+  assert.equal(replay.projection.count, 1);
+  assert.equal(replay.duplicateCount, 1);
+  assert.throws(() => applyEventBatch(first.projection, [{ ...event("evt-1"), payload: { value: 2 } }]), /reused with different content/);
+});
+
+test("event batch reducer failure leaves original projection untouched", () => {
+  const original = { events: [], count: 0 };
+  assert.throws(() => applyEventBatch(original, [event("evt-a"), event("evt-b")], (projection, item) => {
+    if (item.eventId === "evt-b") throw new Error("projection failed");
+    return { ...projection, count: projection.count + 1 };
+  }), /projection failed/);
+  assert.deepEqual(original, { events: [], count: 0 });
+});
+
+function event(eventId) {
+  return {
+    eventId,
+    commandId: "cmd-1",
+    aggregateId: "order-1",
+    type: "OrderOpened",
+    schemaVersion: 1,
+    actorId: "user-1",
+    deviceId: "device-1",
+    occurredAt: "2026-09-29T12:00:00.000Z",
+    payload: { value: 1 },
+  };
+}
