@@ -539,16 +539,18 @@
       "stage": "awaiting_foundation",
       "agent": null,
       "commits": [
-        "5366d2b"
+        "5366d2b",
+        "e92f1b5"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/17",
       "checks": [
         "Root combined 31 component tests and four-entry build passed after merge reconciliation",
         "Root earlier 68 unit tests passed without skips; domain unchanged by188",
         "git diff --check passed",
-        "Root final PWA rebuild, restart browser proof and credential scan passed"
+        "Root final PWA rebuild, restart browser proof and credential scan passed",
+        "Security follow-up: root 32 combined component tests, three targeted modifier unit cases, four-entry build, credential scan and diff checks passed"
       ],
-      "review": "fixed_and_rereviewed_captured_prices_actual_app",
+      "review": "fixed_and_rereviewed_captured_prices_and_storage_key_guard",
       "blockers": [
         "Trusted authorization118 and durable persistence126 are open. Formal version/tax113 catalog contract is not yet wired to this prototype history."
       ],
@@ -1031,7 +1033,7 @@
     "manualResume": true,
     "reason": "Near current allowance boundary (90% at last check); all delegates completed clean committed handoffs.",
     "runningAgents": 0,
-    "integration": "b1e767d",
+    "integration": "0b6132f",
     "mainMerged": false,
     "nextIssue": "EVL-118 then EVL-126; resume payment/order chains from reviewed stacks.",
     "resumeDocument": "docs/execution/RESUME.md",
