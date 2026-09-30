@@ -1,5 +1,8 @@
 import React from 'react';
 import { css } from './css.js';
+import SalesStation from './SalesStation.jsx';
+import { captureProductLine } from './catalog/catalog-domain.mjs';
+import { normalizeCatalog } from '../scripts/catalog/catalog-normalizer.mjs';
 
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
 // it (keypad key, product card, sales row). Merges base + hover style on hover.
@@ -250,6 +253,9 @@ export default class PosApp extends React.Component {
   renderVals() {
     const D = window.KARMA;
     const s = this.state;
+    // The shared capture validator checks real-time POS selections against the
+    // current prototype-backed product state without treating it as approved data.
+    const currentCatalog = normalizeCatalog({ ...D, products: s.prods });
     const acc = '#836953', tint = '#f6e5df', paper = '#faf9f5', ink = '#141413', mut = '#6b6a63', line = '#e2e0d6', bg = '#f0eee6';
     const chip = on => ({ padding: '7px 13px', borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '1px solid ' + (on ? acc : line), background: on ? acc : paper, color: on ? paper : ink, whiteSpace: 'nowrap' });
     const chipSm = on => ({ padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '1px solid ' + (on ? acc : line), background: on ? acc : paper, color: on ? paper : ink, whiteSpace: 'nowrap' });
@@ -333,11 +339,11 @@ export default class PosApp extends React.Component {
     V.prodsEmpty = plist.length === 0;
     V.gridStyle = vista === 'lista' ? { display: 'flex', flexDirection: 'column', gap: 8 } : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 };
     V.prods = plist.map(p => ({
-      name: p.name, price: this.fmt(p.price), unavailable: !p.available,
+      id: p.id, name: p.name, price: this.fmt(p.price), unavailable: !p.available,
       style: { display: 'flex', flexDirection: vista === 'lista' ? 'row' : 'column', justifyContent: 'space-between', gap: 8, alignItems: vista === 'lista' ? 'center' : 'stretch', textAlign: 'left', padding: '13px 14px', background: paper, border: '1px solid ' + line, borderRadius: 10, cursor: p.available ? 'pointer' : 'default', opacity: p.available ? 1 : 0.55, minHeight: vista === 'lista' ? 0 : 76 },
       open: () => {
         if (!p.available) { this.toast(p.name + ' está agotado hoy', 'warn'); return; }
-        const m = {}; p.mods.forEach(g => { const G = D.modGroups[g]; if (G && G.min > 0) m[g] = [G.options[0].id]; });
+        const m = {}; p.mods.forEach(g => { const G = D.modGroups[g]; const first = G && G.options.find(op => op.active !== false); if (G && G.min > 0 && first) m[g] = [first.id]; });
         this.setState({ ed: { prodId: p.id, qty: 1, mods: m, notes: '', lineId: null } });
       }
     }));
@@ -351,6 +357,7 @@ export default class PosApp extends React.Component {
     V.orderName = o.name; V.setOrderName = e => this.up({ order: { ...this.state.order, name: e.target.value } });
     V.linesEmpty = o.items.length === 0;
     V.lines = o.items.map(l => ({
+      lineId: l.lineId,
       qty: l.qty, name: (s.prods.find(p => p.id === l.prodId) || {}).name || '—',
       modsText: this.modsText(l), hasMods: !!this.modsText(l), notes: l.notes, hasNotes: !!l.notes,
       total: this.fmt(this.lineUnit(l) * l.qty),
@@ -388,16 +395,19 @@ export default class PosApp extends React.Component {
       V.edInc = () => this.setState({ ed: { ...ed, qty: ed.qty + 1 } });
       V.edDec = () => this.setState({ ed: { ...ed, qty: Math.max(1, ed.qty - 1) } });
       V.edGroups = p.mods.map(gid => {
-        const G = D.modGroups[gid]; const sel = ed.mods[gid] || [];
+        const G = D.modGroups[gid]; if (!G || G.active === false) return null;
+        const sel = ed.mods[gid] || [];
         return {
-          label: G.label, hint: G.max === 1 ? 'Elige 1' : 'Opcional, varios',
-          options: G.options.map(op => {
+          label: G.label, hint: G.min > 0 ? 'Obligatorio · elige ' + G.min + (G.max > G.min ? '–' + G.max : '') : (G.max === 1 ? 'Elige hasta 1' : 'Opcional, varios'),
+          options: G.options.filter(op => op.active !== false).map(op => {
             const on = sel.includes(op.id);
             return {
               text: op.label + (op.price ? ' +$' + op.price : ''), style: chipSm(on),
+              disabled: on && G.max !== 1 && sel.length <= G.min,
               toggle: () => {
                 let ns = sel.slice();
                 if (G.max === 1) ns = [op.id];
+                else if (on && ns.length <= G.min) { this.toast('Elige al menos ' + G.min + ' opción(es) para ' + G.label, 'warn'); return; }
                 else if (on) ns = ns.filter(x => x !== op.id);
                 else if (ns.length < G.max) ns = [...ns, op.id];
                 this.setState({ ed: { ...this.state.ed, mods: { ...this.state.ed.mods, [gid]: ns } } });
@@ -405,13 +415,28 @@ export default class PosApp extends React.Component {
             };
           })
         };
-      });
+      }).filter(Boolean);
       V.edNotes = ed.notes; V.edSetNotes = e => this.setState({ ed: { ...this.state.ed, notes: e.target.value } });
       V.edConfirmLabel = (ed.lineId ? 'Guardar' : 'Agregar') + ' · ' + this.fmt(unit * ed.qty);
       V.edCancel = () => this.setState({ ed: null });
       V.edConfirm = () => {
         const st = this.state; const e2 = st.ed;
-        const linePatch = { prodId: e2.prodId, qty: e2.qty, mods: e2.mods, notes: e2.notes };
+        let normalizedMods;
+        try {
+          const product = st.prods.find(x => x.id === e2.prodId);
+          const selections = Object.fromEntries((product?.mods || []).flatMap(gid => {
+            const group = currentCatalog.modifierGroups.find(item => item.id === gid);
+            if (!group?.active) return [];
+            const optionIds = e2.mods[gid] ?? (group.selection.defaultOptionId ? [group.selection.defaultOptionId] : []);
+            return [[gid, { optionIds }]];
+          }));
+          captureProductLine(currentCatalog, { productId: e2.prodId, quantity: e2.qty, selections, notes: e2.notes });
+          normalizedMods = Object.fromEntries(Object.entries(selections).map(([groupId, selection]) => [groupId, selection.optionIds]));
+        } catch (error) {
+          this.toast(error.message || 'Revisa las opciones obligatorias', 'warn');
+          return;
+        }
+        const linePatch = { prodId: e2.prodId, qty: e2.qty, mods: normalizedMods, notes: e2.notes };
         let items;
         if (e2.lineId) items = st.order.items.map(x => x.lineId === e2.lineId ? { ...x, ...linePatch } : x);
         else items = [...st.order.items, { lineId: 'l' + Date.now(), ...linePatch }];
@@ -760,87 +785,7 @@ export default class PosApp extends React.Component {
 <div style={css("background:#f6e5df;color:#836953;font-size:12.5px;font-weight:500;padding:8px 24px;position:sticky;top:0;z-index:50")}>Sin conexión — puedes seguir vendiendo; las operaciones se guardan localmente y se sincronizarán al reconectar.</div>
 </>)}
 
-{(V.mPos) && (<>
-<div style={css("display:flex;gap:20px;align-items:flex-start;padding:22px 24px 40px")}>
-<div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:14px")}>
-<input value={V.search} onChange={V.setSearch} placeholder="Buscar producto…" style={css("width:100%;padding:11px 14px;border:1px solid #e2e0d6;border-radius:9px;background:#faf9f5;font-size:14px;outline:none")} />
-<div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
-{(V.cats).map((c, cI) => (<React.Fragment key={cI}>
-<button style={c.style} onClick={c.pick}>{c.label}</button>
-</React.Fragment>))}
-</div>
-{(V.prodsEmpty) && (<>
-<div style={css("padding:48px 20px;text-align:center;color:#6b6a63;font-size:13.5px;border:1px dashed #e2e0d6;border-radius:12px")}>Sin resultados para esta búsqueda.<br />Prueba con otro nombre o cambia de categoría.</div>
-</>)}
-<div style={V.gridStyle}>
-{(V.prods).map((p, pI) => (<React.Fragment key={pI}>
-<Hover tag="button" onClick={p.open} base={p.style} hover={css("border-color:#836953")}>
-<span style={css("font-size:13.5px;font-weight:500;line-height:1.3")}>{p.name}</span>
-<span style={css("display:flex;align-items:center;gap:8px")}><span style={css("font-size:13px;color:#6b6a63")}>{p.price}</span>{(p.unavailable) && (<><span style={css("font-size:10.5px;font-weight:500;color:#836953;background:#f6e5df;padding:2px 8px;border-radius:999px")}>Agotado</span></>)}</span>
-</Hover>
-</React.Fragment>))}
-</div>
-</div>
-
-<div style={css("width:360px;flex:none;position:sticky;top:22px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px")}>
-<div style={css("display:flex;align-items:baseline;justify-content:space-between")}>
-<span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Orden actual</span>
-{(V.hasFolio) && (<><span style={css("font-size:12px;color:#836953;font-weight:500")}>{V.orderFolio}</span></>)}
-</div>
-<div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
-{(V.typeBtns).map((t, tI) => (<React.Fragment key={tI}>
-<button style={t.style} onClick={t.pick}>{t.label}</button>
-</React.Fragment>))}
-</div>
-{(V.showMesa) && (<>
-<input value={V.mesa} onChange={V.setMesa} placeholder="Número de mesa" inputMode="numeric" style={css("width:100%;padding:9px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none")} />
-</>)}
-<input value={V.orderName} onChange={V.setOrderName} placeholder="Nombre o referencia (opcional)" style={css("width:100%;padding:9px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none")} />
-{(V.linesEmpty) && (<>
-<div style={css("padding:26px 12px;text-align:center;color:#6b6a63;font-size:13px;border:1px dashed #e2e0d6;border-radius:10px")}>Sin productos.<br />Toca un producto del catálogo para agregarlo.</div>
-</>)}
-<div style={css("display:flex;flex-direction:column")}>
-{(V.lines).map((l, lI) => (<React.Fragment key={lI}>
-<div style={css("display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid #e2e0d6")}>
-<div style={css("display:flex;align-items:center;gap:2px;flex:none")}>
-<button onClick={l.dec} style={css("width:24px;height:24px;border:1px solid #e2e0d6;background:#faf9f5;border-radius:6px;cursor:pointer;font-size:13px;line-height:1;color:#141413")}>−</button>
-<span style={css("min-width:22px;text-align:center;font-size:13.5px;font-weight:500")}>{l.qty}</span>
-<button onClick={l.inc} style={css("width:24px;height:24px;border:1px solid #e2e0d6;background:#faf9f5;border-radius:6px;cursor:pointer;font-size:13px;line-height:1;color:#141413")}>+</button>
-</div>
-<div style={css("flex:1;min-width:0")}>
-<div style={css("font-size:13.5px;font-weight:500;line-height:1.3")}>{l.name}</div>
-{(l.hasMods) && (<><div style={css("font-size:12px;color:#6b6a63;margin-top:2px")}>{l.modsText}</div></>)}
-{(l.hasNotes) && (<><div style={css("font-size:12px;color:#836953;margin-top:2px")}>“{l.notes}”</div></>)}
-<button onClick={l.edit} style={css("border:none;background:transparent;color:#836953;font-size:12px;cursor:pointer;padding:2px 0 0")}>Editar</button>
-</div>
-<div style={css("flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px")}>
-<span style={css("font-size:13.5px")}>{l.total}</span>
-<button onClick={l.remove} style={css("border:none;background:transparent;color:#6b6a63;font-size:15px;cursor:pointer;line-height:1;padding:2px")} title="Eliminar">×</button>
-</div>
-</div>
-</React.Fragment>))}
-</div>
-<div style={css("display:flex;flex-direction:column;gap:6px")}>
-<div style={css("display:flex;justify-content:space-between;font-size:13px;color:#6b6a63")}><span>Subtotal · {V.itemCount} art.</span><span>{V.subtotal}</span></div>
-{(V.hasDiscount) && (<>
-<div style={css("display:flex;justify-content:space-between;font-size:13px;color:#836953")}><span>Descuento</span><span>−{V.discount}</span></div>
-</>)}
-<button onClick={V.addDiscount} style={css("border:none;background:transparent;color:#836953;font-size:12px;cursor:pointer;text-align:left;padding:0")}>+ Agregar descuento</button>
-<div style={css("display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #e2e0d6;padding-top:10px;margin-top:4px")}>
-<span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Total</span>
-<span style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;line-height:1")}>{V.total}</span>
-</div>
-<div style={css("font-size:11.5px;color:#6b6a63")}>La propina se captura en el cobro.</div>
-</div>
-<div style={css("display:grid;grid-template-columns:1fr 1fr;gap:8px")}>
-<button onClick={V.saveOpen} style={css("padding:10px 12px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;color:#141413")}>Guardar cuenta</button>
-<button onClick={V.sendComanda} style={css("padding:10px 12px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;color:#141413")}>Enviar comanda</button>
-<button onClick={V.cancelOrder} style={css("padding:10px 12px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;color:#6b6a63;grid-column:span 2")}>Cancelar orden</button>
-<button onClick={V.goCharge} style={V.chargeStyle}>Cobrar {V.total}</button>
-</div>
-</div>
-</div>
-</>)}
+{(V.mPos) && (<SalesStation V={V} />)}
 
 {(V.mOrders) && (<>
 <div style={css("padding:22px 24px 40px;display:flex;flex-direction:column;gap:16px")}>
@@ -1270,7 +1215,7 @@ export default class PosApp extends React.Component {
 <div style={css("display:flex;gap:8px;align-items:baseline")}><span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>{g.label}</span><span style={css("font-size:11.5px;color:#a8a69c")}>{g.hint}</span></div>
 <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
 {(g.options).map((o, oI) => (<React.Fragment key={oI}>
-<button style={o.style} onClick={o.toggle}>{o.text}</button>
+          <button style={o.style} disabled={o.disabled} onClick={o.toggle}>{o.text}</button>
 </React.Fragment>))}
 </div>
 </div>
