@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from '@/components/ui/button';
 import './SalesStation.css';
 
 /** Sale-station UI; the parent owns the local order draft and existing POS actions. */
@@ -6,8 +7,35 @@ export default function SalesStation({ V }) {
   const searchRef = React.useRef(null);
   const productRefs = React.useRef([]);
   const cartRef = React.useRef(null);
+  const mobileCartToggleRef = React.useRef(null);
+  const focusCartOnOpenRef = React.useRef(false);
+  const returnFocusToToggleRef = React.useRef(false);
   const [mobileCartOpen, setMobileCartOpen] = React.useState(false);
   const visibleProducts = V.prods;
+
+  React.useEffect(() => {
+    if (mobileCartOpen && focusCartOnOpenRef.current) {
+      focusCartOnOpenRef.current = false;
+      const frame = requestAnimationFrame(() => {
+        cartRef.current?.querySelector('button, input')?.focus({ preventScroll: true });
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    if (!mobileCartOpen && returnFocusToToggleRef.current) {
+      returnFocusToToggleRef.current = false;
+      const frame = requestAnimationFrame(() => mobileCartToggleRef.current?.focus({ preventScroll: true }));
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [mobileCartOpen]);
+
+  function toggleMobileCart() {
+    if (mobileCartOpen) {
+      returnFocusToToggleRef.current = true;
+      setMobileCartOpen(false);
+      return;
+    }
+    setMobileCartOpen(true);
+  }
 
   React.useEffect(() => {
     function onKeyDown(event) {
@@ -29,6 +57,7 @@ export default function SalesStation({ V }) {
           event.preventDefault();
           V.edCancel();
         } else if (mobileCartOpen) {
+          returnFocusToToggleRef.current = true;
           setMobileCartOpen(false);
         } else if (V.search) {
           V.setSearch({ target: { value: '' } });
@@ -43,8 +72,12 @@ export default function SalesStation({ V }) {
       }
       if (event.altKey && event.key === 'ArrowDown' && !typing) {
         event.preventDefault();
-        setMobileCartOpen(true);
-        cartRef.current?.querySelector('button, input')?.focus();
+        if (mobileCartOpen) {
+          cartRef.current?.querySelector('button, input')?.focus({ preventScroll: true });
+        } else {
+          focusCartOnOpenRef.current = true;
+          setMobileCartOpen(true);
+        }
         return;
       }
       if (V.ed || !['ArrowDown', 'ArrowUp'].includes(event.key)) return;
@@ -66,8 +99,9 @@ export default function SalesStation({ V }) {
     <section className={'sales-station' + (mobileCartOpen ? ' sales-station--cart-first' : '')} aria-label="Estación de venta">
       <button
         className="sales-mobile-cart-toggle"
+        ref={mobileCartToggleRef}
         type="button"
-        onClick={() => setMobileCartOpen((open) => !open)}
+        onClick={toggleMobileCart}
         aria-expanded={mobileCartOpen}
         aria-controls="sales-cart"
       >
@@ -92,9 +126,17 @@ export default function SalesStation({ V }) {
 
         <nav className="sales-categories" aria-label="Categorías del menú">
           {V.cats.map((category) => (
-            <button key={category.label} type="button" className="sales-category-button" style={category.style} onClick={category.pick}>
+            <Button
+              key={category.label}
+              type="button"
+              size="sm"
+              variant={category.active ? 'default' : 'outline'}
+              className="sales-category-button"
+              aria-pressed={category.active}
+              onClick={category.pick}
+            >
               {category.label}
-            </button>
+            </Button>
           ))}
         </nav>
 
@@ -137,7 +179,17 @@ export default function SalesStation({ V }) {
         </div>
         <div className="sales-order-types">
           {V.typeBtns.map((type) => (
-            <button key={type.label} type="button" className="sales-type-button" style={type.style} onClick={type.pick}>{type.label}</button>
+            <Button
+              key={type.label}
+              type="button"
+              size="sm"
+              variant={type.active ? 'default' : 'outline'}
+              className="sales-type-button"
+              aria-pressed={type.active}
+              onClick={type.pick}
+            >
+              {type.label}
+            </Button>
           ))}
         </div>
         {V.showMesa && (
@@ -166,7 +218,7 @@ export default function SalesStation({ V }) {
                   <div className="sales-line-name">{line.name}</div>
                   {line.hasMods && <div className="sales-line-meta">{line.modsText}</div>}
                   {line.hasNotes && <div className="sales-line-notes">“{line.notes}”</div>}
-                  <button type="button" className="sales-text-button" onClick={line.edit}>Editar partida</button>
+                  <Button type="button" size="sm" variant="ghost" className="sales-text-button" onClick={line.edit}>Editar partida</Button>
                 </div>
                 <div className="sales-line-price">
                   <span>{line.total}</span>
@@ -180,15 +232,15 @@ export default function SalesStation({ V }) {
         <div className="sales-totals">
           <div><span>Subtotal · {V.itemCount} art.</span><span>{V.subtotal}</span></div>
           {V.hasDiscount && <div className="sales-discount"><span>Descuento</span><span>−{V.discount}</span></div>}
-          <button type="button" className="sales-text-button" onClick={V.addDiscount}>+ Agregar descuento</button>
+          <Button type="button" size="sm" variant="ghost" className="sales-text-button" onClick={V.addDiscount}>+ Agregar descuento</Button>
           <div className="sales-total"><span>Total</span><strong>{V.total}</strong></div>
           <small>La propina se captura en el cobro.</small>
         </div>
         <div className="sales-actions">
-          <button type="button" className="sales-secondary-action" onClick={V.saveOpen}>Guardar cuenta</button>
-          <button type="button" className="sales-secondary-action" onClick={V.sendComanda}>Enviar comanda</button>
-          <button type="button" className="sales-secondary-action sales-cancel-action" onClick={V.cancelOrder}>Cancelar orden</button>
-          <button type="button" className="sales-charge-action" style={V.chargeStyle} onClick={V.goCharge}>Cobrar {V.total}</button>
+          <Button type="button" size="sm" variant="outline" className="sales-secondary-action" onClick={V.saveOpen}>Guardar cuenta</Button>
+          <Button type="button" size="sm" variant="outline" className="sales-secondary-action" onClick={V.sendComanda}>Enviar comanda</Button>
+          <Button type="button" size="sm" variant="outline" className="sales-secondary-action sales-cancel-action" onClick={V.cancelOrder}>Cancelar orden</Button>
+          <Button type="button" size="lg" className="sales-charge-action" onClick={V.goCharge}>Cobrar {V.total}</Button>
         </div>
       </aside>
     </section>

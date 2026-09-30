@@ -10,6 +10,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar';
 import SalesStation from './SalesStation.jsx';
 import { captureProductLine } from './catalog/catalog-domain.mjs';
 import { normalizeCatalog } from '../scripts/catalog/catalog-normalizer.mjs';
@@ -17,6 +30,7 @@ import { saveMenuProduct } from './catalog/menu-products.mjs';
 import { toggleModifierSelection } from './catalog/sales-selection.mjs';
 import { sameCapturedModifiers } from './catalog/captured-modifiers.mjs';
 import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue.js';
+import { calculateTender, centsToMoney, moneyToCents, paymentMethodTotalsCents, paymentNetCents } from './domain/payment-tender.js';
 
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
 // it (keypad key, product card, sales row). Merges base + hover style on hover.
@@ -34,6 +48,45 @@ function Hover({ tag = 'button', base, hover, children, ...rest }) {
   );
 }
 
+function PosSidebarNavigation({ items, goPos }) {
+  const { isMobile, setOpenMobile } = useSidebar();
+  const navigate = callback => {
+    callback();
+    if (isMobile) setOpenMobile(false);
+  };
+
+  return (
+    <>
+      <SidebarHeader className="gap-3 px-3 pb-4 pt-1">
+        <div className="px-2">
+          <div className="font-[Georgia,serif] text-[27px] italic leading-none">Karma</div>
+          <div className="mt-1.5 text-[10px] font-medium uppercase tracking-[.16em] text-muted-foreground">Abboth · Centro</div>
+        </div>
+        <Button className="w-full justify-start" onClick={() => navigate(goPos)}>+ Nueva venta</Button>
+      </SidebarHeader>
+      <SidebarContent className="px-2">
+        <SidebarMenu aria-label="Áreas del punto de venta">
+          {items.map(item => (
+            <SidebarMenuItem key={item.label}>
+              <SidebarMenuButton
+                type="button"
+                isActive={item.active}
+                aria-current={item.active ? 'page' : undefined}
+                aria-disabled={!item.allowed}
+                className="min-h-11 w-full justify-between"
+                onClick={() => navigate(item.go)}
+              >
+                <span>{item.label}</span>
+                {item.hasBadge && <SidebarMenuBadge aria-label={`${item.badge} órdenes abiertas`}>{item.badge}</SidebarMenuBadge>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarContent>
+    </>
+  );
+}
+
 // Ported verbatim from design/Karma POS.dc.html. The original
 // `class Component extends DCLogic` becomes a real React.Component (identical
 // setState / lifecycle / props semantics). All ~30 helper methods and
@@ -46,6 +99,17 @@ export default class PosApp extends React.Component {
     const D = window.KARMA;
     let sv = {}; try { sv = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
     this._folio = sv.folioSeq || 1051;
+    const savedOrder = sv.order || this.blank();
+    const restoredOrder = {
+      ...savedOrder,
+      items: (savedOrder.items || []).map((item, index) => ({
+        ...item,
+        // Older saved drafts and seeded accounts predate line identifiers.
+        // Give those rows deterministic identities so cart controls target one
+        // line and React can preserve its row across quantity changes.
+        lineId: item.lineId || `restored-${item.prodId || 'item'}-${index}`,
+      })),
+    };
     this.state = {
       loading: true,
       session: sv.session || null,
@@ -55,7 +119,7 @@ export default class PosApp extends React.Component {
       syncing: false,
       pending: sv.pending || ['Venta A-1047', 'Orden A-1049'],
       toasts: [],
-      order: sv.order || this.blank(),
+      order: restoredOrder,
       open: sv.open || D.seedOrders.map(o => ({ ...o })),
       kitchenTickets: Array.isArray(sv.kitchenTickets) ? sv.kitchenTickets : (sv.open || D.seedOrders.map(o => ({ ...o }))),
       sales: sv.sales || D.sales.map(s => ({ ...s })),
@@ -73,6 +137,7 @@ export default class PosApp extends React.Component {
   }
   blank() { return { folio: null, type: 'local', mesa: '', name: '', items: [], discount: 0, discountReason: '' }; }
   componentDidMount() {
+    this.reportPwaUpdateSafety();
     this._t = setTimeout(() => this.setState({ loading: false }), 650);
     this._sl = e => {
       if (e.key === 'karma-pos-v1' && e.newValue) {
@@ -86,6 +151,20 @@ export default class PosApp extends React.Component {
       }
     };
     window.addEventListener('storage', this._sl);
+  }
+  componentDidUpdate() { this.reportPwaUpdateSafety(); }
+  reportPwaUpdateSafety() {
+    const report = this.props.onUpdateSafetyChange;
+    if (typeof report !== 'function') return;
+    const s = this.state;
+    if (s.loading) return report({ status: 'unknown', reason: 'La estación todavía está cargando.' });
+    if (s.module === 'checkout' && s.ck) return report({ status: 'blocked', reason: 'Hay un cobro abierto. Termina el cobro o vuelve a la orden antes de actualizar.' });
+    if (s.dlg || s.ed) return report({ status: 'blocked', reason: 'Hay un diálogo o edición abierta. Ciérrala y revisa los cambios antes de actualizar.' });
+    if (s.admSel || s.admForm || s.selUser || s.suForm || s.repSel || s.pin) return report({ status: 'blocked', reason: 'Hay una edición, detalle o captura abierta. Ciérrala y revisa los cambios antes de actualizar.' });
+    const order = s.order || this.blank();
+    const dirty = !!(order.folio || order.items?.length || order.name?.trim() || order.mesa?.trim() || order.discount || order.type !== 'local');
+    if (dirty) return report({ status: 'blocked', reason: 'Hay una orden en captura. Guárdala como cuenta abierta o termina la venta; deja la estación limpia y revisada para actualizar.' });
+    return report({ status: 'safe', reason: '' });
   }
   componentWillUnmount() { clearTimeout(this._t); window.removeEventListener('storage', this._sl); }
   persist() {
@@ -198,18 +277,33 @@ export default class PosApp extends React.Component {
   startCheckout(folio, lines, discount, type, fromStation) {
     if (!this.needCapturedPrices(lines)) return;
     const sourceSnapshot = this.checkoutSourceSnapshot({ folio, fromStation }, this.state);
-    const sub = lines.reduce((a, l) => a + (l.unit != null ? l.unit : this.lineUnit(l)) * l.qty, 0);
-    const disc = Math.min(discount || 0, sub);
-    const base = sub - disc;
+    let subCents;
+    let discCents;
+    try {
+      subCents = lines.reduce((sum, line) => {
+        if (!Number.isSafeInteger(line.qty) || line.qty < 1) throw new RangeError('quantity must be a positive safe integer');
+        const lineCents = moneyToCents(line.unit != null ? line.unit : this.lineUnit(line)) * line.qty;
+        const next = sum + lineCents;
+        if (!Number.isSafeInteger(next)) throw new RangeError('order total exceeds safe centavos');
+        return next;
+      }, 0);
+      discCents = Math.min(moneyToCents(discount || 0), subCents);
+    } catch (error) {
+      this.toast('No se puede abrir el cobro: revisa productos, cantidades, precios y descuento de la orden.', 'warn');
+      return;
+    }
+    const baseCents = subCents - discCents;
     const tipSel = String(this.props.propinaInicial ?? '0');
-    const tipAmt = base * (parseInt(tipSel, 10) || 0) / 100;
+    const tipCents = Math.round(baseCents * (parseInt(tipSel, 10) || 0) / 100);
+    const totalCents = baseCents + tipCents;
     this.up({
       module: 'checkout',
       ck: {
         folio, fromStation, sourceSnapshot, type, step: 'review', ok: null, error: '', change: 0,
         lines: lines.map(l => ({ name: l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, modsText: l.modsText != null ? l.modsText : this.modsText(l), unit: l.unit != null ? l.unit : this.lineUnit(l) })),
-        sub, disc, tipSel, tipCustom: '',
-        pays: [{ id: 1, method: 'efectivo', amount: (base + tipAmt).toFixed(2) }]
+        subCents, discCents, tipSel, tipCustom: '',
+        sub: centsToMoney(subCents), disc: centsToMoney(discCents),
+        pays: [{ id: 1, method: 'efectivo', amount: centsToMoney(totalCents).toFixed(2) }]
       }
     });
   }
@@ -219,16 +313,34 @@ export default class PosApp extends React.Component {
     return JSON.stringify({ kind: 'new', record: null });
   }
   ckMath(ck) {
-    const base = ck.sub - ck.disc;
-    const tip = ck.tipSel === 'otro' ? (parseFloat(ck.tipCustom) || 0) : base * (parseInt(ck.tipSel, 10) || 0) / 100;
-    const total = base + tip;
-    const paid = ck.pays.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-    const remaining = Math.max(0, total - paid);
-    const over = paid - total;
-    const hasCash = ck.pays.some(p => p.method === 'efectivo' && (parseFloat(p.amount) || 0) > 0);
-    const change = over > 0.001 && hasCash ? over : 0;
-    const valid = paid >= total - 0.001 && total > 0 && (over <= 0.001 || hasCash);
-    return { base, tip, total, paid, remaining, over, hasCash, change, valid };
+    let subCents; let discCents; let baseCents; let tipCents; let totalCents;
+    try {
+      subCents = ck.subCents ?? moneyToCents(ck.sub);
+      discCents = ck.discCents ?? moneyToCents(ck.disc);
+      if (discCents > subCents) throw new RangeError('discount exceeds subtotal');
+      baseCents = subCents - discCents;
+      tipCents = ck.tipSel === 'otro'
+        ? moneyToCents(ck.tipCustom || '0')
+        : Math.round(baseCents * (parseInt(ck.tipSel, 10) || 0) / 100);
+      totalCents = baseCents + tipCents;
+      if (!Number.isSafeInteger(totalCents)) throw new RangeError('order total exceeds safe centavos');
+    } catch (error) {
+      return { valid: false, error: 'Revisa los importes: usa cantidades MXN no negativas con máximo dos decimales.', base: 0, tip: 0, total: 0, paid: 0, remaining: 0, over: 0, change: 0, hasCash: false, payments: [] };
+    }
+    const tender = calculateTender(totalCents, ck.pays, { tipCents });
+    const tenderedCents = tender.tenderedCents || 0;
+    const changeCents = tender.changeCents || 0;
+    const hasCash = ck.pays.some(p => {
+      if (p.method !== 'efectivo') return false;
+      try { return moneyToCents(p.amount) > 0; } catch { return false; }
+    });
+    return {
+      ...tender,
+      baseCents, tipCents, totalCents, tenderedCents, changeCents, hasCash,
+      base: centsToMoney(baseCents), tip: centsToMoney(tipCents), total: centsToMoney(totalCents),
+      paid: centsToMoney(tenderedCents), remaining: centsToMoney(tender.remainingCents || 0),
+      over: centsToMoney(changeCents), change: centsToMoney(changeCents), valid: tender.valid,
+    };
   }
   setCk(patch) { this.setState(s => ({ ck: { ...s.ck, ...patch } })); }
   register() {
@@ -242,11 +354,6 @@ export default class PosApp extends React.Component {
     setTimeout(() => {
       const st = this.state;
       if (st.ck?.folio !== folio || st.ck?.step !== 'processing') return;
-      const usesCard = ck.pays.some(p => p.method === 'tarjeta' && (parseFloat(p.amount) || 0) > 0);
-      if (!this.state.online && usesCard) {
-        this.setCk({ step: 'result', ok: false, error: 'La terminal bancaria no responde sin conexión. Reintenta cuando vuelva la señal, o cambia a efectivo o transferencia.' });
-        return;
-      }
       if (st.sales.some(sale => sale.folio === folio && sale.status === 'completada')) return;
       let persisted = {};
       try { persisted = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
@@ -259,9 +366,30 @@ export default class PosApp extends React.Component {
       const sale = {
         folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: this.user().name, cobro: this.user().name,
         tipo: ck.type, items: ck.lines.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })),
-        payments: ck.pays.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => ({ method: ml[p.method], amount: parseFloat(p.amount) })),
-        tip: m.tip, total: m.total, status: 'completada', sync: st.online ? 'sincronizada' : 'pendiente',
-        audit: [[this.now(), 'Orden creada', this.user().name], [this.now(), 'Pago registrado (' + ck.pays.filter(p => parseFloat(p.amount) > 0).map(p => ml[p.method]).join(' + ') + ')', this.user().name]]
+        payments: m.payments.filter(p => p.netAmountCents > 0).map(p => ({
+          paymentId: `${folio}:payment:${p.id}`,
+          method: p.method,
+          methodLabel: ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method],
+          netAmountCents: p.netAmountCents, amountCents: p.netAmountCents,
+          amount: centsToMoney(p.netAmountCents), tipCents: p.tipCents,
+          recordMode: 'manual',
+          verificationStatus: p.method === 'cash' ? 'not_applicable' : 'manual_unverified',
+          ...(p.method === 'cash' ? { cashReceivedCents: p.tenderedCents, changeCents: p.changeCents } : {}),
+        })),
+        tenders: m.payments.filter(p => p.tenderedCents > 0).map(p => ({
+          tenderId: `${folio}:tender:${p.id}`,
+          method: p.method,
+          methodLabel: ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method],
+          tenderedCents: p.tenderedCents,
+          netAmountCents: p.netAmountCents,
+          changeCents: p.changeCents,
+          tipCents: p.tipCents,
+        })),
+        tip: centsToMoney(m.tipCents), tipCents: m.tipCents, total: centsToMoney(m.totalCents), totalCents: m.totalCents,
+        currency: 'MXN', status: 'completada', sync: st.online ? 'sincronizada' : 'pendiente',
+        paymentRecordMode: 'manual',
+        externalPaymentVerification: m.payments.some(p => p.netAmountCents > 0 && p.method !== 'cash') ? 'manual_unverified' : 'not_applicable',
+        audit: [[this.now(), 'Orden creada', this.user().name], [this.now(), 'Pago neto registrado (' + m.payments.filter(p => p.netAmountCents > 0).map(p => ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method]).join(' + ') + ')', this.user().name]]
       };
       this.up({
         sales: [sale, ...st.sales],
@@ -599,26 +727,45 @@ export default class PosApp extends React.Component {
         if (nk.pays.length === 1) { const m2 = this.ckMath({ ...nk, pays: [{ ...nk.pays[0], amount: '0' }] }); nk.pays = [{ ...nk.pays[0], amount: m2.total.toFixed(2) }]; }
         this.setState({ ck: nk });
       };
-      V.tipBtns = [['0', 'Sin propina'], ['5', '5%'], ['10', '10%'], ['15', '15%'], ['otro', 'Otra']].map(([id, label]) => ({ label, active: ck.tipSel === id, pick: () => retune({ tipSel: id }) }));
+      V.tipBtns = [['0', 'Sin propina'], ['5', '5%'], ['10', '10%'], ['15', '15%'], ['20', '20%'], ['otro', 'Otra']].map(([id, label]) => ({ label, active: ck.tipSel === id, pick: () => retune({ tipSel: id }) }));
       V.showTipCustom = ck.tipSel === 'otro' && (s.flags.propCustom !== false);
       V.tipCustom = ck.tipCustom; V.setTipCustom = e => retune({ tipCustom: e.target.value });
+      V.tipEquivalent = V.showTipCustom && m.baseCents > 0
+        ? `Equivale a ${(m.tipCents / m.baseCents * 100).toFixed(2)}% del subtotal después del descuento.`
+        : '';
       const methodList = [['efectivo', 'Efectivo', s.flags.fpEfectivo], ['tarjeta', 'Tarjeta', s.flags.fpTarjeta], ['transferencia', 'Transferencia', s.flags.fpTransfer]].filter(x => x[2] !== false);
       V.pays = ck.pays.map(p => ({
         amount: p.amount,
         methods: methodList.map(([id, label]) => ({ label, active: p.method === id, pick: () => this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, method: id } : x) }) })),
         amountLabel: 'Monto con ' + (methodList.find(([id]) => id === p.method)?.[1] || 'método de pago'),
         setAmount: e => this.setCk({ pays: this.state.ck.pays.map(x => x.id === p.id ? { ...x, amount: e.target.value } : x) }),
-        fillRest: () => { const cur = parseFloat(p.amount) || 0; const m2 = this.ckMath(ck); this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, amount: (cur + m2.remaining).toFixed(2) } : x) }); },
+        fillRest: () => {
+          const m2 = this.ckMath(ck);
+          let otherTenderCents = 0;
+          for (const entry of ck.pays.filter(x => x.id !== p.id)) {
+            try { otherTenderCents += moneyToCents(entry.amount); } catch { /* Blank/invalid rows remain flagged until edited. */ }
+          }
+          const amountCents = Math.max(0, (m2.totalCents || 0) - otherTenderCents);
+          this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, amount: centsToMoney(amountCents).toFixed(2) } : x) });
+        },
         canRemove: ck.pays.length > 1,
         remove: () => this.setCk({ pays: ck.pays.filter(x => x.id !== p.id) })
       }));
       V.addPay = () => this.setCk({ pays: [...ck.pays, { id: Date.now(), method: 'tarjeta', amount: m.remaining.toFixed(2) }] });
       V.paid = this.fmt(m.paid); V.remaining = this.fmt(m.remaining);
       V.hasChange = m.change > 0; V.change = this.fmt(m.change);
-      V.hasPayMsg = !m.valid && m.paid > 0;
-      V.payMsg = m.over > 0.001 && !m.hasCash ? 'El monto capturado excede el total y no hay efectivo para dar cambio.' : 'El monto cubierto aún no coincide con el total de la orden.';
+      V.hasPayMsg = !m.valid;
+      V.payMsg = m.error || (m.over > 0 && !m.hasCash ? 'El monto capturado excede el total y no hay efectivo para dar cambio.' : 'El monto cubierto aún no coincide con el total de la orden.');
       V.payValid = m.valid;
-      V.confirmPays = ck.pays.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => ({ method: ({ efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' })[p.method], amount: this.fmt(parseFloat(p.amount)) }));
+      V.confirmPays = (m.payments || []).filter(p => p.tenderedCents > 0).map(p => ({
+        method: ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' })[p.method],
+        amount: this.fmt(centsToMoney(p.netAmountCents)),
+        hasCashChange: p.method === 'cash' && p.changeCents > 0,
+        tendered: this.fmt(centsToMoney(p.tenderedCents)),
+        change: this.fmt(centsToMoney(p.changeCents)),
+      }));
+      V.hasManualExternalPayment = (m.payments || []).some(p => p.netAmountCents > 0 && p.method !== 'cash');
+      V.manualExternalPaymentNote = 'Tarjeta y transferencia se registran manualmente; su autorización externa no está verificada.';
       V.ckNext = () => { if (ck.step === 'review') this.setCk({ step: 'pay' }); else if (ck.step === 'pay' && m.valid) this.setCk({ step: 'confirm' }); };
       V.ckBack = () => this.setCk({ step: ck.step === 'confirm' ? 'pay' : 'review' });
       V.ckExit = () => this.up({ ck: null, module: ck.fromStation ? 'pos' : 'ordenes' });
@@ -630,7 +777,7 @@ export default class PosApp extends React.Component {
       V.ckPrint = () => this.toast('Ticket enviado a la impresora de caja');
       V.ckNew = () => this.up({ ck: null, module: 'pos' });
     } else {
-      Object.assign(V, { ckFolio: '', ckTypeLabel: '', ckSteps: [], ckLines: [], ckItemCount: 0, ckSubtotal: '', ckHasDiscount: false, ckDiscount: '', ckTip: '', ckTotal: '', ckReview: false, ckPay: false, ckConfirm: false, ckProcessing: false, ckResult: false, ckOk: false, ckFail: false, ckError: '', tipBtns: [], showTipCustom: false, tipCustom: '', setTipCustom: () => {}, pays: [], addPay: () => {}, paid: '', remaining: '', hasChange: false, change: '', hasPayMsg: false, payMsg: '', payValid: false, confirmPays: [], ckNext: () => {}, ckBack: () => {}, ckExit: () => {}, ckRegister: () => {}, ckRetry: () => {}, ckChangeMethod: () => {}, hasResultChange: false, resultChange: '', resultSyncNote: '', ckPrint: () => {}, ckNew: () => {} });
+      Object.assign(V, { ckFolio: '', ckTypeLabel: '', ckSteps: [], ckLines: [], ckItemCount: 0, ckSubtotal: '', ckHasDiscount: false, ckDiscount: '', ckTip: '', ckTotal: '', ckReview: false, ckPay: false, ckConfirm: false, ckProcessing: false, ckResult: false, ckOk: false, ckFail: false, ckError: '', tipBtns: [], showTipCustom: false, tipCustom: '', tipEquivalent: '', setTipCustom: () => {}, pays: [], addPay: () => {}, paid: '', remaining: '', hasChange: false, change: '', hasPayMsg: false, payMsg: '', payValid: false, confirmPays: [], hasManualExternalPayment: false, manualExternalPaymentNote: '', ckNext: () => {}, ckBack: () => {}, ckExit: () => {}, ckRegister: () => {}, ckRetry: () => {}, ckChangeMethod: () => {}, hasResultChange: false, resultChange: '', resultSyncNote: '', ckPrint: () => {}, ckNew: () => {} });
     }
 
     // ---- menu admin
@@ -709,9 +856,9 @@ export default class PosApp extends React.Component {
     V.repTickets = done.length;
     V.repProps = this.fmt(done.reduce((a, x) => a + x.tip, 0));
     V.repCanc = rs.length - done.length;
-    const mm = {}; done.forEach(x => x.payments.forEach(p => mm[p.method] = (mm[p.method] || 0) + p.amount));
-    const mmax = Math.max(1, ...Object.values(mm));
-    V.methods = Object.keys(mm).map(k => ({ label: k, amount: this.fmt(mm[k]), barStyle: { height: 5, borderRadius: 999, background: acc, width: (mm[k] / mmax * 100).toFixed(0) + '%' } }));
+    const mmCents = paymentMethodTotalsCents(done);
+    const mmax = Math.max(1, ...Object.values(mmCents));
+    V.methods = Object.keys(mmCents).map(k => ({ label: k, amount: this.fmt(centsToMoney(mmCents[k])), barStyle: { height: 5, borderRadius: 999, background: acc, width: (mmCents[k] / mmax * 100).toFixed(0) + '%' } }));
     const tp = {}; done.forEach(x => x.items.forEach(i => { tp[i.name] = tp[i.name] || { q: 0, a: 0 }; tp[i.name].q += i.qty; tp[i.name].a += i.total; }));
     V.topProds = Object.keys(tp).sort((a, b) => tp[b].a - tp[a].a).slice(0, 6).map(k => ({ name: k, qty: tp[k].q, amount: this.fmt(tp[k].a) }));
     const bu = {}; done.forEach(x => { bu[x.cobro] = bu[x.cobro] || { t: 0, a: 0 }; bu[x.cobro].t += 1; bu[x.cobro].a += x.total; });
@@ -726,11 +873,30 @@ export default class PosApp extends React.Component {
       V.dMeta = sel.fecha + ' · ' + sel.tipo + ' — creó ' + sel.creo + ' · cobró ' + sel.cobro + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'sincronizada');
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
       V.dItems = sel.items.map(i => ({ qty: i.qty, name: i.name, mods: i.mods, hasMods: !!i.mods, total: this.fmt(i.total) }));
-      V.dPays = sel.payments.map(p => ({ method: p.method, amount: this.fmt(p.amount) }));
+      const isExternalPayment = payment => {
+        const method = String(payment?.methodLabel || payment?.method || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        return ['card', 'tarjeta', 'transfer', 'transferencia'].includes(method);
+      };
+      const externalPayments = (Array.isArray(sel.payments) ? sel.payments : []).filter(isExternalPayment);
+      const externallyUnverified = sel.externalPaymentVerification === 'manual_unverified'
+        || externalPayments.some(payment => payment.verificationStatus === 'manual_unverified');
+      V.dPaymentVerificationMessage = externallyUnverified
+        ? 'Registro manual · autorización externa no verificada.'
+        : externalPayments.length > 0
+          ? 'Verificación externa sin dato registrado en este historial.'
+          : '';
+      const salePaymentRows = Array.isArray(sel.tenders) ? sel.tenders : sel.payments;
+      V.dPays = salePaymentRows.map(p => ({
+        method: p.methodLabel || ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', credit: 'Crédito' })[p.method] || p.method,
+        amount: this.fmt(centsToMoney(paymentNetCents(p) ?? 0)),
+        hasCashChange: Number.isSafeInteger(p.tenderedCents ?? p.cashReceivedCents) && Number.isSafeInteger(p.changeCents) && p.changeCents > 0,
+        tendered: Number.isSafeInteger(p.tenderedCents ?? p.cashReceivedCents) ? this.fmt(centsToMoney(p.tenderedCents ?? p.cashReceivedCents)) : '',
+        change: Number.isSafeInteger(p.changeCents) ? this.fmt(centsToMoney(p.changeCents)) : '',
+      }));
       V.dTip = this.fmt(sel.tip); V.dTotal = this.fmt(sel.total);
       V.dAudit = sel.audit.map(a => ({ t: a[0], e: a[1], u: a[2] }));
       V.closeDetail = () => this.setState({ repSel: null });
-    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
+    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPaymentVerificationMessage: '', dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
 
     // ---- users & config
     V.cfgTabs = [['usuarios', 'Usuarios'], ['config', 'Configuración']].map(([id, label]) => ({ label, active: s.cfgTab === id, pick: () => this.setState({ cfgTab: id }) }));
@@ -785,8 +951,8 @@ export default class PosApp extends React.Component {
     V.cfgCards = [
       { title: 'Datos del negocio', rows: [row('Nombre', 'Abboth'), row('Sucursal', 'Centro · única'), row('Moneda', 'MXN — pesos mexicanos'), row('Redes', '@Abboth.mx')], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Impresión', rows: [row('Tickets', 'EPSON TM-T20 · Caja'), row('Comandas', 'Estrella SP700 · Cocina'), { label: 'Imprimir comanda automáticamente', ...togg('autoprint') }], hasAction: false, action: () => {}, actionLabel: '' },
-      { title: 'Formas de pago', rows: [{ label: 'Efectivo', ...togg('fpEfectivo') }, { label: 'Tarjeta (terminal)', ...togg('fpTarjeta') }, { label: 'Transferencia', ...togg('fpTransfer') }], hasAction: false, action: () => {}, actionLabel: '' },
-      { title: 'Propinas', rows: [row('Sugerencias', '5% · 10% · 15%'), { label: 'Permitir propina personalizada', ...togg('propCustom') }], hasAction: false, action: () => {}, actionLabel: '' },
+      { title: 'Formas de pago', rows: [{ label: 'Efectivo', ...togg('fpEfectivo') }, { label: 'Tarjeta (registro manual)', ...togg('fpTarjeta') }, { label: 'Transferencia', ...togg('fpTransfer') }], hasAction: false, action: () => {}, actionLabel: '' },
+      { title: 'Propinas', rows: [row('Sugerencias', '5% · 10% · 15% · 20%'), { label: 'Permitir propina personalizada', ...togg('propCustom') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Reglas de cancelación', rows: [{ label: 'Requerir motivo', ...togg('cancelMotivo') }, { label: 'Autorización de encargado', ...togg('cancelAut') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Respaldo y recuperación', rows: [row('Último respaldo', 'Hoy · 03:00'), row('Copias locales', '7 días retenidos')], hasAction: true, actionLabel: 'Respaldar ahora', action: () => this.toast('Respaldo local creado — Hoy · ' + this.now()) },
       { title: 'Sincronización', rows: [row('Estado', s.online ? 'Conectado' : 'Sin conexión'), row('Operaciones pendientes', String(s.pending.length)), row('Último contacto', s.online ? 'Hace unos segundos' : 'Hoy · 12:26')], hasAction: true, actionLabel: 'Forzar sincronización', action: () => this.doSync() }
@@ -863,43 +1029,43 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.isApp) && (<>
-<div style={css("display:flex;height:var(--karma-viewport-height,100vh);overflow:hidden")}>
-<aside style={css("width:236px;flex:none;background:#faf9f5;border-right:1px solid #e2e0d6;display:flex;flex-direction:column;padding:20px 14px 16px;gap:4px;overflow-y:auto")}>
-<div style={css("padding:2px 10px 14px")}>
-<div style={css("font-family:Georgia,serif;font-style:italic;font-size:27px;line-height:1")}>Karma</div>
-<div style={css("margin-top:6px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Abboth · Centro</div>
-</div>
-<Button className="mx-1 mb-3 justify-start" onClick={V.goPos}>+ Nueva venta</Button>
-{(V.navItems).map((n, nI) => (<React.Fragment key={nI}>
-<Button variant="ghost" aria-current={n.active ? 'page' : undefined} aria-disabled={!n.allowed} className={`w-full justify-between text-left ${n.active ? 'bg-accent text-accent-foreground' : ''} ${!n.allowed ? 'opacity-50' : ''}`} onClick={n.go}><span>{n.label}</span>{(n.hasBadge) && (<Badge variant="pending" aria-label={`${n.badge} órdenes abiertas`}>{n.badge}</Badge>)}</Button>
-</React.Fragment>))}
-<div style={css("margin-top:auto;border-top:1px solid #e2e0d6;padding:14px 10px 0;display:flex;flex-direction:column;gap:12px")}>
-<div style={css("display:flex;align-items:center;gap:9px")}>
-<span style={V.connDotStyle}></span>
-<div style={css("flex:1;min-width:0")}><div style={css("font-size:13px;font-weight:500")}>{V.connLabel}</div><div style={css("font-size:11.5px;color:#6b6a63")}>{V.connSub}</div></div>
-</div>
-{(V.showSyncBtn) && (<>
-<Button variant="secondary" className="justify-start" onClick={V.syncNow}>Sincronizar ahora ({V.pendingCount})</Button>
-</>)}
-<Button variant="outline" className="justify-start text-left" onClick={V.toggleOnline}>{V.connToggleLabel}</Button>
-<a href={`${import.meta.env.BASE_URL}comanda.html`} style={css("font-size:12.5px;padding:0 2px")}>Ver comanda de cocina →</a>
-<div style={css("display:flex;align-items:center;gap:9px;border-top:1px solid #e2e0d6;padding-top:12px")}>
-<span style={css("width:32px;height:32px;border-radius:50%;background:#f6e5df;color:#836953;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex:none")}>{V.userInitials}</span>
-<div style={css("flex:1;min-width:0")}><div style={css("font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{V.userName}</div><div style={css("font-size:11.5px;color:#6b6a63")}>{V.userRoleLabel}</div></div>
-<Button variant="link" size="sm" className="h-11 px-1" onClick={V.switchUser}>Salir</Button>
-</div>
-</div>
-</aside>
+<SidebarProvider className="pos-shell" style={{ '--sidebar-width': '236px', '--sidebar-width-icon': '48px', '--sidebar-width-mobile': 'min(18rem, 88vw)' }}>
+<Sidebar collapsible="offcanvas" className="pos-sidebar">
+  <PosSidebarNavigation items={V.navItems} goPos={V.goPos} />
+  <SidebarFooter className="gap-3 border-t border-sidebar-border px-3 pb-3 pt-3">
+    <div className="flex min-w-0 items-center gap-2" aria-label={`Estado de conexión: ${V.connLabel}`}>
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={V.connDotStyle}></span>
+      <div className="min-w-0 flex-1"><div className="text-sm font-medium">{V.connLabel}</div><div className="truncate text-xs text-muted-foreground">{V.connSub}</div></div>
+      <Badge variant={V.offline ? 'pending' : 'success'}>{V.pendingCount}</Badge>
+    </div>
+    {V.showSyncBtn && <Button variant="secondary" className="min-h-11 justify-start" onClick={V.syncNow}>Sincronizar ahora ({V.pendingCount})</Button>}
+    <Button variant="outline" className="min-h-11 justify-start text-left" onClick={V.toggleOnline}>{V.connToggleLabel}</Button>
+    <a className="flex min-h-11 items-center px-1 text-sm" href={`${import.meta.env.BASE_URL}comanda.html`}>Ver comanda de cocina →</a>
+    <div className="flex min-w-0 items-center gap-2 border-t border-sidebar-border pt-3">
+      <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-medium text-accent-foreground">{V.userInitials}</span>
+      <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{V.userName}</div><div className="text-xs text-muted-foreground">{V.userRoleLabel}</div></div>
+      <Button variant="link" className="min-h-11 px-1" onClick={V.switchUser}>Salir</Button>
+    </div>
+  </SidebarFooter>
+</Sidebar>
 
-<main style={css("flex:1;overflow-y:auto;position:relative")}>
+<main className="pos-main">
+<header className="pos-mobile-bar">
+  <SidebarTrigger className="size-11" aria-label="Abrir menú de navegación" />
+  <div className="min-w-0 flex-1">
+    <div className="truncate text-sm font-medium">Karma · {V.navItems.find(item => item.active)?.label || 'Punto de venta'}</div>
+    <div className="truncate text-xs text-muted-foreground">{V.connLabel} · {V.pendingCount} pendientes</div>
+  </div>
+  <Button variant="ghost" className="min-h-11 shrink-0 px-2" onClick={V.switchUser} aria-label={`Salir de la estación de ${V.userName}`}>{V.userInitials} · Salir</Button>
+</header>
 {(V.offline) && (<>
-<div style={css("background:#f6e5df;color:#836953;font-size:12.5px;font-weight:500;padding:8px 24px;position:sticky;top:0;z-index:50")}>Sin conexión — puedes seguir vendiendo; las operaciones se guardan localmente y se sincronizarán al reconectar.</div>
+<div className="pos-offline-banner" style={css("background:#f6e5df;color:#836953;font-size:12.5px;font-weight:500;padding:8px 24px;position:sticky;top:0;z-index:40")}>Sin conexión — puedes seguir vendiendo; las operaciones se guardan localmente y se sincronizarán al reconectar.</div>
 </>)}
 
 {(V.mPos) && (<SalesStation V={V} />)}
 
 {(V.mOrders) && (<>
-<div style={css("padding:22px 24px 40px;display:flex;flex-direction:column;gap:16px")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 40px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:baseline;gap:12px")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Órdenes abiertas</h1>
 <span style={css("font-size:12.5px;color:#6b6a63")}>{V.ordersCount} cuentas pendientes</span>
@@ -907,7 +1073,7 @@ export default class PosApp extends React.Component {
 {(V.ordersEmpty) && (<>
 <div style={css("padding:60px 20px;text-align:center;color:#6b6a63;font-size:13.5px;border:1px dashed #e2e0d6;border-radius:12px")}>No hay cuentas abiertas.<br />Guarda una orden desde el punto de venta para verla aquí.</div>
 </>)}
-<div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px")}>
+<div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:12px")}>
 {(V.orders).map((o, oI) => (<React.Fragment key={oI}>
 <Card className="gap-3 p-4">
 <div style={css("display:flex;align-items:center;gap:8px")}>
@@ -940,7 +1106,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mCheckout) && (<>
-<div style={css("max-width:960px;margin:0 auto;padding:22px 24px 48px;display:flex;flex-direction:column;gap:18px")}>
+<div className="pos-module" style={css("max-width:960px;margin:0 auto;padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:18px")}>
 <div style={css("display:flex;align-items:center;gap:14px;flex-wrap:wrap")}>
 <Button type="button" variant="outline" onClick={V.ckExit}>← Volver</Button>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Cobro · {V.ckFolio}</h1>
@@ -980,9 +1146,10 @@ export default class PosApp extends React.Component {
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500;margin-bottom:8px")}>Propina</div>
 <div style={css("display:flex;gap:6px;flex-wrap:wrap;align-items:center")}>
 {(V.tipBtns).map((t, tI) => (<Button key={tI} type="button" size="sm" variant={t.active ? 'default' : 'outline'} aria-pressed={t.active} onClick={t.pick}>{t.label}</Button>))}
-{(V.showTipCustom) && (<div className="flex items-center gap-2"><Label className="sr-only" htmlFor="checkout-tip">Monto de propina en pesos</Label><Input id="checkout-tip" value={V.tipCustom} onChange={V.setTipCustom} placeholder="Monto MXN" inputMode="decimal" className="w-32" /></div>)}
+{(V.showTipCustom) && (<div className="flex flex-wrap items-center gap-2"><Label className="sr-only" htmlFor="checkout-tip">Monto de propina en pesos</Label><Input id="checkout-tip" value={V.tipCustom} onChange={V.setTipCustom} placeholder="Monto MXN" inputMode="decimal" className="w-32" />{V.tipEquivalent && <span className="text-xs text-muted-foreground" aria-live="polite">{V.tipEquivalent}</span>}</div>)}
 </div>
 </div>
+{(V.hasManualExternalPayment) && (<div role="status" className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{V.manualExternalPaymentNote}</div>)}
 <div style={css("display:flex;flex-direction:column;gap:10px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Pago</div>
 {(V.pays).map((p, pI) => (<React.Fragment key={pI}>
@@ -999,7 +1166,7 @@ export default class PosApp extends React.Component {
 <Button type="button" variant="link" className="self-start px-0" onClick={V.addPay}>+ Dividir en otro método</Button>
 </div>
 <div style={css("display:flex;gap:18px;font-size:13px;color:#6b6a63;flex-wrap:wrap")}>
-<span>Pagado <span style={css("color:#141413;font-weight:500")}>{V.paid}</span></span>
+<span>Recibido <span style={css("color:#141413;font-weight:500")}>{V.paid}</span></span>
 <span>Restante <span style={css("color:#141413;font-weight:500")}>{V.remaining}</span></span>
 {(V.hasChange) && (<><span>Cambio <span style={css("color:#836953;font-weight:500")}>{V.change}</span></span></>)}
 </div>
@@ -1013,12 +1180,14 @@ export default class PosApp extends React.Component {
 <div style={css("font-size:15px;font-weight:500")}>Confirmación final</div>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 {(V.confirmPays).map((cp, cpI) => (<React.Fragment key={cpI}>
-<div style={css("display:flex;justify-content:space-between;font-size:13.5px;border-bottom:1px solid #e2e0d6;padding:7px 0")}><span>{cp.method}</span><span style={css("font-weight:500")}>{cp.amount}</span></div>
+<div style={css("display:flex;justify-content:space-between;font-size:13.5px;border-bottom:1px solid #e2e0d6;padding:7px 0")}><span>{cp.method} · neto</span><span style={css("font-weight:500")}>{cp.amount}</span></div>
+{(cp.hasCashChange) && (<div style={css("display:flex;justify-content:space-between;font-size:12px;color:#6b6a63;margin-top:-5px")}><span>Recibido {cp.tendered} · cambio {cp.change}</span><span></span></div>)}
 </React.Fragment>))}
 <div style={css("display:flex;justify-content:space-between;font-size:13px;color:#6b6a63;padding:6px 0")}><span>Propina</span><span>{V.ckTip}</span></div>
 {(V.hasChange) && (<><div style={css("display:flex;justify-content:space-between;font-size:13px;color:#836953;padding:2px 0")}><span>Cambio a entregar</span><span>{V.change}</span></div></>)}
 </div>
 <div style={css("font-size:12.5px;color:#6b6a63")}>Al confirmar se registrará el pago y la cuenta se cerrará. Esta acción queda en el historial de auditoría.</div>
+{(V.hasManualExternalPayment) && (<div role="status" className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{V.manualExternalPaymentNote}</div>)}
 <div style={css("display:flex;gap:8px")}>
 <Button type="button" variant="outline" onClick={V.ckBack}>Atrás</Button>
 <Button type="button" size="lg" onClick={V.ckRegister}>Registrar pago {V.ckTotal}</Button>
@@ -1036,6 +1205,7 @@ export default class PosApp extends React.Component {
 <span style={css("width:52px;height:52px;border-radius:50%;background:#836953;color:#faf9f5;display:inline-flex;align-items:center;justify-content:center;font-size:24px")}>✓</span>
 <div style={css("font-size:17px;font-weight:500")}>Pago registrado</div>
 <div style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;line-height:1")}>{V.ckTotal}</div>
+{(V.hasManualExternalPayment) && (<div role="status" className="max-w-sm text-xs text-muted-foreground">{V.manualExternalPaymentNote}</div>)}
 {(V.hasResultChange) && (<><div style={css("font-size:13.5px;color:#836953")}>Entrega {V.resultChange} de cambio</div></>)}
 <div style={css("font-size:12.5px;color:#6b6a63")}>{V.resultSyncNote}</div>
 <div style={css("display:flex;gap:8px;margin-top:6px")}>
@@ -1062,7 +1232,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mMenu) && (<>
-<div style={css("padding:22px 24px 40px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 40px);display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap")}>
 <Card className="min-w-0 gap-2 p-3 sm:w-[230px] sm:shrink-0">
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500;padding:4px 10px 10px")}>Categorías</div>
 {(V.admCats).map((c, cI) => (<React.Fragment key={cI}>
@@ -1071,7 +1241,7 @@ export default class PosApp extends React.Component {
 <Button type="button" variant="link" className="justify-start px-3" onClick={V.admNewCat}>+ Nueva categoría</Button>
 </Card>
 <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:12px")}>
-<div style={css("display:flex;gap:10px")}>
+<div className="pos-menu-search" style={css("display:flex;gap:10px")}>
 <Label className="sr-only" htmlFor="menu-search">Buscar en el menú</Label>
 <Input id="menu-search" value={V.admSearch} onChange={V.setAdmSearch} placeholder="Buscar en el menú…" className="flex-1" />
 <Button type="button" onClick={V.admNew}>+ Nuevo producto</Button>
@@ -1134,7 +1304,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mInv) && (<>
-<div style={css("padding:22px 24px 40px;display:flex;flex-direction:column;gap:16px")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 40px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Inventario</h1>
 <div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
@@ -1152,7 +1322,8 @@ export default class PosApp extends React.Component {
 <Input id="inventory-search" value={V.invSearch} onChange={V.setInvSearch} placeholder="Buscar insumo o ingrediente…" className="max-w-[340px]" />
 <Button type="button" variant={V.lowToggleActive ? 'secondary' : 'outline'} aria-pressed={V.lowToggleActive} onClick={V.toggleLow}>Solo stock bajo</Button>
 </div>
-<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[650px]">
+<div className="text-xs text-muted-foreground lg:hidden">Desliza para ver existencias y estado →</div>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Existencias y estado del inventario', tabIndex: 0 }} className="min-w-[650px]">
 <TableHeader><TableRow><TableHead>Artículo</TableHead><TableHead>Tipo</TableHead><TableHead>Existencia</TableHead><TableHead>Mínimo</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
 <TableBody>
 {(V.stockEmpty) && (<TableRow><TableCell colSpan={5} className="h-20 text-center text-muted-foreground">Sin artículos que coincidan.</TableCell></TableRow>)}
@@ -1162,7 +1333,8 @@ export default class PosApp extends React.Component {
 </TableBody></Table></Card>
 </>)}
 {(V.tMov) && (<>
-<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[900px]">
+<div className="text-xs text-muted-foreground lg:hidden">Desliza para ver cantidad, usuario y motivo →</div>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Movimientos de inventario', tabIndex: 0 }} className="min-w-[900px]">
 <TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Artículo</TableHead><TableHead>Cantidad</TableHead><TableHead>Usuario</TableHead><TableHead>Fecha</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader>
 <TableBody>{(V.movs).map((m, mI) => (<TableRow key={mI}>
 <TableCell><Badge variant={m.tagVariant}>{m.tipoLabel}</Badge></TableCell><TableCell className="font-medium">{m.item}</TableCell><TableCell>{m.qty}</TableCell><TableCell className="text-muted-foreground">{m.user}</TableCell><TableCell className="text-muted-foreground">{m.date}</TableCell><TableCell className="text-muted-foreground">{m.motivo}</TableCell>
@@ -1185,7 +1357,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mRep) && (<>
-<div style={css("padding:22px 24px 48px;display:flex;flex-direction:column;gap:16px")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Reportes</h1>
 <div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
@@ -1222,7 +1394,8 @@ export default class PosApp extends React.Component {
 </React.Fragment>))}
 </Card>
 </div>
-<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[1000px]">
+<div className="text-xs text-muted-foreground lg:hidden">Desliza para ver total, estado y sincronización →</div>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Ventas del reporte', tabIndex: 0 }} className="min-w-[1000px]">
 <TableHeader><TableRow><TableHead>Folio</TableHead><TableHead>Fecha</TableHead><TableHead>Tipo</TableHead><TableHead>Usuario</TableHead><TableHead>Total</TableHead><TableHead>Estado</TableHead><TableHead>Sincronización</TableHead></TableRow></TableHeader>
 <TableBody>{(V.repSales).map((s, sI) => (<TableRow key={sI}>
 <TableCell><Button type="button" variant="link" size="sm" className="h-11 justify-start px-0" aria-label={`Abrir detalle de venta ${s.folio}`} onClick={s.open}>{s.folio}</Button></TableCell><TableCell className="text-muted-foreground">{s.fecha}</TableCell><TableCell>{s.tipo}</TableCell><TableCell className="text-muted-foreground">{s.user}</TableCell><TableCell className="font-medium">{s.total}</TableCell><TableCell><Badge variant={s.statusVariant}>{s.statusLabel}</Badge></TableCell><TableCell><Badge variant={s.syncVariant}>{s.syncLabel}</Badge></TableCell>
@@ -1231,7 +1404,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mCfg) && (<>
-<div style={css("padding:22px 24px 48px;display:flex;flex-direction:column;gap:16px")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Usuarios y configuración</h1>
 <div style={css("display:flex;gap:6px;margin-left:8px")}>
@@ -1306,7 +1479,7 @@ export default class PosApp extends React.Component {
 </div>
 </>)}
 </main>
-</div>
+</SidebarProvider>
 
 <Dialog open={V.ed} onOpenChange={open => { if (!open) V.edCancel(); }}>
 {(V.ed) && (<DialogContent
@@ -1370,6 +1543,7 @@ export default class PosApp extends React.Component {
 <DialogDescription className="leading-relaxed">{V.dMeta}</DialogDescription>
 </DialogHeader>
 {(V.dHasMotivo) && (<><div style={css("font-size:12.5px;color:#836953;background:#f6e5df;border-radius:8px;padding:8px 12px")}>Motivo: {V.dMotivo}</div></>)}
+{(V.dPaymentVerificationMessage) && (<div role="status" className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{V.dPaymentVerificationMessage}</div>)}
 <div style={css("display:flex;flex-direction:column")}>
 {(V.dItems).map((i, iI) => (<React.Fragment key={iI}>
 <div style={css("display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #e2e0d6;font-size:13px")}>
@@ -1381,7 +1555,8 @@ export default class PosApp extends React.Component {
 </div>
 <div style={css("display:flex;flex-direction:column;gap:4px")}>
 {(V.dPays).map((p, pI) => (<React.Fragment key={pI}>
-<div style={css("display:flex;justify-content:space-between;font-size:13px")}><span style={css("color:#6b6a63")}>{p.method}</span><span>{p.amount}</span></div>
+<div style={css("display:flex;justify-content:space-between;font-size:13px")}><span style={css("color:#6b6a63")}>{p.method} · neto</span><span>{p.amount}</span></div>
+{(p.hasCashChange) && (<div style={css("display:flex;justify-content:space-between;font-size:12px;color:#6b6a63")}><span>Recibido {p.tendered} · cambio {p.change}</span><span></span></div>)}
 </React.Fragment>))}
 <div style={css("display:flex;justify-content:space-between;font-size:13px")}><span style={css("color:#6b6a63")}>Propina</span><span>{V.dTip}</span></div>
 <div style={css("display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #e2e0d6;padding-top:8px;margin-top:4px")}><span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Total</span><span style={css("font-family:Georgia,serif;font-style:italic;font-size:26px")}>{V.dTotal}</span></div>

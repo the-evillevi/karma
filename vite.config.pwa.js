@@ -6,6 +6,11 @@ import baseConfig from "./vite.config.js";
 // This production-only config adds a precached shell without changing dev mode.
 export default mergeConfig(baseConfig, {
   base: process.env.KARMA_BASE_PATH || "/",
+  define: {
+    "import.meta.env.KARMA_PWA_ENABLED": "true",
+    "import.meta.env.KARMA_DEMO_PREVIEW":
+      process.env.KARMA_PREVIEW_BUILD === "1" ? "true" : "false",
+  },
   plugins: [
     {
       name: "karma-demo-preview-notice",
@@ -14,7 +19,7 @@ export default mergeConfig(baseConfig, {
         return html.replace(
           /(<body[^>]*>)/,
           `$1
-          <style>:root{--karma-viewport-height:calc(100vh - 40px)}.karma-preview-notice{height:40px;position:sticky;top:0;z-index:40;background:#836953;color:#faf9f5;display:flex;align-items:center;justify-content:center;padding:0 8px;font:500 12px/1.2 Arial,sans-serif}</style>
+          <style>:root{--karma-app-offset:40px;--karma-viewport-height:calc(100vh - 40px)}.karma-preview-notice{height:40px;position:sticky;top:0;z-index:40;background:#836953;color:#faf9f5;display:flex;align-items:center;justify-content:center;padding:0 8px;font:500 12px/1.2 Arial,sans-serif}</style>
           <aside class="karma-preview-notice" aria-label="Entorno de demostración">Demo · Datos de prueba · Sin cobros reales</aside>`,
         );
       },
@@ -22,7 +27,8 @@ export default mergeConfig(baseConfig, {
     VitePWA({
       // Keep an update waiting for an explicit, safe reload by the operator.
       registerType: "prompt",
-      injectRegister: "auto",
+      // Register manually so activation can wait for the app's current order state.
+      injectRegister: false,
       manifest: {
         name: "Karma POS",
         short_name: "Karma POS",
