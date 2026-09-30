@@ -6,7 +6,11 @@ import baseConfig from "./vite.config.js";
 // This production-only config adds a precached shell without changing dev mode.
 export default mergeConfig(baseConfig, {
   base: process.env.KARMA_BASE_PATH || "/",
-  define: { "import.meta.env.KARMA_PWA_ENABLED": "true" },
+  define: {
+    "import.meta.env.KARMA_PWA_ENABLED": "true",
+    "import.meta.env.KARMA_DEMO_PREVIEW":
+      process.env.KARMA_PREVIEW_BUILD === "1" ? "true" : "false",
+  },
   plugins: [
     {
       name: "karma-demo-preview-notice",

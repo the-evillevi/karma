@@ -117,6 +117,8 @@ export interface SyncOptions extends SyncHooks {
    * RPC boundary; omitting it is retained only for the isolated EVL-114 proof.
    */
   sessionId?: string;
+  /** Auth identity freshly bound to that session; other actors remain queued. */
+  actorId?: string;
 }
 
 export type SyncOutcome =
@@ -172,6 +174,7 @@ export async function syncPendingCommandBatches(
     afterRemoteInsert,
     shouldInterruptAfterRemoteInsert,
     sessionId,
+    actorId,
   }: SyncOptions = {},
 ): Promise<SyncOutcome[]> {
   const [batches, receiptDocs, blockDocs] = await Promise.all([
@@ -187,6 +190,14 @@ export async function syncPendingCommandBatches(
   for (const batchDoc of batches) {
     const batch = batchDoc.toJSON();
     if (receipts.has(batch.commandId)) continue;
+    if (sessionId && actorId !== batch.actorId) {
+      outcomes.push({
+        commandId: batch.commandId,
+        state: "pending",
+        code: "ACTOR_REAUTH_REQUIRED",
+      });
+      continue;
+    }
     if (blocks.has(batch.commandId)) {
       outcomes.push({
         commandId: batch.commandId,

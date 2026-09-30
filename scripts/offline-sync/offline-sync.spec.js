@@ -36,10 +36,22 @@ test.beforeEach(() =>
 async function signIn(page) {
   await page.goto(`?db=evl114-${randomUUID()}`);
   await page.getByLabel("Correo").fill(env.SUPABASE_CASHIER_EMAIL);
-  await page
-    .getByLabel("Contraseña local de prueba")
-    .fill(env.SUPABASE_CASHIER_PASSWORD);
+  await page.getByLabel(/Contraseña/).fill(env.SUPABASE_CASHIER_PASSWORD);
   await page.getByRole("button", { name: "Iniciar sesión" }).click();
+  const enrollPin = page.getByRole("button", {
+    name: "Guardar PIN y abrir estación",
+  });
+  if (await enrollPin.count()) {
+    await page.getByLabel("Crear PIN offline").fill("246810");
+    await page.getByLabel("Confirmar PIN offline").fill("246810");
+    await enrollPin.click();
+  } else {
+    const unlockPin = page.getByRole("button", { name: "Desbloquear con PIN" });
+    if (await unlockPin.count()) {
+      await page.getByLabel("PIN offline").fill("246810");
+      await unlockPin.click();
+    }
+  }
   await expect(
     page.getByRole("button", { name: "Crear venta capturada" }),
   ).toBeEnabled();
@@ -55,6 +67,7 @@ async function insertBatch(
     payload = {},
     eventSchemaVersion = 1,
     eventActorId = userId,
+    includeType = true,
     commandId = `test-${randomUUID()}`,
     aggregateId = `test-order-${randomUUID()}`,
     occurredAt = new Date().toISOString(),
@@ -64,13 +77,34 @@ async function insertBatch(
     eventId: `${commandId}:0`,
     commandId,
     aggregateId,
-    type,
+    ...(includeType ? { type } : {}),
     schemaVersion: eventSchemaVersion,
     actorId: eventActorId,
     deviceId,
     occurredAt,
     payload,
   };
+  if (env.SUPABASE_V118_TESTS_ENABLED === "1") {
+    const bound = await client.rpc("bind_register_session", {
+      p_branch_id: env.SUPABASE_BRANCH_ID,
+      p_device_id: deviceId,
+    });
+    if (bound.error) return { data: null, error: bound.error };
+    const session = Array.isArray(bound.data) ? bound.data[0] : bound.data;
+    const result = await client.rpc("append_command_batch", {
+      p_command_id: commandId,
+      p_branch_id: env.SUPABASE_BRANCH_ID,
+      p_aggregate_id: aggregateId,
+      p_device_id: deviceId,
+      p_session_id: session.session_id,
+      p_lease_id: session.lease_id,
+      p_schema_version: 1,
+      p_occurred_at: occurredAt,
+      p_events: [event],
+    });
+    const row = Array.isArray(result.data) ? result.data[0] : result.data;
+    return { data: row, error: result.error };
+  }
   return client
     .from("command_batches")
     .insert({

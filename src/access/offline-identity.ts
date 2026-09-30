@@ -33,7 +33,7 @@ export type OfflineUnlockResult =
   | {
       ok: false;
       grant: OfflineIdentityGrant;
-      reason: "invalid-pin" | "locked";
+      reason: "invalid-pin" | "locked" | "expired";
       retryAt?: number;
     };
 
@@ -66,7 +66,13 @@ export function parseVerifiedAccessContext(
     context.capability !== "preparation"
   )
     throw new TypeError("The access service returned an unsupported device.");
-  if (!Number.isFinite(Date.parse(context.expiresAt as string)))
+  const verifiedAt = Date.parse(context.verifiedAt as string);
+  const expiresAt = Date.parse(context.expiresAt as string);
+  if (
+    !Number.isFinite(verifiedAt) ||
+    !Number.isFinite(expiresAt) ||
+    expiresAt <= verifiedAt
+  )
     throw new TypeError("The device authorization has an invalid expiry.");
   return context as unknown as VerifiedAccessContext;
 }
@@ -92,11 +98,14 @@ export async function createOfflineIdentityGrant(
 }
 
 export async function unlockOfflineIdentity(
-  grant: OfflineIdentityGrant,
+  untrustedGrant: OfflineIdentityGrant,
   pin: string,
   now = Date.now(),
   cryptoApi: Crypto = globalThis.crypto,
 ): Promise<OfflineUnlockResult> {
+  const grant = parseOfflineIdentityGrant(untrustedGrant);
+  if (now >= Date.parse(grant.expiresAt))
+    return { ok: false, grant, reason: "expired" };
   if (grant.lockedUntil !== null && now < grant.lockedUntil)
     return {
       ok: false,
@@ -123,6 +132,80 @@ export async function unlockOfflineIdentity(
       lockedUntil: null,
     },
   };
+}
+
+export function parseOfflineIdentityGrant(
+  value: unknown,
+): OfflineIdentityGrant {
+  if (!value || typeof value !== "object")
+    throw new TypeError("Saved offline access data is invalid.");
+  const grant = value as Record<string, unknown>;
+  const context = parseVerifiedAccessContext(grant);
+  if (
+    typeof grant.salt !== "string" ||
+    !/^[A-Za-z0-9+/]{22}==$/.test(grant.salt) ||
+    typeof grant.pinVerifier !== "string" ||
+    !/^[A-Za-z0-9+/]{43}=$/.test(grant.pinVerifier) ||
+    !Number.isSafeInteger(grant.pinIterations) ||
+    (grant.pinIterations as number) < 100_000 ||
+    (grant.pinIterations as number) > 500_000 ||
+    !Number.isSafeInteger(grant.failedPinAttempts) ||
+    (grant.failedPinAttempts as number) < 0 ||
+    (grant.failedPinAttempts as number) >= MAX_PIN_FAILURES ||
+    !Number.isSafeInteger(grant.lockoutCount) ||
+    (grant.lockoutCount as number) < 0 ||
+    (grant.lockoutCount as number) > 16 ||
+    (grant.lockedUntil !== null &&
+      (typeof grant.lockedUntil !== "number" ||
+        !Number.isFinite(grant.lockedUntil) ||
+        grant.lockedUntil < 0))
+  ) {
+    throw new TypeError("Saved offline access data is invalid.");
+  }
+  return {
+    ...context,
+    salt: grant.salt,
+    pinVerifier: grant.pinVerifier,
+    pinIterations: grant.pinIterations as number,
+    failedPinAttempts: grant.failedPinAttempts as number,
+    lockoutCount: grant.lockoutCount as number,
+    lockedUntil: grant.lockedUntil as number | null,
+  };
+}
+
+export function assertOfflineGrantAllowsCapture(
+  grant: OfflineIdentityGrant,
+  {
+    actorId,
+    branchId,
+    deviceId,
+    now = Date.now(),
+  }: {
+    actorId: string;
+    branchId: string;
+    deviceId: string;
+    now?: number;
+  },
+): void {
+  const verified = parseOfflineIdentityGrant(grant);
+  if (
+    verified.userId !== actorId ||
+    verified.branchId !== branchId ||
+    verified.deviceId !== deviceId
+  ) {
+    throw Object.assign(
+      new Error("Esta identidad no puede capturar en este dispositivo."),
+      { code: "OFFLINE_IDENTITY_MISMATCH" },
+    );
+  }
+  if (now >= Date.parse(verified.expiresAt)) {
+    throw Object.assign(
+      new Error(
+        "La autorización almacenada venció. Reconecta y vuelve a verificar el acceso.",
+      ),
+      { code: "OFFLINE_AUTHORIZATION_EXPIRED" },
+    );
+  }
 }
 
 function recordPinFailure(

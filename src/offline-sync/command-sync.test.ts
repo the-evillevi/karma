@@ -75,8 +75,15 @@ test("secure sync uses the actor-bound RPC and keeps session rebinding out of th
     leaseId: "lease-test",
     commandId: "command-secure",
   });
-  const database = await syncDatabase([batch]);
-  const retryDatabase = await syncDatabase([batch]);
+  const anotherActorBatch = createDemoOrderBatch({
+    branchId: "branch-test",
+    actorId: "actor-offline-identity",
+    deviceId: "device-test",
+    leaseId: "lease-test",
+    commandId: "command-offline-identity",
+  });
+  const database = await syncDatabase([batch, anotherActorBatch]);
+  const retryDatabase = await syncDatabase([batch, anotherActorBatch]);
   const calls: Array<{ sessionId: string; args: Record<string, unknown> }> = [];
   const accepted = new Map<string, string>();
   const client = {
@@ -94,9 +101,11 @@ test("secure sync uses the actor-bound RPC and keeps session rebinding out of th
 
   const first = await syncPendingCommandBatches(database, client, {
     sessionId: "session-before-rebind",
+    actorId: "actor-test",
   });
   const retry = await syncPendingCommandBatches(retryDatabase, client, {
     sessionId: "session-after-rebind",
+    actorId: "actor-test",
   });
 
   assert.equal(first[0]?.state, "acknowledged");
@@ -105,6 +114,9 @@ test("secure sync uses the actor-bound RPC and keeps session rebinding out of th
     calls.map((call) => call.sessionId),
     ["session-before-rebind", "session-after-rebind"],
   );
+  assert.equal(first[1]?.state, "pending");
+  if (first[1]?.state === "pending")
+    assert.equal(first[1].code, "ACTOR_REAUTH_REQUIRED");
   assert.deepEqual(calls[0]?.args.p_events, batch.events);
   assert.equal(calls[0]?.args.p_command_id, batch.commandId);
   assert.equal(calls[0]?.args.p_session_id, "session-before-rebind");
@@ -112,6 +124,7 @@ test("secure sync uses the actor-bound RPC and keeps session rebinding out of th
   assert.equal(accepted.size, 1);
   assert.equal(database.receipts.size, 1);
   assert.equal(retryDatabase.receipts.size, 1);
+  assert.equal(calls.length, 2);
 });
 
 function memoryCollection<T extends { commandId: string }>() {

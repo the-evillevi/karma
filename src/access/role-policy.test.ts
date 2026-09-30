@@ -38,6 +38,7 @@ test("unverified and legacy role labels never become secure role values implicit
   assert.equal(isAccessRole("cajero"), false);
   assert.equal(canPerform(null, "checkout"), false);
   assert.equal(seededRoleToAccessRole("cajero"), "barra");
+  assert.equal(seededRoleToAccessRole("dueno"), "duena");
   assert.equal(seededRoleToAccessRole("cocina"), "mesero");
   assert.equal(seededRoleToAccessRole("owner"), null);
 });

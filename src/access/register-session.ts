@@ -55,6 +55,14 @@ export async function bindRegisterSession(
     p_device_id: deviceId,
   });
   if (result.error) {
+    const error = result.error as Error & { name?: string };
+    if (
+      error instanceof TypeError ||
+      error.name === "FetchError" ||
+      !result.error.code
+    ) {
+      throw result.error;
+    }
     const safe = safeAuthErrors[result.error.code ?? ""] ?? {
       code: "AUTHORIZATION_UNAVAILABLE",
       message: "No se pudo confirmar la autorización con el servidor.",

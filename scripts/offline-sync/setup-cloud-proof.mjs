@@ -168,6 +168,9 @@ await writeFile(
   [
     `VITE_SUPABASE_URL=${supabaseUrl}`,
     `VITE_SUPABASE_ANON_KEY=${anonKey}`,
+    "VITE_KARMA_ACCESS_MODE=secure",
+    `VITE_KARMA_BRANCH_ID=${branchId}`,
+    `VITE_KARMA_DEVICE_ID=${cashDeviceId}`,
     `VITE_DEMO_BRANCH_ID=${branchId}`,
     `VITE_DEMO_DEVICE_ID=${cashDeviceId}`,
     "",

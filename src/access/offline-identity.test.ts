@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  assertOfflineGrantAllowsCapture,
   createOfflineIdentityGrant,
+  parseOfflineIdentityGrant,
   parseVerifiedAccessContext,
   unlockOfflineIdentity,
   type VerifiedAccessContext,
@@ -77,6 +79,49 @@ test("offline PIN setup rejects short PINs and access contexts reject unknown ro
   assert.throws(
     () => parseVerifiedAccessContext({ ...context, role: "owner" }),
     /unknown role/,
+  );
+});
+
+test("expired and corrupted offline grants fail closed before any new capture", async () => {
+  const grant = await createOfflineIdentityGrant(context, "246810");
+  const expired = await unlockOfflineIdentity(
+    grant,
+    "246810",
+    Date.parse(grant.expiresAt),
+  );
+  assert.equal(expired.ok, false);
+  if (expired.ok) return;
+  assert.equal(expired.reason, "expired");
+  assert.throws(
+    () =>
+      assertOfflineGrantAllowsCapture(grant, {
+        actorId: context.userId,
+        branchId: context.branchId,
+        deviceId: context.deviceId,
+        now: Date.parse(grant.expiresAt),
+      }),
+    /venció/,
+  );
+  assert.throws(
+    () =>
+      assertOfflineGrantAllowsCapture(grant, {
+        actorId: "another-user",
+        branchId: context.branchId,
+        deviceId: context.deviceId,
+      }),
+    /no puede capturar/,
+  );
+  assert.throws(
+    () => parseOfflineIdentityGrant({ ...grant, pinIterations: 1 }),
+    /Saved offline access data is invalid/,
+  );
+  assert.throws(
+    () => parseOfflineIdentityGrant({ ...grant, verifiedAt: "not-a-date" }),
+    /invalid expiry/,
+  );
+  assert.throws(
+    () => parseOfflineIdentityGrant({ ...grant, salt: "broken" }),
+    /Saved offline access data is invalid/,
   );
 });
 

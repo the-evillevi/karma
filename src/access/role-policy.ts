@@ -64,6 +64,7 @@ export function canPerform(
 /** Legacy seeded-only role adapter; never use this to construct a secure principal. */
 export function seededRoleToAccessRole(role: unknown): AccessRole | null {
   if (isAccessRole(role)) return role;
+  if (role === "dueno") return "duena";
   if (role === "cajero") return "barra";
   if (role === "cocina") return "mesero";
   return null;
