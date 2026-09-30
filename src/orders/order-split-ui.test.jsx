@@ -171,6 +171,34 @@ it('keeps a failed local write retryable with the same operation identity and ne
   expect(saved.open.filter(order => order.splitFrom?.folio === source.folio)).toHaveLength(1);
 });
 
+it('accepts an identical split retry but rejects changed allocation content under the same operation identity', async () => {
+  const { source, ticket } = fixture();
+  source.items[0].qty = 3;
+  source.items[0].capturedSnapshot.quantity = 3;
+  source.items[0].capturedSnapshot.lineTotalCents = 15000;
+  ticket.items[0].qty = 3;
+  const storage = memoryStorage({ session: 'u1', open: [source], kitchenTickets: [ticket], sales: [], pending: [] });
+  const view = mount();
+  const app = view.appRef.current;
+  const actions = app.renderVals().orders.find(order => order.folio === source.folio);
+  act(() => actions.split());
+  const retryConfirmation = app.state.dlg.onConfirm;
+
+  await act(async () => expect(retryConfirmation()).toBe(true));
+  const firstSave = storage.getItem('karma-pos-v1');
+  const firstSaved = JSON.parse(firstSave);
+  expect(firstSaved.open).toHaveLength(2);
+  expect(firstSaved.open.find(order => order.folio === source.folio).splitOperations[0].selection).toEqual([{ lineId: 'captured-coffee', quantity: 2 }]);
+
+  await act(async () => expect(retryConfirmation()).toBe(true));
+  expect(storage.getItem('karma-pos-v1')).toBe(firstSave);
+
+  await act(async () => expect(retryConfirmation({ splitSelection: [{ lineId: 'captured-coffee', quantityText: '1' }] })).toBe('keep'));
+  expect(await screen.findByText('Esta identidad de división ya existe con otras cantidades o vínculos. La operación requiere revisión y no se repetirá.')).toBeTruthy();
+  expect(storage.getItem('karma-pos-v1')).toBe(firstSave);
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).open.filter(order => order.splitFrom?.folio === source.folio)).toHaveLength(1);
+});
+
 it('rechecks current authorization and paid status at the confirmation boundary', async () => {
   const { source, ticket } = fixture();
   const storage = memoryStorage({ session: 'u1', open: [source], kitchenTickets: [ticket], sales: [], pending: [] });

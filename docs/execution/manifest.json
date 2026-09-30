@@ -80,7 +80,7 @@
         "EVL-153",
         "EVL-157"
       ],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-inventory/karma"
     },
     {
       "name": "reports",
@@ -632,16 +632,23 @@
       "requires": [
         "EVL-189"
       ],
-      "stage": "fixing",
-      "agent": "orders_xhigh",
+      "stage": "awaiting_foundation",
+      "agent": null,
       "commits": [
-        "0006f0b"
+        "0006f0b",
+        "6b6c425",
+        "b61a477"
       ],
-      "pr": null,
-      "checks": [],
-      "review": "retry_identity_fix_pending",
-      "blockers": [],
-      "nextAction": "Reject same split operation ID with changed operator allocation; root rerereview follows."
+      "pr": "https://github.com/the-evillevi/karma/pull/22",
+      "checks": [
+        "17 focused split and86 component on agent stack; combined integration fullcheck82 domain,94 component,10 Edge, format/lint/types/build/PWA restart and credential scans"
+      ],
+      "review": "fixed_and_rereviewed_operator_split",
+      "blockers": [
+        "Durable versioned atomic split126 and granular preparation/inventory129 remain acceptance gates."
+      ],
+      "nextAction": "Operator allocation local flow reviewed/published; finish durable transaction and compensation contracts with126/129.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-186",
@@ -750,19 +757,19 @@
       "id": "EVL-128",
       "chain": "inventory",
       "branch": "codex/inventory/evl-128",
-      "baseBranch": "main",
+      "baseBranch": "codex/inventory/ledger-base",
       "requires": [
         "EVL-126",
         "EVL-118"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "orders_xhigh",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Luna xhigh implementing bounded typed/manual inventory ledger, explicit synthetic initialization and actual UI; root review follows.126durable remote/129recipe gates remain."
     },
     {
       "id": "EVL-129",
