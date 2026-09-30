@@ -25,3 +25,5 @@ The currently supported families and explicit unsupported actions are listed in 
 ## Verification
 
 The local Chromium lane covers cold restart of a split account with a manually recorded cash payment, refund, cancelled child, and still-ready kitchen ticket; retry identity after authority loss and with changed content; branch/device storage isolation; concurrent two-tab revision contention with retained conflict evidence; projection, event-index, and immutable-command tampering; and a late multi-store write failure followed by a clean retry. The focused domain suite also verifies replay and business invariants. These checks demonstrate local IndexedDB behavior only; there is no receipt, server sync, payment-provider, or POS UI proof in this slice.
+
+Root review completed against26663eff. Five actual Chromium journal cases now pass, including explicit preservation of an unsupported future-version database. See `reviews/EVL-126-operations-journal.md` for exact verification and remaining acceptance gates.

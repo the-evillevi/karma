@@ -732,3 +732,73 @@ test("a failed multi-store IDB transaction exposes no operation projection", asy
     await rm(profile, { recursive: true, force: true });
   }
 });
+
+test("a future operational database version remains untouched", async ({
+  page,
+}) => {
+  const currentScope = scope();
+  await page.goto(origin, { waitUntil: "domcontentloaded" });
+  const result = await page.evaluate(async (scopeValue) => {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(
+        JSON.stringify({
+          branchId: scopeValue.branchId,
+          deviceId: scopeValue.deviceId,
+        }),
+      ),
+    );
+    const suffix = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    const name = "karma-pos-operations-v1-" + suffix;
+    const future = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(name, 2);
+      request.onupgradeneeded = () =>
+        request.result.createObjectStore("futureRecords");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = future.transaction("futureRecords", "readwrite");
+      tx.objectStore("futureRecords").put(
+        { retained: "future-payment-history" },
+        "sentinel",
+      );
+      tx.oncomplete = resolve;
+      tx.onabort = () => reject(tx.error);
+    });
+    future.close();
+    const { openPosOperationsJournal } =
+      await import("/src/offline-sync/pos-operations-journal.ts");
+    let rejected = false;
+    try {
+      await openPosOperationsJournal(scopeValue);
+    } catch {
+      rejected = true;
+    }
+    const reopened = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(name);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const sentinel = await new Promise((resolve, reject) => {
+      const request = reopened
+        .transaction("futureRecords", "readonly")
+        .objectStore("futureRecords")
+        .get("sentinel");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const version = reopened.version;
+    const storeNames = [...reopened.objectStoreNames];
+    reopened.close();
+    return { rejected, version, storeNames, sentinel };
+  }, currentScope);
+  expect(result).toEqual({
+    rejected: true,
+    version: 2,
+    storeNames: ["futureRecords"],
+    sentinel: { retained: "future-payment-history" },
+  });
+});
