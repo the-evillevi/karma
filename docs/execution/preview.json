@@ -5,7 +5,10 @@
   "environment": "karma-demo-preview",
   "scope": "Public seeded UX demo; no real payments or private Supabase proof credentials",
   "workflow": ".github/workflows/preview.yml",
-  "reachableVerified": false,
+  "reachableVerified": true,
   "productionReady": false,
-  "localProof": "Preview build/bundle scan and demo-labelled POS/kitchen round-trip browser regression passed"
+  "localProof": "Preview build/bundle scan and demo-labelled POS/kitchen round-trip browser regression passed",
+  "verifiedCommit": "4515b9b",
+  "workflowRun": "36669834771",
+  "hostedProof": "Root browser: demo notice, published demo login, kitchen route and return to restored station"
 }

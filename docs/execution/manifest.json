@@ -294,18 +294,23 @@
         "0505fa0",
         "69c8d46",
         "4f0446f",
-        "26cbb43"
+        "26cbb43",
+        "ca2dd25",
+        "c42afe8",
+        "a81e8d3"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/9",
       "checks": [
         "Initialcheckpointroot4tests/3buildpass",
-        "Rootcomponentdemo desktop1280/mobile390visual andactualPOSdesktopstartup/loginpass"
+        "Rootcomponentdemo desktop1280/mobile390visual andactualPOSdesktopstartup/loginpass",
+        "Root independent 8 Vitest flows and standard build passed on c42afe8",
+        "Root integrated report detail Escape/focus-return regression passed"
       ],
-      "review": "two_batches_fixed_rereviewed",
+      "review": "controls_batches_reviewed_remaining_mapping_pending",
       "blockers": [
-        "Remainingmodulemappingandwiderflowregression; reviewed116configurationintegrationpending."
+        "Remaining modal/table/toast mapping and combined visual acceptance; EVL158 owns mobile shell."
       ],
-      "nextAction": "Resumecheckout/menu/inventory/reports/configuration/editormapping; fullflowregression and116integrationpending."
+      "nextAction": "Finish remaining156 mappings; root review before158."
     },
     {
       "id": "EVL-158",
@@ -947,7 +952,7 @@
     "manualResume": true,
     "reason": "User authorized manual continuation after allowance reset",
     "runningAgents": 3,
-    "integration": "ac4a163",
+    "integration": "6bf5323",
     "mainMerged": false,
     "nextIssue": "EVL-116",
     "resumeDocument": "docs/execution/RESUME.md",
