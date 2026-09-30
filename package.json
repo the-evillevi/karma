@@ -11,17 +11,29 @@
     "preview": "vite preview",
     "offline:local:up": "node scripts/offline-sync/setup-local.mjs",
     "offline:cloud:fixtures": "node scripts/offline-sync/setup-cloud-proof.mjs",
-    "test:offline:e2e": "playwright test --config scripts/offline-sync/playwright.config.js"
+    "test:offline:e2e": "playwright test --config scripts/offline-sync/playwright.config.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "rxdb": "^17.5.0"
+    "rxdb": "^17.5.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.48.0",
+    "radix-ui": "^1.6.7",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.9"
   }
 }
