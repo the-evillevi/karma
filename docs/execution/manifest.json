@@ -279,14 +279,21 @@
       ],
       "stage": "preparing",
       "agent": "implement_design",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
+      "commits": [
+        "84d3d4a",
+        "0505fa0",
+        "69c8d46"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/9",
+      "checks": [
+        "Initialcheckpointroot4tests/3buildpass",
+        "Rootcomponentdemo desktop1280/mobile390visual andactualPOSdesktopstartup/loginpass"
+      ],
+      "review": "first_checkpoint_fixed_rereviewed_second_batch_pending",
       "blockers": [
         "EVL-116 integration and desktop/mobile visual verification pending."
       ],
-      "nextAction": "Official shadcn/Tailwind setup and shared presentation migration in isolateddesignWT; merge reviewed foundation and visual QA before completion."
+      "nextAction": "Review69c8d46; remainingmodulemappingsand116integrationopen. Do notmarkcomplete."
     },
     {
       "id": "EVL-158",
@@ -400,7 +407,7 @@
         "0b17618",
         "ffbc8bf"
       ],
-      "pr": null,
+      "pr": "https://github.com/the-evillevi/karma/pull/8",
       "checks": [
         "27 focusedNode tests passed; real113validatorincluded no skips",
         "seedreproducibility passed",
@@ -410,7 +417,7 @@
       "blockers": [
         "Runtime/UI/auth/sync integration awaits reviewed116/118/126 and119workflow."
       ],
-      "nextAction": "Publishdraftstackon119; actualUI/auth/sync/inventory/comandaandmeasurementcontractadoptionremainopen."
+      "nextAction": "Draft8 domainpreparationreviewed; implementactualUIafter116/118/126and119, adoptmeasurementsharedcontract."
     },
     {
       "id": "EVL-121",
