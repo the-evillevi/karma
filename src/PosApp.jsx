@@ -72,6 +72,7 @@ import {
 
 const compensationMethodLabels = new Map([['cash', 'Efectivo'], ['card', 'Tarjeta'], ['transfer', 'Transferencia']]);
 const RecipeConfigurationPanel = React.lazy(() => import('./inventory/RecipeConfigurationPanel.jsx'));
+const AuditHistoryPanel = React.lazy(() => import('./reports/AuditHistoryPanel.jsx'));
 const DEFAULT_TABLE_COUNT = 12;
 const MAX_TABLE_COUNT = 50;
 
@@ -363,7 +364,7 @@ export default class PosApp extends React.Component {
       admCat: 'all', admSearch: '', admSel: null, admForm: null,
       invTab: 'stock', invSearch: '', invLow: false,
       recipeEditorOpen: false,
-      range: 'hoy',
+      range: 'hoy', reportTab: 'sales',
       reportTimeZone: typeof props.branchTimeZone === 'string' && props.branchTimeZone.trim()
         ? props.branchTimeZone.trim()
         : 'America/Mexico_City',
@@ -2519,6 +2520,12 @@ export default class PosApp extends React.Component {
     V.reportError = reportProjection.error;
     V.reportReady = !!periodReport;
     const rs = periodReport ? periodReport.selectedIndexes.map(index => storedSales[index]).filter(Boolean) : [];
+    V.reportTab = s.reportTab === 'audit' ? 'audit' : 'sales';
+    V.auditInventoryState = s.inventoryState;
+    V.auditRecipeCatalog = s.recipeCatalog;
+    V.auditInventoryError = s.inventoryError;
+    V.auditRecipeError = s.recipeError;
+    V.auditCanView = this.can('viewReports');
     const done = rs.filter(x => x.status === 'completada');
     V.repVentas = periodReport ? this.fmt(centsToMoney(periodReport.grossReceiptsCents)) : '—';
     V.repTickets = periodReport?.completedCount ?? '—';
@@ -3229,6 +3236,15 @@ export default class PosApp extends React.Component {
 <div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Reportes</h1>
+<div role="group" aria-label="Vistas de reportes" className="flex flex-wrap gap-2">
+<Button type="button" size="sm" variant={V.reportTab === 'sales' ? 'default' : 'outline'} aria-pressed={V.reportTab === 'sales'} onClick={() => this.requireAction('viewReports') && this.setState({ reportTab: 'sales' })}>Ventas</Button>
+<Button type="button" size="sm" variant={V.reportTab === 'audit' ? 'default' : 'outline'} aria-pressed={V.reportTab === 'audit'} onClick={() => this.requireAction('viewReports') && this.setState({ reportTab: 'audit' })}>Historial de cambios</Button>
+</div>
+</div>
+{V.reportTab === 'audit' ? <React.Suspense fallback={<Card role="status" className="p-4">Cargando historial local…</Card>}>
+<AuditHistoryPanel inventoryState={V.auditInventoryState} recipeCatalog={V.auditRecipeCatalog} inventoryError={V.auditInventoryError} recipeError={V.auditRecipeError} branchTimeZone={this.props.branchTimeZone || 'America/Mexico_City'} canView={V.auditCanView} />
+</React.Suspense> : <>
+<div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
 {(V.ranges).map((r, rI) => (<Button key={rI} type="button" size="sm" variant={r.active ? 'default' : 'outline'} aria-pressed={r.active} onClick={r.pick}>{r.label}</Button>))}
 </div>
@@ -3294,6 +3310,7 @@ export default class PosApp extends React.Component {
 </>}
 {V.unknownDateReturns.length > 0 && <Card className="gap-2 p-4"><h2 className="m-0 text-sm font-medium">Devoluciones heredadas sin fecha real</h2><p className="m-0 text-xs text-muted-foreground">Se conservan para consulta y se excluyen de los totales por periodo.</p>{V.unknownDateReturns.map((event, index) => <div key={`${event.kind}-${event.folio}-${index}`} className="flex flex-wrap justify-between gap-2 border-t pt-2 text-xs"><span>{event.kind} · {event.folio} · {event.label}</span><span>{event.amount}</span></div>)}</Card>}
 {V.unknownDateSales.length > 0 && <Card className="gap-0 overflow-hidden p-0"><div className="p-4"><h2 className="m-0 text-sm font-medium">Historial heredado sin fecha real · {V.unknownDateSales.length}</h2><p className="m-0 mt-1 text-xs text-muted-foreground">Estas ventas se conservan para consulta; la etiqueta histórica no se convierte en fecha y no participa en los periodos ni en sus totales.</p></div><Table containerProps={{ 'aria-label': 'Ventas heredadas sin fecha real', tabIndex: 0 }} className="min-w-[650px]"><TableHeader><TableRow><TableHead>Folio</TableHead><TableHead>Etiqueta original (no es fecha)</TableHead><TableHead>Tipo</TableHead><TableHead>Estado capturado</TableHead></TableRow></TableHeader><TableBody>{V.unknownDateSales.map((sale, index) => <TableRow key={`${sale.folio}-${index}`}><TableCell><Button type="button" variant="link" size="sm" className="h-11 justify-start px-0" aria-label={`Abrir historial heredado ${sale.folio}`} onClick={sale.open}>{sale.folio}</Button></TableCell><TableCell>{sale.label}</TableCell><TableCell>{sale.type}</TableCell><TableCell>{sale.status}</TableCell></TableRow>)}</TableBody></Table></Card>}
+</>}
 </div>
 </>)}
 
