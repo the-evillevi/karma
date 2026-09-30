@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "offline:local:up": "node scripts/offline-sync/setup-local.mjs",
+    "offline:cloud:fixtures": "node scripts/offline-sync/setup-cloud-proof.mjs",
     "test:offline:e2e": "playwright test --config scripts/offline-sync/playwright.config.js"
   },
   "dependencies": {

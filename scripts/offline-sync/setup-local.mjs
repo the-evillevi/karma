@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { chmod, writeFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 
 const projectRoot = process.cwd();
-const localSecretsPath = `${projectRoot}/.offline-test.local`;
+const localSecretsPath = `${projectRoot}/.env.offline-test.local`;
 const publicEnvPath = `${projectRoot}/.env.local`;
 const cashier = { email: "cashier@karma.local", password: "KarmaLocalDemo-2026!" };
 const waiter = { email: "waiter@karma.local", password: "KarmaLocalDemo-2026!" };
@@ -12,9 +12,10 @@ const cashDeviceId = "karma-demo-register-01";
 const prepDeviceId = "karma-demo-prep-01";
 
 function run(args, { allowFailure = false } = {}) {
-  const result = spawnSync("supabase", args, { cwd: `${projectRoot}/supabase`, encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
+  const result = spawnSync("supabase", args, { cwd: `${projectRoot}/supabase`, encoding: "utf8", maxBuffer: 20 * 1024 * 1024, timeout: 240_000 });
   if (result.status !== 0 && !allowFailure) {
     // CLI output can contain local API keys; never print captured output.
+    if (result.error?.code === "ETIMEDOUT") throw new Error(`Local Supabase command timed out (${args[0]} ${args[1] ?? ""}) after four minutes; the CLI process was stopped and its output remains private.`);
     throw new Error(`Supabase command failed (${args[0]} ${args[1] ?? ""}, exit ${result.status ?? "unknown"}); inspect the local Docker/CLI logs privately.`);
   }
   return result;
@@ -93,5 +94,6 @@ await writeFile(localSecretsPath, [
   `SUPABASE_PREP_DEVICE_ID=${prepDeviceId}`,
   "",
 ].join("\n"), { mode: 0o600 });
+await chmod(localSecretsPath, 0o600);
 
-console.log("Local Supabase is ready with synthetic cashier/waiter fixtures. Client config is in ignored .env.local; test-only credentials are in ignored .offline-test.local.");
+console.log("Local Supabase is ready with synthetic cashier/waiter fixtures. Client config is in ignored .env.local; test-only credentials are in ignored .env.offline-test.local.");

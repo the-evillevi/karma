@@ -8,6 +8,9 @@ import { resolve } from 'path';
 // preserves the cross-tab sync behavior.
 export default defineConfig({
   plugins: [react()],
+  server: {
+    fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '.env.offline-test.local'] },
+  },
   build: {
     rollupOptions: {
       input: {

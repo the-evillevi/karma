@@ -2,4 +2,6 @@ node_modules
 dist
 *.local
 .offline-test.local
+.playwright-output
+test-results
 .DS_Store

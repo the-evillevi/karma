@@ -5,8 +5,8 @@ import { expect, test } from "@playwright/test";
 
 function readLocalEnv() {
   const values = {};
-  if (!existsSync(".offline-test.local")) return values;
-  for (const line of readFileSync(".offline-test.local", "utf8").split(/\r?\n/)) {
+  if (!existsSync(".env.offline-test.local")) return values;
+  for (const line of readFileSync(".env.offline-test.local", "utf8").split(/\r?\n/)) {
     const match = line.match(/^([^=]+)=(.*)$/);
     if (match) values[match[1]] = match[2];
   }
@@ -17,23 +17,20 @@ const env = readLocalEnv();
 const admin = env.SUPABASE_URL ? createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
 const anon = () => createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
-test.beforeEach(() => test.skip(!env.SUPABASE_URL, "Run pnpm offline:local:up to create private local test credentials."));
+test.beforeEach(() => test.skip(!env.SUPABASE_URL, "Run the approved local/cloud fixture setup to create private test credentials."));
 
 async function signIn(page) {
-  await page.goto(`offline-demo.html?db=evl114-${randomUUID()}`);
+  await page.goto(`?db=evl114-${randomUUID()}`);
   await page.getByLabel("Correo").fill(env.SUPABASE_CASHIER_EMAIL);
   await page.getByLabel("Contraseña local de prueba").fill(env.SUPABASE_CASHIER_PASSWORD);
   await page.getByRole("button", { name: "Iniciar sesión" }).click();
   await expect(page.getByRole("button", { name: "Crear venta capturada" })).toBeEnabled();
 }
 
-async function insertBatch(client, { userId, deviceId, leaseId = "karma-demo-lease-01", type = "OrderOpened", payload = {}, eventSchemaVersion = 1 }) {
-  const commandId = `test-${randomUUID()}`;
-  const aggregateId = `test-order-${randomUUID()}`;
-  const occurredAt = new Date().toISOString();
+async function insertBatch(client, { userId, deviceId, leaseId = env.SUPABASE_LEASE_ID, type = "OrderOpened", payload = {}, eventSchemaVersion = 1, eventActorId = userId, commandId = `test-${randomUUID()}`, aggregateId = `test-order-${randomUUID()}`, occurredAt = new Date().toISOString() }) {
   const event = {
     eventId: `${commandId}:0`, commandId, aggregateId, type,
-    schemaVersion: eventSchemaVersion, actorId: userId, deviceId, occurredAt, payload,
+    schemaVersion: eventSchemaVersion, actorId: eventActorId, deviceId, occurredAt, payload,
   };
   return client.from("command_batches").insert({
     command_id: commandId,
@@ -48,6 +45,26 @@ async function insertBatch(client, { userId, deviceId, leaseId = "karma-demo-lea
   }).select("command_id").maybeSingle();
 }
 
+async function readRenderedCommandId(page) {
+  const commandId = (await page.getByTestId("order-row").innerText()).match(/Comando ([^\s]+)/)?.[1];
+  expect(commandId).toBeTruthy();
+  return commandId;
+}
+
+test.afterEach(async () => {
+  if (!admin || !env.SUPABASE_CASH_DEVICE_ID) return;
+  const reset = await admin.from("register_devices").update({ revoked_at: null }).eq("device_id", env.SUPABASE_CASH_DEVICE_ID);
+  expect(reset.error).toBeNull();
+});
+
+test("Vite denies HTTP access to private test credentials", async ({ request }) => {
+  const response = await request.get(`/@fs${process.cwd()}/.env.offline-test.local`);
+  expect(response.status()).toBe(403);
+  const responseBody = await response.text();
+  expect(responseBody.includes("SUPABASE_SERVICE_ROLE_KEY")).toBe(false);
+  expect(responseBody.includes("SUPABASE_CASHIER_PASSWORD")).toBe(false);
+});
+
 test("local write failure does not create a pending batch", async ({ page }) => {
   await signIn(page);
   await page.getByText("Pruebas de fallo de este prototipo").click();
@@ -56,29 +73,37 @@ test("local write failure does not create a pending batch", async ({ page }) => 
   await expect(page.getByTestId("pending-count")).toHaveText("0 pendientes");
 });
 
-test("offline capture survives reload and an interrupted remote receipt retries exactly once", async ({ page, context }) => {
+test("offline capture reconnects once and survives reload with app assets available", async ({ page, context }) => {
   await signIn(page);
   await context.setOffline(true);
   await page.waitForFunction(() => !navigator.onLine);
   await page.getByRole("button", { name: "Crear venta capturada" }).click();
   await expect(page.getByTestId("pending-count")).toHaveText("1 pendientes");
+  const commandId = await readRenderedCommandId(page);
+  // The app shell is available for this reload. Offline cold boot awaits EVL-116's PWA cache.
+  await context.setOffline(false);
+  await expect(page.getByTestId("order-sync-status")).toHaveText("Confirmada en Supabase");
   await page.reload();
-  await expect(page.getByTestId("pending-count")).toHaveText("1 pendientes");
-  await expect(page.getByTestId("order-sync-status")).toHaveText("Pendiente");
-  await expect(page.getByRole("button", { name: "Crear venta capturada" })).toBeEnabled();
+  await expect(page.getByTestId("order-sync-status")).toHaveText("Confirmada en Supabase");
+  const { count, error } = await admin.from("command_batches").select("command_id", { count: "exact", head: true }).eq("command_id", commandId);
+  expect(error).toBeNull();
+  expect(count).toBe(1);
+});
 
+test("an interrupted local receipt retries the same command without a duplicate", async ({ page, context }) => {
+  await signIn(page);
+  await context.setOffline(true);
+  await page.waitForFunction(() => !navigator.onLine);
+  await page.getByRole("button", { name: "Crear venta capturada" }).click();
+  await expect(page.getByTestId("pending-count")).toHaveText("1 pendientes");
+  const commandId = await readRenderedCommandId(page);
   await page.getByText("Pruebas de fallo de este prototipo").click();
   await page.getByRole("button", { name: "Simular interrupción del recibo local" }).click();
   await context.setOffline(false);
-  await page.waitForFunction(() => navigator.onLine);
-  await page.getByRole("button", { name: "Sincronizar pendientes" }).click();
   await expect(page.getByTestId("sync-message")).toContainText("sigue pendiente");
-  await expect(page.getByTestId("pending-count")).toHaveText("1 pendientes");
-  const firstCount = await page.getByTestId("order-row").count();
-  expect(firstCount).toBe(1);
-  const commandId = (await page.getByTestId("order-row").innerText()).match(/Comando ([^\s]+)/)?.[1];
-  expect(commandId).toBeTruthy();
-
+  const committed = await admin.from("command_batches").select("command_id", { count: "exact", head: true }).eq("command_id", commandId);
+  expect(committed.error).toBeNull();
+  expect(committed.count).toBe(1);
   await page.getByRole("button", { name: "Sincronizar pendientes" }).click();
   await expect(page.getByTestId("order-sync-status")).toHaveText("Confirmada en Supabase");
   const { count, error } = await admin.from("command_batches").select("command_id", { count: "exact", head: true }).eq("command_id", commandId);
@@ -96,8 +121,6 @@ test("one simulated receipt interruption affects only one of multiple pending ba
   await page.getByText("Pruebas de fallo de este prototipo").click();
   await page.getByRole("button", { name: "Simular interrupción del recibo local" }).click();
   await context.setOffline(false);
-  await page.waitForFunction(() => navigator.onLine);
-  await page.getByRole("button", { name: "Sincronizar pendientes" }).click();
   await expect(page.getByTestId("pending-count")).toHaveText("1 pendientes");
   await page.getByRole("button", { name: "Sincronizar pendientes" }).click();
   await expect(page.getByTestId("pending-count")).toHaveText("0 pendientes");
@@ -116,11 +139,20 @@ test("a known revoked device loses cached online authorization", async ({ page }
   await expect(page.getByRole("button", { name: "Crear venta capturada" })).toBeDisabled();
 });
 
-test("RLS and the trigger reject anon, preparation-to-cash, unknown events, and non-object payloads", async () => {
+test("RLS allows valid cash and preparation writes but rejects forged, mutable, and malformed commands", async () => {
   const cashierClient = anon();
   const cashierLogin = await cashierClient.auth.signInWithPassword({ email: env.SUPABASE_CASHIER_EMAIL, password: env.SUPABASE_CASHIER_PASSWORD });
   expect(cashierLogin.error).toBeNull();
   const cashierUserId = cashierLogin.data.user.id;
+  const validCash = await insertBatch(cashierClient, { userId: cashierUserId, deviceId: env.SUPABASE_CASH_DEVICE_ID, type: "OrderOpened" });
+  expect(validCash.error).toBeNull();
+  expect(validCash.data.command_id).toBeTruthy();
+
+  const commandUpdate = await cashierClient.from("command_batches").update({ aggregate_id: "changed" }).eq("command_id", validCash.data.command_id);
+  expect(commandUpdate.error?.code).toBe("42501");
+  const commandDelete = await cashierClient.from("command_batches").delete().eq("command_id", validCash.data.command_id);
+  expect(commandDelete.error?.code).toBe("42501");
+
   const cashWrite = await insertBatch(cashierClient, { userId: cashierUserId, deviceId: env.SUPABASE_CASH_DEVICE_ID, type: "PreparationStarted" });
   expect(cashWrite.error?.code).toBe("42501");
 
@@ -128,6 +160,9 @@ test("RLS and the trigger reject anon, preparation-to-cash, unknown events, and 
   const waiterLogin = await waiterClient.auth.signInWithPassword({ email: env.SUPABASE_WAITER_EMAIL, password: env.SUPABASE_WAITER_PASSWORD });
   expect(waiterLogin.error).toBeNull();
   const waiterId = waiterLogin.data.user.id;
+  const validPrep = await insertBatch(waiterClient, { userId: waiterId, deviceId: env.SUPABASE_PREP_DEVICE_ID, type: "PreparationStarted" });
+  expect(validPrep.error).toBeNull();
+  expect(validPrep.data.command_id).toBeTruthy();
   const cashierEvent = await insertBatch(waiterClient, { userId: waiterId, deviceId: env.SUPABASE_PREP_DEVICE_ID, type: "OrderOpened" });
   expect(cashierEvent.error?.code).toBe("42501");
   const unknown = await insertBatch(waiterClient, { userId: waiterId, deviceId: env.SUPABASE_PREP_DEVICE_ID, type: "MysteryEvent" });
@@ -136,8 +171,49 @@ test("RLS and the trigger reject anon, preparation-to-cash, unknown events, and 
   expect(nullPayload.error?.code).toBe("22023");
   const stringSchemaVersion = await insertBatch(waiterClient, { userId: waiterId, deviceId: env.SUPABASE_PREP_DEVICE_ID, type: "PreparationStarted", eventSchemaVersion: "1" });
   expect(stringSchemaVersion.error?.code).toBe("22023");
+  const forgedActor = await insertBatch(cashierClient, { userId: waiterId, deviceId: env.SUPABASE_CASH_DEVICE_ID, type: "OrderOpened" });
+  expect(forgedActor.error?.code).toBe("42501");
+  const forgedDevice = await insertBatch(cashierClient, { userId: cashierUserId, deviceId: env.SUPABASE_PREP_DEVICE_ID, type: "OrderOpened" });
+  expect(forgedDevice.error?.code).toBe("42501");
 
   const anonymous = anon();
   const anonymousWrite = await insertBatch(anonymous, { userId: waiterId, deviceId: env.SUPABASE_PREP_DEVICE_ID, type: "PreparationReady" });
-  expect(anonymousWrite.error).not.toBeNull();
+  expect(anonymousWrite.error?.code).toBe("42501");
+});
+
+test("an altered retry with a command ID already stored is held for manual review", async ({ page }) => {
+  const testKey = randomUUID();
+  await page.goto(`?db=alter-test-${testKey}`);
+  const outcome = await page.evaluate(async ({ testKey, email, password, branchId, deviceId, leaseId }) => {
+    const moduleUrl = (path) => new URL(path, window.location.href).href;
+    const { openOfflineDatabase } = await import(moduleUrl("/src/offline-sync/database.js"));
+    const { captureCommandBatch, createDemoOrderBatch, createSupabaseClient, syncPendingCommandBatches } = await import(moduleUrl("/src/offline-sync/command-sync.js"));
+    const client = await createSupabaseClient();
+    const signedIn = await client.auth.signInWithPassword({ email, password });
+    if (signedIn.error) throw signedIn.error;
+    const dbOriginal = await openOfflineDatabase(`alter-original-${testKey}`);
+    const original = createDemoOrderBatch({ branchId, actorId: signedIn.data.user.id, deviceId, leaseId, commandId: `alter-${testKey}`, occurredAt: "2026-09-29T10:00:00-06:00" });
+    await captureCommandBatch(dbOriginal, original);
+    const first = await syncPendingCommandBatches(dbOriginal, client);
+    const dbChanged = await openOfflineDatabase(`alter-changed-${testKey}`);
+    const changed = structuredClone(original);
+    changed.events[0].payload.lines[0].unitPriceCents += 1;
+    await captureCommandBatch(dbChanged, changed);
+    const conflict = await syncPendingCommandBatches(dbChanged, client);
+    const blockedRetry = await syncPendingCommandBatches(dbChanged, client);
+    return { first: first[0], conflict: conflict[0], blockedRetry: blockedRetry[0] };
+  }, {
+    testKey,
+    email: env.SUPABASE_CASHIER_EMAIL,
+    password: env.SUPABASE_CASHIER_PASSWORD,
+    branchId: env.SUPABASE_BRANCH_ID,
+    deviceId: env.SUPABASE_CASH_DEVICE_ID,
+    leaseId: env.SUPABASE_LEASE_ID,
+  });
+  expect(outcome.first.state).toBe("acknowledged");
+  expect(outcome.conflict).toMatchObject({ state: "blocked", code: "COMMAND_CONFLICT" });
+  expect(outcome.blockedRetry).toMatchObject({ state: "blocked", code: "COMMAND_CONFLICT" });
+  const { count, error } = await admin.from("command_batches").select("command_id", { count: "exact", head: true }).eq("command_id", `alter-${testKey}`);
+  expect(error).toBeNull();
+  expect(count).toBe(1);
 });

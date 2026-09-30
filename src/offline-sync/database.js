@@ -1,8 +1,11 @@
 import { addRxPlugin, createRxDatabase } from "rxdb";
 import { RxDBDevModePlugin } from "rxdb/plugins/dev-mode";
+import { RxDBQueryBuilderPlugin } from "rxdb/plugins/query-builder";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
+import { wrappedValidateAjvStorage } from "rxdb/plugins/validate-ajv";
 
 addRxPlugin(RxDBDevModePlugin);
+addRxPlugin(RxDBQueryBuilderPlugin);
 
 const eventSchema = {
   type: "object",
@@ -14,7 +17,7 @@ const eventSchema = {
     schemaVersion: { type: "integer", minimum: 1 },
     actorId: { type: "string", maxLength: 80 },
     deviceId: { type: "string", maxLength: 100 },
-    occurredAt: { type: "string", format: "date-time" },
+    occurredAt: { type: "string", maxLength: 64, format: "date-time" },
     payload: { type: "object", additionalProperties: true },
   },
   required: ["eventId", "commandId", "aggregateId", "type", "schemaVersion", "actorId", "deviceId", "occurredAt", "payload"],
@@ -34,7 +37,7 @@ export const commandBatchSchema = {
     deviceId: { type: "string", maxLength: 100 },
     leaseId: { type: "string", maxLength: 100 },
     schemaVersion: { type: "integer", minimum: 1 },
-    occurredAt: { type: "string", format: "date-time" },
+    occurredAt: { type: "string", maxLength: 64, format: "date-time" },
     events: { type: "array", minItems: 1, items: eventSchema },
   },
   required: ["commandId", "branchId", "aggregateId", "actorId", "deviceId", "leaseId", "schemaVersion", "occurredAt", "events"],
@@ -49,7 +52,7 @@ export const syncReceiptSchema = {
   type: "object",
   properties: {
     commandId: { type: "string", maxLength: 100 },
-    serverReceivedAt: { type: "string", format: "date-time" },
+    serverReceivedAt: { type: "string", maxLength: 64, format: "date-time" },
     outcome: { type: "string", enum: ["inserted", "identical-retry"] },
   },
   required: ["commandId", "serverReceivedAt", "outcome"],
@@ -76,7 +79,7 @@ export function openOfflineDatabase(name = "karma-offline-demo-v1") {
   if (!openDatabases.has(name)) {
     openDatabases.set(name, createRxDatabase({
       name,
-      storage: getRxStorageDexie(),
+      storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() }),
       multiInstance: false,
       eventReduce: true,
     }).then(async (database) => {
