@@ -251,7 +251,8 @@
         "d308c65",
         "bda187b",
         "65e0d64",
-        "a07728c"
+        "a07728c",
+        "b7b5766"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/16",
       "checks": [
@@ -259,7 +260,8 @@
         "Exact migration hash independently verified unchanged",
         "2026-09-30 root exact reviewed migration applied to isolated karma-pos; 12/12 real hosted RPC/RLS/browser proofs passed, synthetic owners restored after concurrency proof.",
         "Root 14/14 hosted cases no skips: actual secure POS and deployed owner provisioning; zero new scoped security findings; full build/secret and demo PWA restart checks passed.",
-        "69 combined component cases covered: prior67 plus2 root secure actor/current-role regressions. 73 domain and10 Edge cases passed."
+        "69 combined component cases covered: prior67 plus2 root secure actor/current-role regressions. 73 domain and10 Edge cases passed.",
+        "CI deterministic fake-client setup repair published; rerun pending"
       ],
       "review": "fixed_and_rereviewed_actual_pos_and_hosted_provisioning",
       "blockers": [
@@ -281,11 +283,14 @@
       "commits": [
         "9580c5a",
         "0831ce19",
-        "fc0f455"
+        "fc0f455",
+        "e4f0260",
+        "fe657b1"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/23",
       "checks": [
-        "Root7/7 Chromium journal proof and0medium+ journal scan; combinedformat/lint/types/domain86/86 and7/7 Chromium passed"
+        "Root7/7 Chromium journal proof and0medium+ journal scan; combinedformat/lint/types/domain86/86 and7/7 Chromium passed",
+        "CI repaired missing deterministic access fixture and added Edge/journal lanes; rerun pending"
       ],
       "review": "phase1_fixed_and_rereviewed_compat_adapter_in_progress",
       "blockers": [
@@ -1093,7 +1098,7 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "b8b17c1",
+    "integration": "a67e8f2",
     "mainMerged": false,
     "nextIssue": "EVL-126 compatible snapshot contract and EVL-128 typed manual ledger",
     "resumeDocument": "docs/execution/RESUME.md",
