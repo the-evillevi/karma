@@ -372,7 +372,7 @@
         "3225008",
         "4c5937b"
       ],
-      "pr": null,
+      "pr": "https://github.com/the-evillevi/karma/pull/7",
       "checks": [
         "17 focused Node tests passed",
         "Catalog reproducibility passed",
@@ -382,7 +382,7 @@
       "blockers": [
         "Reviewed foundation runtime/auth/sync required before application integration."
       ],
-      "nextAction": "Wire PWA CRUD/auth/durable audit/sync after116/118/126; reviewed modules may support independent modifier preparation."
+      "nextAction": "DraftdomainpreparationPR7published. IntegrateactualCRUD/runtime/auth/syncafterreviewed116/118/126; sourcegate112remainsclosed."
     },
     {
       "id": "EVL-120",
@@ -393,16 +393,24 @@
         "EVL-119",
         "EVL-113"
       ],
-      "stage": "preparing",
-      "agent": "implement_catalog",
-      "commits": [],
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "af890ae",
+        "0b17618",
+        "ffbc8bf"
+      ],
       "pr": null,
-      "checks": [],
-      "review": "pending",
+      "checks": [
+        "27 focusedNode tests passed; real113validatorincluded no skips",
+        "seedreproducibility passed",
+        "git diff --check passed"
+      ],
+      "review": "bounded_domain_fixed_rereviewed",
       "blockers": [
         "Runtime/UI/auth/sync integration awaits reviewed116/118/126 and119workflow."
       ],
-      "nextAction": "Independent modifier commands/selection/immutable snapshots; root review before integration."
+      "nextAction": "Publishdraftstackon119; actualUI/auth/sync/inventory/comandaandmeasurementcontractadoptionremainopen."
     },
     {
       "id": "EVL-121",
@@ -872,30 +880,30 @@
       "id": "EVL-139",
       "chain": "bluetooth",
       "branch": "codex/bluetooth/evl-139",
-      "baseBranch": "codex/foundation/evl-113",
+      "baseBranch": "codex/foundation/evl-114",
       "requires": [
         "EVL-114"
       ],
-      "stage": "awaiting_foundation",
+      "stage": "awaiting_input",
       "agent": null,
       "commits": [
-        "3777613",
-        "1a66a69",
-        "7375bfc",
-        "b019cc4",
-        "ceac901"
+        "2e67b39",
+        "b7c7e4a",
+        "8723a7e",
+        "dee392a",
+        "11c1185",
+        "c2a5af6"
       ],
-      "pr": null,
+      "pr": "https://github.com/the-evillevi/karma/pull/6",
       "checks": [
-        "20 codec/domain Node tests passed",
-        "Current official Chrome/WebKit/Capacitor sources checked",
-        "git diff --check"
+        "20 codec/domain tests passed after114rebase",
+        "git diff --check passed"
       ],
-      "review": "bounded_artifact_passed_after_fixes",
+      "review": "bounded_discovery_codec_fixed_rereviewed_reconciled114",
       "blockers": [
-        "EVL-114 reviewed contracts and actual two-device hardware validation pending."
+        "Actualdeviceinventory and two-devicepairing/transport/crypto/range/battery acceptancepending; productionpermissions/durabilityintegrationopen."
       ],
-      "nextAction": "Rebase on reviewed114, reconcile final authority/outbox contract and publish draft; real two-device/native gates remain open."
+      "nextAction": "DraftdiscoveryPR6published; do notmark139complete orstart140withoutnativeplatformdecisionandphysicalproof."
     },
     {
       "id": "EVL-140",
