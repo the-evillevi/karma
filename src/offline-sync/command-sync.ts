@@ -71,7 +71,21 @@ interface RemoteResult<T> {
 }
 
 interface SupabaseLike {
-  from(table: "command_batches"): {
+  rpc?: (
+    functionName: "append_command_batch",
+    args: {
+      p_command_id: string;
+      p_branch_id: string;
+      p_aggregate_id: string;
+      p_device_id: string;
+      p_session_id: string;
+      p_lease_id: string;
+      p_schema_version: number;
+      p_occurred_at: string;
+      p_events: readonly DomainEvent[];
+    },
+  ) => PromiseLike<RemoteResult<{ command_id: string; received_at: string }[]>>;
+  from?(table: "command_batches"): {
     insert(value: RemoteCommandBatch): {
       select(columns: string): {
         single(): PromiseLike<RemoteResult<RemoteRow>>;
@@ -95,6 +109,16 @@ export interface SyncHooks {
     batch: OfflineCommandBatch,
     row: RemoteRow,
   ) => boolean;
+}
+
+export interface SyncOptions extends SyncHooks {
+  /**
+   * Session returned by bind_register_session. Passing it selects the EVL-118
+   * RPC boundary; omitting it is retained only for the isolated EVL-114 proof.
+   */
+  sessionId?: string;
+  /** Auth identity freshly bound to that session; other actors remain queued. */
+  actorId?: string;
 }
 
 export type SyncOutcome =
@@ -146,7 +170,12 @@ export async function captureCommandBatch(
 export async function syncPendingCommandBatches(
   database: OfflineDatabase,
   supabase: SupabaseLike,
-  { afterRemoteInsert, shouldInterruptAfterRemoteInsert }: SyncHooks = {},
+  {
+    afterRemoteInsert,
+    shouldInterruptAfterRemoteInsert,
+    sessionId,
+    actorId,
+  }: SyncOptions = {},
 ): Promise<SyncOutcome[]> {
   const [batches, receiptDocs, blockDocs] = await Promise.all([
     database.commandBatches.find().sort({ occurredAt: "asc" }).exec(),
@@ -161,6 +190,14 @@ export async function syncPendingCommandBatches(
   for (const batchDoc of batches) {
     const batch = batchDoc.toJSON();
     if (receipts.has(batch.commandId)) continue;
+    if (sessionId && actorId !== batch.actorId) {
+      outcomes.push({
+        commandId: batch.commandId,
+        state: "pending",
+        code: "ACTOR_REAUTH_REQUIRED",
+      });
+      continue;
+    }
     if (blocks.has(batch.commandId)) {
       outcomes.push({
         commandId: batch.commandId,
@@ -170,7 +207,11 @@ export async function syncPendingCommandBatches(
       continue;
     }
     try {
-      const { row, outcome } = await insertOrConfirmExisting(supabase, batch);
+      const { row, outcome } = await insertOrConfirmExisting(
+        supabase,
+        batch,
+        sessionId,
+      );
       if (
         afterRemoteInsert &&
         (!shouldInterruptAfterRemoteInsert ||
@@ -194,14 +235,16 @@ export async function syncPendingCommandBatches(
         typeof error === "object" && error !== null
           ? (error as { code?: unknown })
           : {};
-      const code =
+      const remoteCode =
         typeof candidate.code === "string"
           ? candidate.code
           : "LOCAL_OR_NETWORK_ERROR";
+      const code = remoteCode === "23505" ? "COMMAND_CONFLICT" : remoteCode;
       const permanentlyBlocked = [
         "42501",
         "22023",
         "23503",
+        "23505",
         "COMMAND_CONFLICT",
       ].includes(code);
       if (permanentlyBlocked) {
@@ -351,7 +394,57 @@ export function validateCommandBatch(batch: OfflineCommandBatch): void {
 async function insertOrConfirmExisting(
   supabase: SupabaseLike,
   batch: OfflineCommandBatch,
+  sessionId?: string,
 ): Promise<{ row: RemoteRow; outcome: "inserted" | "identical-retry" }> {
+  if (sessionId) {
+    if (!supabase.rpc) {
+      const unsupported: ErrorWithCode = new Error(
+        "The configured client cannot call the secure command endpoint.",
+      );
+      unsupported.code = "SECURE_RPC_UNAVAILABLE";
+      throw unsupported;
+    }
+    const response = await supabase.rpc("append_command_batch", {
+      p_command_id: batch.commandId,
+      p_branch_id: batch.branchId,
+      p_aggregate_id: batch.aggregateId,
+      p_device_id: batch.deviceId,
+      p_session_id: sessionId,
+      p_lease_id: batch.leaseId,
+      p_schema_version: batch.schemaVersion,
+      p_occurred_at: batch.occurredAt,
+      p_events: batch.events,
+    });
+    if (response.error) throw response.error;
+    const confirmation = Array.isArray(response.data)
+      ? response.data[0]
+      : undefined;
+    if (
+      !confirmation ||
+      confirmation.command_id !== batch.commandId ||
+      typeof confirmation.received_at !== "string"
+    ) {
+      throw new Error("Secure command endpoint returned no acknowledgement.");
+    }
+    return {
+      row: {
+        command_id: batch.commandId,
+        branch_id: batch.branchId,
+        aggregate_id: batch.aggregateId,
+        actor_id: batch.actorId,
+        device_id: batch.deviceId,
+        lease_id: batch.leaseId,
+        schema_version: batch.schemaVersion,
+        occurred_at: batch.occurredAt,
+        events: batch.events,
+        received_at: confirmation.received_at,
+      },
+      // The RPC intentionally treats inserted and identical retry as one
+      // accepted receipt. It does not expose mutable transport-session state.
+      outcome: "inserted",
+    };
+  }
+
   const rowToInsert = {
     command_id: batch.commandId,
     branch_id: batch.branchId,
@@ -363,8 +456,15 @@ async function insertOrConfirmExisting(
     occurred_at: batch.occurredAt,
     events: batch.events,
   };
-  const inserted = await supabase
-    .from("command_batches")
+  if (!supabase.from) {
+    const unsupported: ErrorWithCode = new Error(
+      "The configured client cannot use the legacy proof endpoint.",
+    );
+    unsupported.code = "LEGACY_ENDPOINT_UNAVAILABLE";
+    throw unsupported;
+  }
+  const from = supabase.from.bind(supabase);
+  const inserted = await from("command_batches")
     .insert(rowToInsert)
     .select(remoteColumns)
     .single();
