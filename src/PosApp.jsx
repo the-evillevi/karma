@@ -1,5 +1,10 @@
 import React from 'react';
 import { css } from './css.js';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
 // it (keypad key, product card, sales row). Merges base + hover style on hover.
@@ -25,6 +30,7 @@ function Hover({ tag = 'button', base, hover, children, ...rest }) {
 export default class PosApp extends React.Component {
   constructor(props) {
     super(props);
+    this._dialogReturnFocus = null;
     const D = window.KARMA;
     let sv = {}; try { sv = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
     this._folio = sv.folioSeq || 1051;
@@ -257,7 +263,7 @@ export default class PosApp extends React.Component {
     const prepTags = { 'en-cola': ['En cola', bg, mut], preparando: ['Preparando', tint, acc], listo: ['Listo', acc, paper], entregado: ['Entregado', bg, mut] };
     const syncTags = { sincronizada: ['Sincronizada', 'transparent', '#a8a69c'], pendiente: ['Por sincronizar', tint, acc], conflicto: ['Conflicto', ink, paper] };
     const stop = e => e.stopPropagation();
-    const V = { loading: s.loading, stop, two: 2 };
+    const V = { loading: s.loading, stop, two: 2, dlgFields: [] };
 
     // ---- login
     const pu = s.usersX.find(u => u.id === s.pick) || s.usersX[0];
@@ -327,7 +333,7 @@ export default class PosApp extends React.Component {
     const vista = this.props.vistaCatalogo ?? 'cuadricula';
     const showAgotados = this.props.mostrarAgotados ?? true;
     V.search = s.search; V.setSearch = e => this.setState({ search: e.target.value });
-    V.cats = D.categories.map(c => ({ label: c.label, style: chip(s.cat === c.id && !s.search), pick: () => this.setState({ cat: c.id, search: '' }) }));
+    V.cats = D.categories.map(c => ({ label: c.label, active: s.cat === c.id && !s.search, pick: () => this.setState({ cat: c.id, search: '' }) }));
     let plist = s.prods.filter(p => s.search ? p.name.toLowerCase().includes(s.search.toLowerCase()) : p.cat === s.cat);
     if (!showAgotados) plist = plist.filter(p => p.available);
     V.prodsEmpty = plist.length === 0;
@@ -365,7 +371,6 @@ export default class PosApp extends React.Component {
       if (!this.can('descuento')) { this.notAllowed('aplicar descuentos'); return; }
       this.setState({ dlg: { title: 'Aplicar descuento', body: 'El descuento se resta del subtotal y queda auditado con tu usuario.', needReason: true, confirmLabel: 'Aplicar', fields: [{ key: 'monto', label: 'Monto (MXN)', ph: '0.00', value: '' }], onConfirm: d => { const f = (d.fields || []).find(x => x.key === 'monto'); const v = parseFloat(f && f.value) || 0; if (v <= 0) { this.toast('Captura un monto válido', 'warn'); return 'keep'; } this.up({ order: { ...this.state.order, discount: v, discountReason: d.reason } }); this.toast('Descuento de ' + this.fmt(v) + ' aplicado'); } } });
     };
-    V.chargeStyle = { padding: '14px 12px', background: o.items.length ? acc : line, color: o.items.length ? paper : mut, border: 'none', borderRadius: 9, fontSize: 15, fontWeight: 500, cursor: o.items.length ? 'pointer' : 'default', gridColumn: 'span 2' };
     V.saveOpen = () => { const f = this.saveOpen(); if (f) this.toast('Cuenta ' + f + ' guardada como abierta'); };
     V.sendComanda = () => {
       if (!this.needItems()) return;
@@ -661,14 +666,14 @@ export default class PosApp extends React.Component {
     V.dlg = !!dg;
     if (dg) {
       V.dlgTitle = dg.title; V.dlgBody = dg.body;
-      V.dlgFields = (dg.fields || []).map(f => ({ label: f.label, value: f.value, ph: f.ph || '', set: e => this.setState({ dlg: { ...this.state.dlg, fields: this.state.dlg.fields.map(x => x.key === f.key ? { ...x, value: e.target.value } : x) } }) }));
+      V.dlgFields = (dg.fields || []).map(f => ({ label: f.label, value: f.value, ph: f.ph || '', inputMode: f.key === 'monto' ? 'decimal' : undefined, set: e => this.setState({ dlg: { ...this.state.dlg, fields: this.state.dlg.fields.map(x => x.key === f.key ? { ...x, value: e.target.value } : x) } }) }));
       V.dlgNeedReason = !!dg.needReason && s.flags.cancelMotivo !== false || !!dg.needReason;
       V.dlgReason = dg.reason || ''; V.setDlgReason = e => this.setState({ dlg: { ...this.state.dlg, reason: e.target.value } });
       V.hasDlgErr = !!dg.err; V.dlgErr = dg.err || '';
       V.dlgHasConfirm = !!dg.onConfirm;
       V.dlgCloseLabel = dg.onConfirm ? 'Volver' : (dg.closeLabel || 'Entendido');
       V.dlgConfirmLabel = dg.confirmLabel || 'Confirmar';
-      V.dlgConfirmStyle = { padding: '10px 18px', background: dg.danger ? ink : acc, color: paper, border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: 'pointer' };
+      V.dlgConfirmVariant = dg.danger ? 'destructive' : 'default';
       V.dlgClose = () => this.setState({ dlg: null });
       V.dlgConfirm = () => {
         const d = this.state.dlg;
@@ -766,7 +771,7 @@ export default class PosApp extends React.Component {
 <input value={V.search} onChange={V.setSearch} placeholder="Buscar producto…" style={css("width:100%;padding:11px 14px;border:1px solid #e2e0d6;border-radius:9px;background:#faf9f5;font-size:14px;outline:none")} />
 <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
 {(V.cats).map((c, cI) => (<React.Fragment key={cI}>
-<button style={c.style} onClick={c.pick}>{c.label}</button>
+<Button size="sm" variant={c.active ? 'default' : 'outline'} className="rounded-[var(--radius-pill)]" aria-pressed={c.active} onClick={c.pick}>{c.label}</Button>
 </React.Fragment>))}
 </div>
 {(V.prodsEmpty) && (<>
@@ -825,7 +830,7 @@ export default class PosApp extends React.Component {
 {(V.hasDiscount) && (<>
 <div style={css("display:flex;justify-content:space-between;font-size:13px;color:#836953")}><span>Descuento</span><span>−{V.discount}</span></div>
 </>)}
-<button onClick={V.addDiscount} style={css("border:none;background:transparent;color:#836953;font-size:12px;cursor:pointer;text-align:left;padding:0")}>+ Agregar descuento</button>
+<Button variant="link" size="sm" className="h-11 justify-start px-0" onClick={V.addDiscount}>+ Agregar descuento</Button>
 <div style={css("display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #e2e0d6;padding-top:10px;margin-top:4px")}>
 <span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Total</span>
 <span style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;line-height:1")}>{V.total}</span>
@@ -833,10 +838,10 @@ export default class PosApp extends React.Component {
 <div style={css("font-size:11.5px;color:#6b6a63")}>La propina se captura en el cobro.</div>
 </div>
 <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:8px")}>
-<button onClick={V.saveOpen} style={css("padding:10px 12px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;color:#141413")}>Guardar cuenta</button>
-<button onClick={V.sendComanda} style={css("padding:10px 12px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;color:#141413")}>Enviar comanda</button>
-<button onClick={V.cancelOrder} style={css("padding:10px 12px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;color:#6b6a63;grid-column:span 2")}>Cancelar orden</button>
-<button onClick={V.goCharge} style={V.chargeStyle}>Cobrar {V.total}</button>
+<Button variant="outline" onClick={V.saveOpen}>Guardar cuenta</Button>
+<Button variant="outline" onClick={V.sendComanda}>Enviar comanda</Button>
+<Button variant="ghost" className="col-span-2" onClick={V.cancelOrder}>Cancelar orden</Button>
+<Button className={`col-span-2 min-h-12 text-base ${V.linesEmpty ? 'opacity-50' : ''}`} aria-disabled={V.linesEmpty} onClick={V.goCharge}>Cobrar {V.total}</Button>
 </div>
 </div>
 </div>
@@ -1323,33 +1328,44 @@ export default class PosApp extends React.Component {
 </div>
 </>)}
 
-{(V.dlg) && (<>
-<div style={css("position:fixed;inset:0;background:rgba(20,20,19,.38);z-index:300;display:flex;align-items:center;justify-content:center;padding:24px")}>
-<div style={css("width:420px;max-width:100%;background:#faf9f5;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px;animation:rise .25s ease")}>
-<div style={css("font-size:16px;font-weight:500")}>{V.dlgTitle}</div>
-<div style={css("font-size:13px;color:#6b6a63;line-height:1.55")}>{V.dlgBody}</div>
+<Dialog open={V.dlg} onOpenChange={open => { if (!open) V.dlgClose(); }}>
+<DialogContent
+  className="max-h-[calc(100dvh-2rem)] w-[420px] max-w-[calc(100vw-2rem)] overflow-y-auto p-5"
+  onOpenAutoFocus={() => { this._dialogReturnFocus = document.activeElement; }}
+  onCloseAutoFocus={event => {
+    const opener = this._dialogReturnFocus;
+    this._dialogReturnFocus = null;
+    if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) {
+      event.preventDefault();
+      opener.focus({ preventScroll: true });
+    }
+  }}
+>
+<DialogHeader>
+<DialogTitle>{V.dlgTitle}</DialogTitle>
+<DialogDescription>{V.dlgBody}</DialogDescription>
+</DialogHeader>
 {(V.dlgFields).map((f, fI) => (<React.Fragment key={fI}>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
-<span style={css("font-size:11px;color:#6b6a63")}>{f.label}</span>
-<input value={f.value} onChange={f.set} placeholder={f.ph} style={css("width:100%;padding:9px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none")} />
+<Label htmlFor={`dialog-field-${fI}`}>{f.label}</Label>
+<Input id={`dialog-field-${fI}`} inputMode={f.inputMode} value={f.value} onChange={f.set} placeholder={f.ph} aria-invalid={V.hasDlgErr || undefined} aria-describedby={V.hasDlgErr ? 'dialog-error' : undefined} />
 </div>
 </React.Fragment>))}
 {(V.dlgNeedReason) && (<>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
-<span style={css("font-size:11px;color:#6b6a63")}>Motivo (obligatorio)</span>
-<textarea value={V.dlgReason} onChange={V.setDlgReason} placeholder="Describe el motivo…" style={css("width:100%;padding:9px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none;resize:vertical;min-height:52px")}></textarea>
+<Label htmlFor="dialog-reason">Motivo (obligatorio)</Label>
+<Textarea id="dialog-reason" value={V.dlgReason} onChange={V.setDlgReason} placeholder="Describe el motivo…" aria-invalid={V.hasDlgErr || undefined} aria-describedby={V.hasDlgErr ? 'dialog-error' : undefined} />
 </div>
 </>)}
-{(V.hasDlgErr) && (<><div style={css("font-size:12.5px;color:#836953")}>{V.dlgErr}</div></>)}
-<div style={css("display:flex;gap:8px;justify-content:flex-end")}>
-<button onClick={V.dlgClose} style={css("padding:10px 16px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:9px;font-size:13px;cursor:pointer;color:#141413")}>{V.dlgCloseLabel}</button>
+{(V.hasDlgErr) && (<><div id="dialog-error" role="alert" style={css("font-size:12.5px;color:#141413")}>{V.dlgErr}</div></>)}
+<DialogFooter>
+<Button variant="outline" onClick={V.dlgClose}>{V.dlgCloseLabel}</Button>
 {(V.dlgHasConfirm) && (<>
-<button onClick={V.dlgConfirm} style={V.dlgConfirmStyle}>{V.dlgConfirmLabel}</button>
+<Button variant={V.dlgConfirmVariant} onClick={V.dlgConfirm}>{V.dlgConfirmLabel}</Button>
 </>)}
-</div>
-</div>
-</div>
-</>)}
+</DialogFooter>
+</DialogContent>
+</Dialog>
 
 <div style={css("position:fixed;right:20px;bottom:20px;z-index:400;display:flex;flex-direction:column;gap:8px;align-items:flex-end")}>
 {(V.toasts).map((t, tI) => (<React.Fragment key={tI}>
