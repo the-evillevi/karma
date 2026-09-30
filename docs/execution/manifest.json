@@ -454,9 +454,10 @@
       "agent": null,
       "commits": [
         "062537e",
-        "fee12e8"
+        "fee12e8",
+        "e02b812"
       ],
-      "pr": null,
+      "pr": "https://github.com/the-evillevi/karma/pull/11",
       "checks": [
         "Root23catalog tests with real113validator passed no skips",
         "Root10combinedcomponent flows and preview build passed"
@@ -475,14 +476,14 @@
       "requires": [
         "EVL-126"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_catalog",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Fix paid preparation actual app regression from reviewed integration; production durability126 gate remains open."
     },
     {
       "id": "EVL-188",
@@ -963,7 +964,7 @@
     "manualResume": true,
     "reason": "User authorized manual continuation after allowance reset",
     "runningAgents": 3,
-    "integration": "5993fad",
+    "integration": "876808e",
     "mainMerged": false,
     "nextIssue": "EVL-116",
     "resumeDocument": "docs/execution/RESUME.md",
