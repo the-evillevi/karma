@@ -278,14 +278,16 @@
       ],
       "stage": "implementing",
       "agent": "foundation_xhigh",
-      "commits": [],
+      "commits": [
+        "9580c5a"
+      ],
       "pr": null,
       "checks": [],
-      "review": "pending",
+      "review": "root_review_pending",
       "blockers": [
         "Forward versioned server write/read contract and operational integration remain pending; applied114/118 immutable."
       ],
-      "nextAction": "Implement resumable typed local RxDB/IndexedDB journal and restart replay; root review before remote versioned contract integration."
+      "nextAction": "Root reviews strict snapshot journal and IndexedDB revision/atomicity/recovery before actual POS mapping."
     },
     {
       "id": "EVL-154",
@@ -601,20 +603,26 @@
       "id": "EVL-189",
       "chain": "orders",
       "branch": "codex/orders/evl-189",
-      "baseBranch": "codex/orders/evl-122",
+      "baseBranch": "codex/orders/split-base",
       "requires": [
         "EVL-122"
       ],
-      "stage": "implementing",
-      "agent": "orders_xhigh",
+      "stage": "reviewed_slice",
+      "agent": null,
       "commits": [
-        "55ee685"
+        "55ee685",
+        "2e01d1c",
+        "8ac4ee5"
       ],
       "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Luna fixes malformed split history, latest persisted state preservation and monotonic folio sequence; root integrates secure118/187 and reviews before155."
+      "checks": [
+        "Root full77domain/79component/10Edge and PWA restart check passed; final12 split guards passed; scoped scan no new findings."
+      ],
+      "review": "fixed_and_rereviewed_split_persistence_cents_shared_preparation",
+      "blockers": [
+        "Operator selection155, durable/versioned atomic split126 and granular compensation129 remain acceptance gates."
+      ],
+      "nextAction": "Publish focused draft on reviewed integration base and advance155 operator quantity selection."
     },
     {
       "id": "EVL-155",
@@ -1063,10 +1071,10 @@
   "sessionCheckpoint": {
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
-    "runningAgents": 2,
-    "integration": "65e0d64",
+    "runningAgents": 0,
+    "integration": "8ac4ee5",
     "mainMerged": false,
-    "nextIssue": "EVL-126 local durable journal and EVL-189 root fixes, then EVL-155",
+    "nextIssue": "Root EVL-126 review; EVL-155 operator selections; EVL-125 manual compensation",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed"
   }
