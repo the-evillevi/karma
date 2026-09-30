@@ -29,3 +29,14 @@ The previous session limit interrupted foundation. Human redeemed one reset; lat
 
 
 2026-09-30 continuation checkpoint: root integrated journal+recipes atff7009a and started combined `pnpm check` (`/tmp/karma-journal-recipes-combined.log`, session62945); no final result yet. Preserve merged customer/report/inventory fields and both journal test lanes. PR30 journal and PR31 recipes published/attached. Reports belongs to orders_xhigh, foundation server belongs to foundation_xhigh; root owns inventory/integration. Ordinary allowance remains true; keep bounded resumable commits, no automatic credit redemption or automation.
+
+
+## Latest authoritative checkpoint (supersedes earlier ownership/status)
+
+Integration runtime15044a6 passed normal full check:150domain,131screens,10Edge,1PWA restart,7phase1journal,5operationsjournal,format/lint/types/bothbuilds/client scans. Bounded screen concurrency2 after reproduced CPU-contention timeouts; limits and coverage unchanged. PR32 real report periods atc71c7f9 published/attached; CI36768697072 passed. PR30/31 CI also passed. All PR1–32 drafts, no main merge. Recipe demo owner role corrected1162163 and integratede5ae0b7. Reportsrewrite has0medium+ scoped findings, historical older4baseline finding evidence remains attributed to earlier heads.
+
+Foundation exclusively belongs to foundation_xhigh, server branch1197272. New SQL is NOT applied; root confirmed PostgreSQL17.6 has no jsonb_object_length via read-only linked catalog query. Agent fixes both calls, adds SQL runtime regression; root reviews full SQL/tests and exact hash before isolated apply. Existing CLI linked project-ref confirmed vwvlsayxsunefeehiavt; db query --linked --file supported. Docker available with cachedSupabase PostgreSQL17 image for local execution. Never print credentials or modify applied114/118.
+
+Inventory exclusively belongs to orders_xhigh on codex/inventory/evl-153 at5c4494a, stacked from audit-base(e5ae0b7). Agent28domain/15screens/build/type/lint/format passed. Root found filter errors hide their own controls (typing zone becomes impossible to correct); agent fixes with recovery regressions and reuses one Intl formatter per filtering pass. Root final review/scan/publication/integration still pending; preserve newer real report-period code when merging. Root owns reports clean c71c7f9 and integration.
+
+Latest usage94%primary/15%weekly ordinary allowed,3resetcredits. Keep resumable commits; do not redeem credits or create automation. Continue until actual boundary.
