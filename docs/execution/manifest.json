@@ -139,19 +139,26 @@
       "branch": "codex/foundation/evl-113",
       "baseBranch": "main",
       "requires": [],
-      "stage": "fixing",
-      "agent": "implement_foundation",
+      "stage": "awaiting_merge",
+      "agent": null,
       "commits": [
         "69fabf0",
-        "ad93ebf"
+        "ad93ebf",
+        "63dcf6d",
+        "5ac36b9"
       ],
-      "pr": null,
-      "checks": [],
-      "review": "fixes_in_progress",
+      "pr": "https://github.com/the-evillevi/karma/pull/2",
+      "checks": [
+        "13 Node tests passed",
+        "Both Vite entry builds passed",
+        "git diff --check"
+      ],
+      "review": "passed_after_fixes",
       "blockers": [
-        "Root re-review: preserve closed refund state on duplicate payment; deep-clone duplicate receipt."
+        "Runtime integration and durable offline behavior remain in follow-on issues; merge pending."
       ],
-      "nextAction": "Finish two re-review fixes; root verifies and publishes before EVL-114."
+      "nextAction": "EVL-114 implements the reviewed architecture proof; runtime criteria remain open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-114",
@@ -161,14 +168,14 @@
       "requires": [
         "EVL-113"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_foundation",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "ADR and real RxDB/Supabase offline/reconnect proof; root reviews DDL before remote application."
     },
     {
       "id": "EVL-116",
