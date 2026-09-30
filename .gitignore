@@ -5,6 +5,7 @@ dist
 .playwright-output
 .pwa-playwright-output
 .pos-journal-playwright-output
+.pos-operations-journal-playwright-output
 test-results
 .DS_Store
 .preview-playwright-output
