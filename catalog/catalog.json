@@ -7,7 +7,7 @@
   "importGate": {
     "readyForValidatedBusinessUse": false,
     "blockers": [
-      "Source workbooks and product photos have not been reconciled against the prototype seed.",
+      "Source workbooks are only partially reconciled; product photos remain unavailable.",
       "Carlos has not validated menu names, prices, availability, options, or stock control."
     ]
   },
@@ -20,12 +20,54 @@
     {
       "id": "stock-workbook",
       "name": "ReporteDeStock_52000822_2026-8-6-1813618144.xlsx",
-      "status": "unavailable-expired-linear-link"
+      "status": "available-inspected-private-copy",
+      "sizeBytes": 20375,
+      "sha256": "bf0f2d5db6c3a8084d58dad5bc2b0e809a2a926dbd8843bf43ecd911dedc732f",
+      "coverage": {
+        "sheets": 1,
+        "dataRows": 107,
+        "headerRow": 8,
+        "embeddedMediaFiles": 1,
+        "columns": [
+          "Categoría",
+          "Nombre",
+          "SKU",
+          "Stock Actual",
+          "Unidad"
+        ]
+      }
     },
     {
       "id": "products-workbook",
       "name": "products-Today.xlsx",
-      "status": "unavailable-expired-linear-link"
+      "status": "available-inspected-private-copy",
+      "sizeBytes": 76754,
+      "sha256": "57efde7545fbaa18a035e5dd20ab7b1036687678f7b90b7210bc860445335499",
+      "coverage": {
+        "sheets": 1,
+        "dataRows": 115,
+        "headerRow": 2,
+        "embeddedMediaFiles": 0,
+        "mappedColumns": [
+          "Categoría",
+          "Nombre",
+          "Sku",
+          "Precio del menu",
+          "Iva del menu",
+          "Disponible?"
+        ],
+        "otherColumns": [
+          "Descripción",
+          "Imagen",
+          "Es Pesable?",
+          "Unidad de medida",
+          "Carta",
+          "IEPS",
+          "Clave de producto CFDI",
+          "Unidad CFDI",
+          "Combo?"
+        ]
+      }
     },
     {
       "id": "product-photos",

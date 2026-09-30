@@ -15,6 +15,14 @@ node scripts/catalog/normalize-seed.mjs --check
 node --test scripts/catalog/catalog-normalizer.test.mjs
 ```
 
+Reconcile the local source workbooks and keep row-level prices, SKUs, and source mappings in a private output directory (the script writes aggregate counts only to stdout):
+
+```sh
+python3 scripts/catalog/reconcile_sources.py
+```
+
+Pass `--stock`, `--products`, `--seed`, or `--private-dir` to use alternate inputs or output location. The default output directory is `~/.codex/karma-private/catalog` with private permissions. Do not commit its generated JSON files.
+
 The JSON has an importable data shape, but the current POS does not load it. Wiring it into the running app as a seed remains open for runtime-loader work. A structurally valid file is not a business-validated catalog: `importGate.readyForValidatedBusinessUse` stays false while source reconciliation and Carlos review are open. Do not publish those seed prices/options as the real menu before the gate is cleared.
 
 `validateCatalog` checks structure and types without treating unresolved business review as a schema error. `importGate` reports business readiness separately. A later approved catalog may mark stock control validated or set its mode to `none` while the business-use gate remains closed for other unresolved fields.
