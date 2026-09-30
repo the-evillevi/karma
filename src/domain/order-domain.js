@@ -96,7 +96,7 @@ export function recordPayment(payments, payment, amountDueCents, { closed = fals
   if (prior) {
     const { reversals: _reversals, refunds: _refunds, ...original } = prior;
     if (stableJson(original) !== stableJson(payment)) throw new Error(`paymentId reused with different content: ${payment.paymentId}`);
-    return summarizePayments(payments, amountDueCents, false);
+    return summarizePayments(payments, amountDueCents, false, { closed });
   }
   if (closed) throw new Error("closed sales cannot accept another charge");
   const paid = netCollected(payments);
@@ -212,7 +212,7 @@ export function applyEventBatch(current, proposedEvents, reduce = appendOnlyRedu
     ?? deriveCommandBatch(current.events, commandId);
   if (existingBatch) {
     if (stableJson(existingBatch) !== stableJson(batchDocument)) throw new Error(`commandId reused with a different event batch: ${commandId}`);
-    return { projection: structuredClone(current), commandBatch: existingBatch, acceptedEventIds: [], duplicateCount: proposedEvents.length };
+    return { projection: structuredClone(current), commandBatch: structuredClone(existingBatch), acceptedEventIds: [], duplicateCount: proposedEvents.length };
   }
   const knownEventIds = new Set(current.events.map((event) => event.eventId));
   const proposedIds = new Set();

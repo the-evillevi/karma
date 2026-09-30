@@ -102,6 +102,9 @@ test("closed-sale refunds preserve closure and never reopen a chargeable balance
   assert.equal(refunded.dueCents, 0);
   assert.equal(refunded.closed, true);
   assert.equal(refundPayment(refunded.payments, "refund-1", "pay-closed", 1200, 5000).changed, false);
+  const duplicateOriginalCharge = recordPayment(refunded.payments, { paymentId: "pay-closed", method: "card", netAmountCents: 5000, tipCents: 0 }, 5000, { closed: true });
+  assert.equal(duplicateOriginalCharge.closed, true);
+  assert.equal(duplicateOriginalCharge.dueCents, 0);
   assert.throws(() => recordPayment(refunded.payments, { paymentId: "pay-again", method: "card", netAmountCents: 1200, tipCents: 0 }, 5000, { closed: true }), /closed sales/);
   assert.throws(() => reversePayment(settled.payments, "rev-closed", "pay-closed", 1200, 5000, { saleClosed: true }), /closed-sale refunds/);
 });
@@ -130,7 +133,10 @@ test("a command batch rejects mixed IDs/metadata before projection changes and c
   assert.equal(first.projection.count, 2);
   assert.equal(first.projection.commandBatches.length, 1);
   assert.deepEqual(first.commandBatch.events.map((item) => item.eventId), ["evt-1", "evt-2"]);
-  assert.equal(applyEventBatch(first.projection, batch).projection.count, 2);
+  const replay = applyEventBatch(first.projection, batch);
+  assert.equal(replay.projection.count, 2);
+  replay.commandBatch.events[0].payload.value = 99;
+  assert.equal(first.projection.commandBatches[0].events[0].payload.value, 1);
 
   assert.throws(() => applyEventBatch(first.projection, [event("evt-3"), { ...event("evt-4"), actorId: "other-user" }], (projection) => ({ ...projection, count: projection.count + 1 })), /cannot mix aggregate, actor/);
   assert.throws(() => applyEventBatch(first.projection, [event("evt-3"), { ...event("evt-4"), commandId: "cmd-other" }]), /cannot mix command IDs/);
