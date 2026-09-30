@@ -254,13 +254,13 @@ export function customerStatement(value, customerId) {
 }
 export function planCustomerCommand(value, commandValue, currentAuthority) {
   const valid = validateCustomerLedger(value);
+  const command = canonicalCommand(commandValue);
   const authority = record(currentAuthority);
   if (
-    authority.actorId !== commandValue.actorId ||
-    authority.role !== commandValue.roleSnapshot
+    authority.actorId !== command.actorId ||
+    authority.role !== command.roleSnapshot
   )
     fail("not_authorized");
-  const command = canonicalCommand(commandValue);
   const { customers, commands } = replay(valid.events);
   const previous = commands.get(command.commandId);
   if (previous) {

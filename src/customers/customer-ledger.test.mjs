@@ -115,6 +115,10 @@ test("preserves immutable history through linked partial reversals and blocks ex
 
 test("checks current identity, owner-only limits, stable retries and source revisions", () => {
   const state = registered();
+  assert.throws(
+    () => planCustomerCommand(state, null, owner),
+    /invalid_record/,
+  );
   const cmd = command("credit.limit", { limitCents: 5000 }, 1);
   const first = planCustomerCommand(state, cmd, owner);
   assert.equal(planCustomerCommand(first.ledger, cmd, owner).duplicate, true);
