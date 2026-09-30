@@ -10,6 +10,7 @@ import { Label } from './label.jsx';
 import { Table } from './table.jsx';
 import PosApp from '../../PosApp.jsx';
 import ComandaApp from '../../ComandaApp.jsx';
+import { adaptPosStateToCompatibleSnapshot } from '../../offline-sync/pos-compatible-snapshot.ts';
 import '../../karma-data.js';
 import {
   Dialog,
@@ -369,6 +370,18 @@ describe('shared UI primitives', () => {
         modifiers: [{ optionId: 'avena', optionName: 'Avena', priceEffectCents: 1000 }],
       },
     });
+
+    await user.click(screen.getByRole('button', { name: /Órdenes abiertas/ }));
+    await user.click(screen.getByRole('button', { name: 'Cobrar' }));
+    await user.click(screen.getByRole('button', { name: 'Continuar al pago' }));
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    await user.click(screen.getByRole('button', { name: /Registrar pago/ }));
+    await screen.findByText('Pago registrado', {}, { timeout: 4000 });
+    const closed = JSON.parse(storage.getItem('karma-pos-v1'));
+    const compatible = adaptPosStateToCompatibleSnapshot(closed, { snapshotId: 'rich-sale-ui', capturedAt: '2026-09-30T12:30:00.000Z', branchId: 'ui-branch', deviceId: 'ui-register', actorId: 'u1' });
+    const sale = compatible.sales.find(entry => entry.folio === saved.open[0].folio);
+    expect(sale.items[0]).toMatchObject({ lineId: saved.open[0].items[0].lineId, productId: 'concafe-americano', quantity: 2, price: { unitPriceCents: 6000, lineTotalCents: 12000, catalogPriceVersionId: null, evidence: 'captured-prototype-catalog' }, modifierEvidence: 'captured', modifierSelections: [{ optionId: 'avena', priceEffectCents: 1000 }], tax: { status: 'unknown', rateBasisPoints: null } });
+    expect(compatible.openAccounts).toEqual([]);
   });
 
   it('refuses to price an uncaptured historical line from the current catalog', async () => {
@@ -705,12 +718,25 @@ describe('manual checkout tips and offline tender capture', () => {
 
     const saved = JSON.parse(storage.getItem('karma-pos-v1'));
     const sale = saved.sales.find(entry => entry.folio === ticket.folio);
+    const compatible = adaptPosStateToCompatibleSnapshot(saved, {
+      snapshotId: 'ui-sale-capture-1',
+      capturedAt: '2026-09-30T12:30:00.000Z',
+      branchId: 'branch-ui-test',
+      deviceId: 'register-ui-test',
+      actorId: 'u1',
+    });
     expect(saved.sales.filter(entry => entry.folio === ticket.folio && entry.status === 'completada')).toHaveLength(1);
     expect(sale).toMatchObject({ totalCents: 7200, tipCents: 1200, externalPaymentVerification: 'manual_unverified', paymentRecordMode: 'manual' });
     expect(sale.payments.map(payment => [payment.method, payment.netAmountCents])).toEqual([['cash', 2000], ['card', 3000], ['transfer', 2200]]);
     expect(sale.payments.every(payment => payment.recordMode === 'manual')).toBe(true);
     expect(sale.payments.filter(payment => payment.method !== 'cash').every(payment => payment.verificationStatus === 'manual_unverified')).toBe(true);
     expect(sale.payments.reduce((sum, payment) => sum + payment.tipCents, 0)).toBe(1200);
+    expect(compatible.sales.find(entry => entry.folio === ticket.folio)?.items[0]).toMatchObject({
+      name: 'Americano',
+      quantity: 1,
+      price: { lineTotalCents: 6000, unitPriceCents: 6000, evidence: 'stored-legacy-unit', catalogPriceVersionId: null },
+    });
+    expect(compatible.sales.find(entry => entry.folio === ticket.folio)?.audit.length).toBe(2);
     expect(saved.kitchenTickets).toMatchObject([{ folio: ticket.folio, prep: 'en-cola', ref: 'Mesa 12', items: [{ notes: 'Leche aparte' }] }]);
     expect(saved.open).toEqual([]);
 
