@@ -1,5 +1,5 @@
 const safeCodes = new Set([
-  '42501', 'PGRST301', 'DEVICE_REVOKED', 'LEASE_EXPIRED', 'AUTHORIZATION_UNAVAILABLE',
+  '42501', 'PGRST301', 'DEVICE_REVOKED', 'DEVICE_UNAVAILABLE', 'LEASE_EXPIRED', 'AUTHORIZATION_UNAVAILABLE',
   '23505', 'COMMAND_CONFLICT', 'EVENT_CONFLICT',
 ]);
 
@@ -11,7 +11,7 @@ export function safeDiagnostic(error) {
   if (name === 'QuotaExceededError' || name === 'AbortError' || name === 'ConstraintError') {
     return { kind: 'storage', code: name, message: 'No se pudo guardar localmente. Revisa el almacenamiento disponible y vuelve a intentar.', retryable: true };
   }
-  if (['42501', 'PGRST301', 'DEVICE_REVOKED', 'LEASE_EXPIRED', 'AUTHORIZATION_UNAVAILABLE'].includes(code)) {
+  if (['42501', 'PGRST301', 'DEVICE_REVOKED', 'DEVICE_UNAVAILABLE', 'LEASE_EXPIRED', 'AUTHORIZATION_UNAVAILABLE'].includes(code)) {
     return { kind: 'permission', code, message: 'El servidor rechazó esta autorización. Actualiza los permisos antes de continuar.', retryable: false };
   }
   if (['23505', 'COMMAND_CONFLICT', 'EVENT_CONFLICT'].includes(code)) {

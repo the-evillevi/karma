@@ -2,11 +2,12 @@
 // @vitest-environment-options {"url":"http://localhost/"}
 import React from 'react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Button } from './button.jsx';
 import { Input } from './input.jsx';
 import { Label } from './label.jsx';
+import { Table } from './table.jsx';
 import PosApp from '../../PosApp.jsx';
 import ComandaApp from '../../ComandaApp.jsx';
 import '../../karma-data.js';
@@ -92,6 +93,29 @@ describe('shared UI primitives', () => {
     expect(amount.getAttribute('aria-invalid')).toBe('true');
     expect(amount.getAttribute('aria-describedby')).toBe('amount-error');
     expect(screen.getByRole('alert').textContent).toBe('Captura un monto válido.');
+  });
+
+  it('scrolls the focused table region with arrows without stealing keys from child inputs', () => {
+    render(
+      <Table containerProps={{ 'aria-label': 'Scrollable stock table' }}>
+        <tbody><tr><td><input aria-label="Filter stock table" /></td></tr></tbody>
+      </Table>
+    );
+    const region = screen.getByRole('region', { name: 'Scrollable stock table' });
+    const input = screen.getByRole('textbox', { name: 'Filter stock table' });
+    Object.defineProperty(region, 'scrollWidth', { configurable: true, value: 600 });
+    Object.defineProperty(region, 'clientWidth', { configurable: true, value: 300 });
+
+    input.focus();
+    fireEvent.keyDown(input, { key: 'ArrowRight' });
+    expect(region.scrollLeft).toBe(0);
+
+    region.focus();
+    fireEvent.keyDown(region, { key: 'ArrowRight' });
+    expect(region.scrollLeft).toBeGreaterThan(0);
+    const afterArrow = region.scrollLeft;
+    fireEvent.keyDown(region, { key: 'ArrowRight', altKey: true });
+    expect(region.scrollLeft).toBe(afterArrow);
   });
 
   it('mounts the POS without a dialog and restores focus after an app warning closes', async () => {
@@ -256,8 +280,157 @@ describe('shared UI primitives', () => {
 
     await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
     await user.click(await screen.findByRole('button', { name: 'Cobrar' }));
-    expect(await screen.findByText(/No se puede abrir el cobro: revisa productos, cantidades, precios y descuento/)).toBeTruthy();
+    expect(await screen.findByText(/Hay productos sin precio capturado|No se puede abrir el cobro: revisa productos, cantidades, precios y descuento/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reportes' })).toBeTruthy();
+  });
+
+  it('keeps captured legacy prices and labels after catalog edits, resume, reload, and checkout', async () => {
+    const storage = installMemoryStorage();
+    const originalGroups = JSON.stringify(window.KARMA.modGroups);
+    const products = window.KARMA.products.map(product => product.id === 'concafe-americano'
+      ? { ...product, name: 'Americano renovado', price: 80, available: false }
+      : { ...product });
+    const account = {
+      folio: 'A-188-PRICE', type: 'local', ref: 'En local', time: '12:00', user: 'Marcela',
+      prep: 'en-cola', sync: 'sincronizada', discount: 10,
+      items: [
+        { prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: {}, modsText: '', notes: '', unit: 50 },
+        { prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: { leche: ['avena'] }, modsText: 'Avena +$10', notes: '', unit: 60 },
+      ],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', prods: products, open: [account], kitchenTickets: [account] }));
+    window.KARMA.modGroups.leche.options.find(option => option.id === 'avena').label = 'Bebida vegetal nueva';
+    window.KARMA.modGroups.leche.options.find(option => option.id === 'avena').price = 25;
+    const user = userEvent.setup();
+
+    const pos = render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    expect(await screen.findByText('1× Americano · 1× Americano')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Abrir' }));
+
+    expect(await screen.findByText('Avena +$10')).toBeTruthy();
+    expect(screen.getByText('$50.00')).toBeTruthy();
+    expect(screen.getAllByText('$60.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('$100.00').length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole('button', { name: 'Aumentar Americano' })[0]);
+    expect(screen.getAllByText('$150.00').length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }));
+    const saved = JSON.parse(storage.getItem('karma-pos-v1'));
+    expect(saved.open[0].items.map(item => item.unit)).toEqual([50, 60]);
+    expect(saved.open[0].items[1].modsText).toBe('Avena +$10');
+
+    pos.unmount();
+    cleanup();
+    const reloaded = render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    await user.click((await screen.findAllByRole('button', { name: 'Cobrar' }))[0]);
+    expect(await screen.findByText('Revisa la orden')).toBeTruthy();
+    expect(screen.getAllByText('$150.00').length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Continuar al pago' }));
+    await screen.findByRole('textbox', { name: 'Monto con Efectivo' });
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    await user.click(screen.getByRole('button', { name: /Registrar pago/ }));
+    await screen.findByText('Pago registrado', {}, { timeout: 4000 });
+    const paid = JSON.parse(storage.getItem('karma-pos-v1')).sales.find(sale => sale.folio === account.folio);
+    expect(paid).toMatchObject({ total: 150, status: 'completada' });
+    expect(paid.items).toEqual([
+      { name: 'Americano', qty: 2, mods: '', total: 100 },
+      { name: 'Americano', qty: 1, mods: 'Avena +$10', total: 60 },
+    ]);
+    reloaded.unmount();
+    window.KARMA.modGroups = JSON.parse(originalGroups);
+  });
+
+  it('stores fresh product and modifier capture facts on a new open account', async () => {
+    const storage = installMemoryStorage();
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [] }));
+    const user = userEvent.setup();
+
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: 'Americano, $50.00' }));
+    await user.click(await screen.findByRole('button', { name: /Avena \+\$10/ }));
+    await user.click(screen.getByRole('button', { name: 'Agregar · $60.00' }));
+    await user.click(screen.getByRole('button', { name: 'Aumentar Americano' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar cuenta' }));
+
+    const saved = JSON.parse(storage.getItem('karma-pos-v1'));
+    expect(saved.open[0].items[0]).toMatchObject({
+      name: 'Americano',
+      productNameSnapshot: 'Americano',
+      qty: 2,
+      unit: 60,
+      modsText: 'Avena +$10',
+      capturedSnapshot: {
+        baseUnitPriceCents: 5000,
+        modifiersTotalCents: 1000,
+        unitPriceCents: 6000,
+        quantity: 2,
+        lineTotalCents: 12000,
+        modifiers: [{ optionId: 'avena', optionName: 'Avena', priceEffectCents: 1000 }],
+      },
+    });
+  });
+
+  it('refuses to price an uncaptured historical line from the current catalog', async () => {
+    const storage = installMemoryStorage();
+    const products = window.KARMA.products.map(product => product.id === 'concafe-americano'
+      ? { ...product, name: 'Americano actual', price: 80 }
+      : { ...product });
+    const account = {
+      folio: 'A-188-MISSING-PRICE', type: 'local', ref: 'En local', time: '12:00', user: 'Marcela',
+      prep: 'en-cola', sync: 'sincronizada', discount: 0,
+      items: [{ prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: {}, modsText: '', notes: '' }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', prods: products, open: [account], kitchenTickets: [account] }));
+    const user = userEvent.setup();
+
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    expect(await screen.findByText('Precio por verificar')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Cobrar' }));
+    expect(await screen.findByText(/Hay productos sin precio capturado/)).toBeTruthy();
+    expect(screen.queryByText('Revisa la orden')).toBeNull();
+  });
+
+  it('rejects reserved modifier keys loaded from browser storage during a captured edit', async () => {
+    const storage = installMemoryStorage();
+    const account = {
+      folio: 'A-188-UNTRUSTED', type: 'local', ref: 'En local', time: '12:00', user: 'Marcela',
+      prep: 'en-cola', sync: 'sincronizada', discount: 0,
+      items: [{ prodId: 'concafe-americano', name: 'Americano', qty: 1,
+        mods: JSON.parse('{"constructor":["avena"],"__proto__":["entera"]}'),
+        modsText: '', notes: '', unit: 50 }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [account], kitchenTickets: [account] }));
+    const user = userEvent.setup();
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    await user.click(screen.getByRole('button', { name: 'Abrir' }));
+    await user.click(await screen.findByRole('button', { name: 'Editar partida' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar · $50.00' }));
+    expect(await screen.findByText(/Para cambiar modificadores, elimina el producto y agrégalo de nuevo/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Guardar · $50.00' })).toBeTruthy();
+    expect(Object.hasOwn(Object.prototype, 'avena')).toBe(false);
+  });
+
+  it('requires an explicit remove-and-readd before changing a captured modifier', async () => {
+    const storage = installMemoryStorage();
+    const account = {
+      folio: 'A-188-MODIFIER-GUARD', type: 'local', ref: 'En local', time: '12:00', user: 'Marcela',
+      prep: 'en-cola', sync: 'sincronizada', discount: 0,
+      items: [{ prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: { leche: ['entera'] }, modsText: 'Entera', notes: '', unit: 50 }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [account], kitchenTickets: [account] }));
+    const user = userEvent.setup();
+
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    await user.click(screen.getByRole('button', { name: 'Abrir' }));
+    await user.click(await screen.findByRole('button', { name: 'Editar partida' }));
+    await user.click(screen.getByRole('button', { name: /Avena \+\$10/ }));
+    await user.click(screen.getByRole('button', { name: 'Guardar · $50.00' }));
+    expect(await screen.findByText(/Para cambiar modificadores, elimina el producto y agrégalo de nuevo/)).toBeTruthy();
+    expect(JSON.parse(storage.getItem('karma-pos-v1')).order.items[0]).toMatchObject({ unit: 50, mods: { leche: ['entera'] } });
   });
 
   it('rejects checkout when the source account changes after checkout opens', async () => {
@@ -381,14 +554,18 @@ describe('shared UI primitives', () => {
       reloadedPos.unmount();
       cleanup();
 
-      let kitchen = render(<ComandaApp />);
+      let kitchenSafety;
+      const reportKitchenSafety = next => { kitchenSafety = next; };
+      let kitchen = render(<ComandaApp onUpdateSafetyChange={reportKitchenSafety} />);
       const terminal = prep === 'entregado';
       if (terminal) {
         expect(screen.queryByText(ticket.folio)).toBeNull();
+        expect(kitchenSafety.status).toBe('safe');
         return;
       }
 
       await screen.findByText(ticket.folio);
+      expect(kitchenSafety.status).toBe('blocked');
       expect(screen.getByText('Avena +$10')).toBeTruthy();
       expect(screen.getByText('“Sin canela”')).toBeTruthy();
       expect(screen.getByText(/Mesa 7/)).toBeTruthy();
@@ -401,11 +578,12 @@ describe('shared UI primitives', () => {
         currentPrep = expected;
         kitchen.unmount();
         cleanup();
-        kitchen = render(<ComandaApp />);
+        kitchen = render(<ComandaApp onUpdateSafetyChange={reportKitchenSafety} />);
         if (currentPrep !== 'entregado') await screen.findByText(ticket.folio);
       }
       expect(screen.queryByText(ticket.folio)).toBeNull();
       expect(JSON.parse(storage.getItem('karma-pos-v1')).kitchenTickets[0].prep).toBe('entregado');
+      expect(kitchenSafety.status).toBe('safe');
     },
   );
 
