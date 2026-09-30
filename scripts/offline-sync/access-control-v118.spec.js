@@ -112,6 +112,13 @@ test.describe("EVL-118 hosted role and event-envelope checks", () => {
     });
     expect(overlongReason.error?.code).toBe("22023");
 
+    const nonStringReason = await appendAs({
+      ...owner,
+      type: "PreparationCancelled",
+      payload: { reason: 42 },
+    });
+    expect(nonStringReason.error?.code).toBe("22023");
+
     const waiterDenied = await appendAs({
       email: env.SUPABASE_WAITER_EMAIL,
       password: env.SUPABASE_WAITER_PASSWORD,

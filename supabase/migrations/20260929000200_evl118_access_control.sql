@@ -301,7 +301,8 @@ begin
     end if;
     if event_type in ('OrderCancelled', 'DiscountApplied', 'PreparationCancelled') then
       reason_text := item.event -> 'payload' ->> 'reason';
-      if reason_text is null or length(btrim(reason_text)) not between 1 and 250 then
+      if jsonb_typeof(item.event -> 'payload' -> 'reason') is distinct from 'string'
+        or reason_text is null or length(btrim(reason_text)) not between 1 and 250 then
         raise exception 'A bounded reason is required for this event' using errcode = '22023';
       end if;
     end if;
