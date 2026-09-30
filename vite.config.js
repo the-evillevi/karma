@@ -11,6 +11,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
     include: ["src/**/*.test.{jsx,tsx}"],
+    // Large POS screen suites otherwise compete for CPU and exceed their
+    // unchanged 5s limit on busy hosts. Bound concurrency, not coverage.
+    maxWorkers: 2,
+    minWorkers: 1,
   },
   server: {
     fs: { deny: [".env", ".env.*", "*.{crt,pem}", ".env.offline-test.local"] },
