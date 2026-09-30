@@ -291,14 +291,18 @@ describe('shared UI primitives', () => {
       reloadedPos.unmount();
       cleanup();
 
-      let kitchen = render(<ComandaApp />);
+      let kitchenSafety;
+      const reportKitchenSafety = next => { kitchenSafety = next; };
+      let kitchen = render(<ComandaApp onUpdateSafetyChange={reportKitchenSafety} />);
       const terminal = prep === 'entregado';
       if (terminal) {
         expect(screen.queryByText(ticket.folio)).toBeNull();
+        expect(kitchenSafety.status).toBe('safe');
         return;
       }
 
       await screen.findByText(ticket.folio);
+      expect(kitchenSafety.status).toBe('blocked');
       expect(screen.getByText('Avena +$10')).toBeTruthy();
       expect(screen.getByText('“Sin canela”')).toBeTruthy();
       expect(screen.getByText(/Mesa 7/)).toBeTruthy();
@@ -311,11 +315,12 @@ describe('shared UI primitives', () => {
         currentPrep = expected;
         kitchen.unmount();
         cleanup();
-        kitchen = render(<ComandaApp />);
+        kitchen = render(<ComandaApp onUpdateSafetyChange={reportKitchenSafety} />);
         if (currentPrep !== 'entregado') await screen.findByText(ticket.folio);
       }
       expect(screen.queryByText(ticket.folio)).toBeNull();
       expect(JSON.parse(storage.getItem('karma-pos-v1')).kitchenTickets[0].prep).toBe('entregado');
+      expect(kitchenSafety.status).toBe('safe');
     },
   );
 

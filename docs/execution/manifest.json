@@ -70,7 +70,7 @@
         "EVL-187",
         "EVL-125"
       ],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-payments/karma"
     },
     {
       "name": "inventory",
@@ -236,12 +236,16 @@
       ],
       "stage": "implementing",
       "agent": "implement_foundation",
-      "commits": [],
+      "commits": [
+        "d1b3b1c",
+        "9bea334",
+        "a0bdb8b"
+      ],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Secureinitiallogin deviceenrollment offlineunlock and role-boundary implementation; rootreviewmigrationbeforecloudapply."
+      "nextAction": "Serialize owner continuity before migration apply; secure client/RPC fixtures continue."
     },
     {
       "id": "EVL-126",
@@ -330,14 +334,16 @@
       "requires": [
         "EVL-156"
       ],
-      "stage": "implementing",
+      "stage": "reviewing",
       "agent": "implement_design",
-      "commits": [],
+      "commits": [
+        "ddf2a93"
+      ],
       "pr": null,
       "checks": [],
-      "review": "pending",
+      "review": "fixing_root_visual_findings",
       "blockers": [],
-      "nextAction": "Implement responsive shell/shared station from reviewed156 and121 anchors."
+      "nextAction": "Root combined viewport/PWA and visual review in progress."
     },
     {
       "id": "EVL-115",
@@ -479,18 +485,26 @@
       "id": "EVL-185",
       "chain": "orders",
       "branch": "codex/orders/evl-185",
-      "baseBranch": "main",
+      "baseBranch": "codex/orders/base",
       "requires": [
         "EVL-126"
       ],
-      "stage": "implementing",
-      "agent": "implement_catalog",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Fix paid preparation actual app regression from reviewed integration; production durability126 gate remains open."
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "a53d707",
+        "7fe4b88"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/12",
+      "checks": [
+        "Root17componenttests54unitnoskipsfourentrybuildpassed"
+      ],
+      "review": "fixed_and_rereviewed_actual_app",
+      "blockers": [
+        "Trusted authorization118 and production durability126 remain open."
+      ],
+      "nextAction": "Draft actual paid-kitchen fix; durable storage and browser acceptance remain open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-188",
@@ -568,18 +582,18 @@
       "id": "EVL-186",
       "chain": "payments",
       "branch": "codex/payments/evl-186",
-      "baseBranch": "main",
+      "baseBranch": "codex/payments/base",
       "requires": [
         "EVL-126"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_catalog",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Actual tender/change/net and report reconciliation; production126 gate stays open."
     },
     {
       "id": "EVL-123",
@@ -971,9 +985,9 @@
     "manualResume": true,
     "reason": "User authorized manual continuation after allowance reset",
     "runningAgents": 3,
-    "integration": "ba96377",
+    "integration": "bf79fc4",
     "mainMerged": false,
-    "nextIssue": "EVL-116",
+    "nextIssue": "EVL-118/158/186",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed"
   }
