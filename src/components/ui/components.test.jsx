@@ -193,6 +193,12 @@ describe('shared UI primitives', () => {
     const range = screen.getByRole('button', { name: 'Últimos 7 días' });
     await user.click(range);
     expect(range.getAttribute('aria-pressed')).toBe('true');
+    const saleRow = screen.getByRole('button', { name: /A-1047/ });
+    await user.click(saleRow);
+    expect(await screen.findByRole('dialog', { name: /A-1047/ })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(saleRow);
 
     await user.click(screen.getByRole('button', { name: 'Usuarios y configuración' }));
     await user.click(screen.getByRole('button', { name: 'Configuración' }));
