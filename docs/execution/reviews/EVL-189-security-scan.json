@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-30",
+  "orderSplitScan": {
+    "issueCount": 0
+  },
+  "posAppScan": {
+    "issueCount": 4,
+    "ids": [
+      "javascript/PrototypePollution"
+    ],
+    "sinkLinesAtScan": [
+      1585,
+      1587
+    ],
+    "attribution": "All four sinks are the unchanged baseline Reports accumulators at579/581, verified byte-for-byte against ef10819184c1fe7769b316c8a259f00c4391d79e. No new split finding."
+  }
+}

@@ -544,11 +544,11 @@ export default class PosApp extends React.Component {
         savedSequence = persisted.folioSeq;
       } else savedSequence = Number.isSafeInteger(this._folio) && this._folio > 0 ? this._folio : 1051;
       if (Object.prototype.hasOwnProperty.call(persisted, 'order')) {
-        if (!persisted.order || typeof persisted.order !== 'object' || Array.isArray(persisted.order)) throw new TypeError('saved station draft is invalid');
-        latestOrder = persisted.order;
+        if (!persisted.order || typeof persisted.order !== 'object' || Array.isArray(persisted.order) || !Array.isArray(persisted.order.items)) throw new TypeError('saved station draft is invalid');
+        latestOrder = restoreStoredOrder(persisted.order);
       } else latestOrder = this.state.order;
       if (Object.prototype.hasOwnProperty.call(persisted, 'orderSettings')) {
-        if (!persisted.orderSettings || typeof persisted.orderSettings !== 'object' || Array.isArray(persisted.orderSettings)) throw new TypeError('saved order settings are invalid');
+        if (!persisted.orderSettings || typeof persisted.orderSettings !== 'object' || Array.isArray(persisted.orderSettings) || !Number.isSafeInteger(persisted.orderSettings.tableCount) || persisted.orderSettings.tableCount < 1 || persisted.orderSettings.tableCount > MAX_TABLE_COUNT) throw new TypeError('saved order settings are invalid');
         latestOrderSettings = persisted.orderSettings;
       } else latestOrderSettings = this.state.orderSettings;
     } catch (error) {

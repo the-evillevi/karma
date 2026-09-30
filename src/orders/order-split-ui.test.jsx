@@ -278,13 +278,13 @@ it('applies the split to the latest saved state and synchronizes unrelated order
   expect(saved.open.map(order => order.folio)).toEqual([source.folio, 'A-1051', unrelatedOrder.folio]);
   expect(saved.kitchenTickets).toEqual([ticket, unrelatedTicket]);
   expect(saved.sales).toEqual([unrelatedSale]);
-  expect(saved.order).toEqual(stationDraft);
+  expect(saved.order).toMatchObject(stationDraft);
   expect(saved.orderSettings).toEqual({ tableCount: 7 });
   expect(saved.pending).toEqual(['Unrelated update', expect.stringMatching(/^Split split:A-2200:/)]);
   expect(view.appRef.current.state.open).toEqual(saved.open);
   expect(view.appRef.current.state.kitchenTickets).toEqual(saved.kitchenTickets);
   expect(view.appRef.current.state.sales).toEqual(saved.sales);
-  expect(view.appRef.current.state.order).toEqual(stationDraft);
+  expect(view.appRef.current.state.order).toMatchObject(stationDraft);
   expect(view.appRef.current.state.orderSettings).toEqual({ tableCount: 7 });
 });
 
@@ -306,4 +306,20 @@ it.each([false, true])('keeps original preparation when either split account is 
   expect(saved.kitchenTickets).toEqual([ticket]);
   expect(saved.sales.find(sale => sale.folio === target.folio)).toMatchObject({ status: 'cancelada', sharedPreparation: true, preparationFolio: source.folio });
   expect(saved.sales.find(sale => sale.folio === sibling.folio).status).toBe('completada');
+});
+
+
+it.each(['order', 'orderSettings'])('rejects a malformed unrelated saved %s instead of crashing or overwriting it', key => {
+  const { source, ticket } = fixture();
+  const storage = memoryStorage({ session: 'u1', open: [source], kitchenTickets: [ticket], sales: [], pending: [] });
+  const view = mount();
+  const app = view.appRef.current;
+  act(() => app.renderVals().orders[0].split());
+  const current = JSON.parse(storage.getItem('karma-pos-v1'));
+  current[key] = key === 'order' ? { items: 'invalid' } : { tableCount: 99 };
+  const raw = JSON.stringify(current);
+  storage.setItem('karma-pos-v1', raw);
+  act(() => expect(app.state.dlg.onConfirm()).toBe('keep'));
+  expect(storage.getItem('karma-pos-v1')).toBe(raw);
+  expect(app.state.open).toHaveLength(1);
 });
