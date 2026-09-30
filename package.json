@@ -17,7 +17,7 @@
     "preview:pwa": "vite preview --config vite.config.pwa.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/access src/domain src/offline-sync src/pwa src/reports",
-    "format:check": "prettier --check vite.config.pwa.js eslint.config.js tsconfig.json vite.config.js src/PosApp.jsx src/access/**/*.ts src/access/**/*.tsx src/domain/**/*.ts src/reports/**/*.ts src/domain/order-domain.js src/offline-sync/**/*.ts src/offline-sync/command-sync.js src/offline-sync/sync-diagnostic.js src/offline-sync/sync-diagnostic.d.ts src/offline-sync/sync-diagnostic.test.js src/pwa/**/*.ts src/pwa/**/*.tsx supabase/functions/owner-provision-user/*.ts scripts/ci/check-client-bundle.mjs scripts/ci/run-unit-tests.mjs scripts/ci/vitest.edge-access.config.js scripts/offline-sync/offline-sync.spec.js scripts/offline-sync/access-control-v118.spec.js scripts/offline-sync/playwright.config.js scripts/offline-sync/pwa.playwright.config.js scripts/offline-sync/pwa-shell.spec.js scripts/offline-sync/pos-journal.playwright.config.js scripts/offline-sync/pos-journal.spec.js scripts/offline-sync/pos-operations-journal.playwright.config.js scripts/offline-sync/pos-operations-journal.spec.js docs/execution/EVL-116.md docs/execution/EVL-118.md docs/execution/EVL-126.md docs/execution/EVL-126-operations-journal.md docs/execution/reviews/EVL-116.md",
+    "format:check": "prettier --check vite.config.pwa.js eslint.config.js tsconfig.json vite.config.js src/PosApp.jsx src/access/**/*.ts src/access/**/*.tsx src/domain/**/*.ts src/reports/**/*.ts src/domain/order-domain.js src/offline-sync/**/*.ts src/offline-sync/command-sync.js src/offline-sync/sync-diagnostic.js src/offline-sync/sync-diagnostic.d.ts src/offline-sync/sync-diagnostic.test.js src/pwa/**/*.ts src/pwa/**/*.tsx supabase/functions/owner-provision-user/*.ts scripts/ci/check-client-bundle.mjs scripts/ci/run-unit-tests.mjs scripts/ci/vitest.edge-access.config.js scripts/offline-sync/offline-sync.spec.js scripts/offline-sync/access-control-v118.spec.js scripts/offline-sync/playwright.config.js scripts/offline-sync/pwa.playwright.config.js scripts/offline-sync/pwa-shell.spec.js scripts/offline-sync/pos-journal.playwright.config.js scripts/offline-sync/pos-journal.spec.js scripts/offline-sync/pos-operations-journal.playwright.config.js scripts/offline-sync/pos-operations-journal.spec.js docs/execution/EVL-116.md docs/execution/EVL-118.md docs/execution/EVL-126.md docs/execution/EVL-126-operations-journal.md docs/execution/reviews/EVL-116.md scripts/offline-sync/pos-operations-server-v126.playwright.config.js scripts/offline-sync/pos-operations-server-v126.spec.ts docs/execution/contracts/pos-operations-server-v1.md",
     "test:domain": "node scripts/ci/run-unit-tests.mjs",
     "test:pwa:e2e": "playwright test --config scripts/offline-sync/pwa.playwright.config.js",
     "test:pos-journal:e2e": "playwright test --config scripts/offline-sync/pos-journal.playwright.config.js",
@@ -28,7 +28,9 @@
     "build:preview": "node scripts/ci/build-preview.mjs",
     "test:preview:e2e": "playwright test --config scripts/offline-sync/preview.playwright.config.js",
     "test:typed": "tsx --test src/pwa/*.test.ts src/offline-sync/command-sync.test.ts",
-    "test:pos-operations-journal:e2e": "playwright test --config scripts/offline-sync/pos-operations-journal.playwright.config.js"
+    "test:pos-operations-journal:e2e": "playwright test --config scripts/offline-sync/pos-operations-journal.playwright.config.js",
+    "test:pos-operations-server:e2e": "playwright test --config scripts/offline-sync/pos-operations-server-v126.playwright.config.js",
+    "test:pos-operations-server:local": "bash scripts/offline-sync/run-pos-operations-server-v126-local-smoke.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

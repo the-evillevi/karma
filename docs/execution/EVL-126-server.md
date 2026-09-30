@@ -1,0 +1,7 @@
+# EVL-126 · Open-order server boundary
+
+The isolated karma-pos backend now supports immutable authenticated open-order commands and server-derived projections for open, line add/change/remove and details. Every new call and exact retry checks current actor/membership/device/session/lease before returning an acknowledgement. Commands/events/heads/projections and branch sequence commit atomically. Private tables have RLS and no browser grants; the cash read is session/role/creator scoped.
+
+Root review and local PostgreSQL rollback/grant proof passed. Actual hosted8/8 passed without skips in20seconds, including differential replay, current-authority retry, malformed inputs, role/capability, concurrent revision conflict and live pagination. A first hosted run exposed PostgREST retrying custom40001 business exceptions; the reviewed forward migration now returns PT409/HTTP409 with safe revision metadata. Applied source migrations remain immutable; hashes/proofs are recorded in backend.json and reviews/EVL-126-server.md.
+
+No operational POS UI sync or complete startup restore is enabled. Discounts/cancellation, preparation, split, checkout and refunds remain unavailable server-side until separately implemented and reviewed. Authoritative catalog/tax and inventory/customer operation transactions remain separate gates. Local POS saved records are not server receipts.
