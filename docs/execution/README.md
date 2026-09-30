@@ -7,6 +7,7 @@ This branch coordinates the 39-issue roadmap. Do not merge it to production. Kee
 1. Read manifest.json and the latest issue handoff. Inspect actual Git status, branch tips, managed worktree attachments, and PR bases before trusting recorded state.
 2. Reclaim stale agent assignments. Never run two writers in one worktree or shared migration/package scope.
 3. Select a queued issue with satisfied prerequisites. Resume a partial issue before starting a successor. Create/reuse the chain worktree and issue branch from the recorded reviewed base.
+   Independent domain or presentation preparation may proceed while runtime prerequisites are blocked, using the recorded reviewed interface. Label it `preparing`; do not treat a pure module or documentation handoff as completed application acceptance. Reconcile and re-review after the missing foundation is integrated.
 4. Use GPT-6 Luna High for implementation. Each issue records its source criteria, changes, exact checks and supporting commit, open gates, and next action in EVL-<number>.md.
 5. GPT-6.1 Sol applies the code-review skill, fixes findings, verifies the fix, and reviews again. Record reviewed evidence before publishing the issue as implementation-ready.
 6. Push bounded checkpoints and draft PRs. Root PRs target their dependency branch/checkpoint; descendants target the preceding issue. If prerequisites merge into main, rebase and retarget descendants, preserving the dependency map.

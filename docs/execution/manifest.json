@@ -384,14 +384,16 @@
         "EVL-119",
         "EVL-113"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "preparing",
+      "agent": "implement_catalog",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "blockers": [
+        "Runtime/UI/auth/sync integration awaits reviewed116/118/126 and119workflow."
+      ],
+      "nextAction": "Independent modifier commands/selection/immutable snapshots; root review before integration."
     },
     {
       "id": "EVL-121",
