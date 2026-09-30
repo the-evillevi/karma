@@ -142,7 +142,7 @@ input, select, textarea { font-family: inherit; color: var(--foreground); }
   .pos-module { --pos-module-padding: 18px 18px 32px !important; }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .pos-shell { height: var(--karma-viewport-height, 100vh); }
   .pos-shell { height: var(--karma-viewport-height, 100dvh); }
   .pos-main { width: 100%; }

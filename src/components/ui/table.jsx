@@ -3,12 +3,45 @@ import { cn } from "@/lib/utils"
 
 function Table({
   className,
+  containerProps = {},
   ...props
 }) {
+  const {
+    className: containerClassName,
+    onKeyDown: containerOnKeyDown,
+    ...containerAttributes
+  } = containerProps
+
+  function onContainerKeyDown(event) {
+    containerOnKeyDown?.(event)
+    if (event.defaultPrevented) return
+    const container = event.currentTarget
+    if (container.scrollWidth <= container.clientWidth) return
+
+    const step = Math.max(64, Math.round(container.clientWidth * 0.75))
+    if (event.key === "ArrowRight") {
+      event.preventDefault()
+      container.scrollLeft += step
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault()
+      container.scrollLeft -= step
+    } else if (event.key === "Home") {
+      event.preventDefault()
+      container.scrollLeft = 0
+    } else if (event.key === "End") {
+      event.preventDefault()
+      container.scrollLeft = container.scrollWidth
+    }
+  }
+
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      role={containerAttributes.role ?? "region"}
+      tabIndex={containerAttributes.tabIndex ?? 0}
+      onKeyDown={onContainerKeyDown}
+      className={cn("relative w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring", containerClassName)}
+      {...containerAttributes}
     >
       <table
         data-slot="table"
