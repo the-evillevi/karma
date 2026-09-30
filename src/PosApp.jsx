@@ -33,7 +33,7 @@ import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue
 import { calculateTender, centsToMoney, moneyToCents, paymentMethodTotalsCents, paymentNetCents } from './domain/payment-tender.js';
 import { canPerform, resolveAccessAction, seededRoleToAccessRole } from './access/role-policy.ts';
 import { parseVerifiedAccessContext } from './access/offline-identity.ts';
-import { planOrderSplit, suggestSplitSelection } from './orders/order-split.mjs';
+import { planOrderSplit, splitLineId, suggestSplitSelection } from './orders/order-split.mjs';
 
 const DEFAULT_TABLE_COUNT = 12;
 const MAX_TABLE_COUNT = 50;
@@ -55,6 +55,34 @@ function textField(value, maxLength = 160) {
 
 function hasText(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function splitSelectionForPlanner(entries) {
+  if (!Array.isArray(entries)) return entries;
+  const selection = [];
+  for (const entry of entries) {
+    const text = String(entry?.quantityText ?? '');
+    const quantity = /^\d+$/.test(text) ? Number(text) : NaN;
+    if (quantity === 0) continue;
+    selection.push({ lineId: entry?.lineId, quantity });
+  }
+  return selection;
+}
+
+function splitSelectionError(error) {
+  switch (error?.message) {
+    case 'split must allocate at least one unit to the new account':
+      return 'Selecciona al menos una unidad para la nueva cuenta.';
+    case 'each account must retain at least one unit':
+      return 'Deja al menos una unidad en la cuenta original.';
+    case 'split quantity cannot exceed the captured line quantity':
+    case 'split quantities must be positive safe integers':
+    case 'split selection contains a duplicate line id':
+    case 'split selection contains an unknown line id':
+      return 'Captura cantidades enteras válidas dentro de las unidades disponibles.';
+    default:
+      return 'No se pueden repartir estas cantidades. Revisa la selección.';
+  }
 }
 
 function hasValidSplitHistory(order) {
@@ -513,6 +541,24 @@ export default class PosApp extends React.Component {
       combinedDiscount: this.fmt(centsToMoney(plan.combinedDiscountCents)),
       combinedTotal: this.fmt(centsToMoney(plan.combinedTotalCents)),
     };
+  }
+  setSplitQuantity(lineId, quantityText) {
+    this.setState(current => {
+      const dlg = current.dlg;
+      if (!dlg?.splitSource || !Array.isArray(dlg.splitSelection)) return null;
+      const splitSelection = dlg.splitSelection.map(entry => entry.lineId === lineId
+        ? { ...entry, quantityText }
+        : entry);
+      let splitPreview = null;
+      let splitError = '';
+      try {
+        const plan = planOrderSplit(dlg.splitSource, splitSelectionForPlanner(splitSelection));
+        splitPreview = this.splitPreview(dlg.splitSource, plan, dlg.childFolio);
+      } catch (error) {
+        splitError = splitSelectionError(error);
+      }
+      return { dlg: { ...dlg, splitSelection, splitPreview, splitError } };
+    });
   }
   confirmOpenSplit({ sourceFolio, expectedSnapshot, operationId, childFolio, childSequence, selection }) {
     const allowed = typeof this.requireAction === 'function'
@@ -1108,7 +1154,7 @@ export default class PosApp extends React.Component {
     const syncTags = { sincronizada: ['Sincronizada', 'transparent', '#a8a69c'], pendiente: ['Por sincronizar', tint, acc], conflicto: ['Conflicto', ink, paper] };
     const secureMode = this.isSecureMode();
     const accessContext = secureMode ? this.accessContext() : null;
-    const V = { loading: secureMode ? false : s.loading, two: 2, dlgFields: [] };
+    const V = { loading: secureMode ? false : s.loading, two: 2, dlgFields: [], dlgSplitItems: [], dlgSplitError: '', dlgConfirmDisabled: false };
 
     // ---- login
     const pu = s.usersX.find(u => u.id === s.pick) || s.usersX[0];
@@ -1400,16 +1446,32 @@ export default class PosApp extends React.Component {
           const operationToken = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
           const operationId = `split:${source.folio}:${operationToken}`;
           const preview = this.splitPreview(source, plan, folioCandidate.folio);
+          const splitItems = source.items.map((line, index) => ({
+            lineId: splitLineId(line, index),
+            name: line.capturedSnapshot?.name || line.productNameSnapshot || line.name || 'Producto',
+            modifiers: typeof line.modsTextSnapshot === 'string' ? line.modsTextSnapshot : typeof line.modsText === 'string' ? line.modsText : '',
+            notes: typeof line.notes === 'string' ? line.notes : '',
+            quantity: line.qty,
+          }));
+          const splitSelection = splitItems.map(item => ({
+            lineId: item.lineId,
+            quantityText: String(selection.get(item.lineId) || 0),
+          }));
           const expectedSnapshot = JSON.stringify(source);
           this.setState({ dlg: {
             title: 'Dividir ' + source.folio,
             body: 'Revisa qué cantidades quedan en cada cuenta y cómo se reparte el descuento antes de confirmar.',
             splitPreview: preview,
+            splitItems,
+            splitSelection,
+            splitSource: source,
+            childFolio: folioCandidate.folio,
+            splitError: '',
             confirmLabel: 'Dividir cuenta',
-            onConfirm: () => this.confirmOpenSplit({
+            onConfirm: dlg => this.confirmOpenSplit({
               sourceFolio: source.folio, expectedSnapshot, operationId,
               childFolio: folioCandidate.folio, childSequence: folioCandidate.sequence,
-              selection,
+              selection: splitSelectionForPlanner(dlg?.splitSelection ?? splitSelection),
             }),
           } });
         },
@@ -1751,6 +1813,14 @@ export default class PosApp extends React.Component {
     V.dlg = !!dg;
     if (dg) {
       V.dlgTitle = dg.title; V.dlgBody = dg.body; V.dlgSplitPreview = dg.splitPreview || null;
+      V.dlgSplitItems = (dg.splitItems || []).map((item, index) => ({
+        ...item,
+        inputId: `split-quantity-${index}`,
+        value: dg.splitSelection?.[index]?.quantityText ?? '0',
+        set: event => this.setSplitQuantity(item.lineId, event.target.value),
+      }));
+      V.dlgSplitError = dg.splitError || '';
+      V.dlgConfirmDisabled = !!dg.splitError || (!!dg.splitItems?.length && !dg.splitPreview);
       V.dlgFields = (dg.fields || []).map(f => ({ label: f.label, value: f.value, ph: f.ph || '', inputMode: f.key === 'monto' ? 'decimal' : undefined, set: e => this.setState({ dlg: { ...this.state.dlg, fields: this.state.dlg.fields.map(x => x.key === f.key ? { ...x, value: e.target.value } : x) } }) }));
       V.dlgNeedReason = !!dg.needReason && s.flags.cancelMotivo !== false || !!dg.needReason;
       V.dlgReason = dg.reason || ''; V.setDlgReason = e => this.setState({ dlg: { ...this.state.dlg, reason: e.target.value } });
@@ -1766,7 +1836,7 @@ export default class PosApp extends React.Component {
         const r = d.onConfirm && d.onConfirm(d);
         if (r !== 'keep') this.setState({ dlg: null });
       };
-    } else { Object.assign(V, { dlgTitle: '', dlgBody: '', dlgSplitPreview: null, dlgFields: [], dlgNeedReason: false, dlgReason: '', setDlgReason: () => {}, hasDlgErr: false, dlgErr: '', dlgHasConfirm: false, dlgCloseLabel: '', dlgConfirmLabel: '', dlgConfirmStyle: {}, dlgClose: () => {}, dlgConfirm: () => {} }); }
+    } else { Object.assign(V, { dlgTitle: '', dlgBody: '', dlgSplitPreview: null, dlgSplitItems: [], dlgSplitError: '', dlgConfirmDisabled: false, dlgFields: [], dlgNeedReason: false, dlgReason: '', setDlgReason: () => {}, hasDlgErr: false, dlgErr: '', dlgHasConfirm: false, dlgCloseLabel: '', dlgConfirmLabel: '', dlgConfirmStyle: {}, dlgClose: () => {}, dlgConfirm: () => {} }); }
 
     return V;
   }
@@ -2397,8 +2467,21 @@ export default class PosApp extends React.Component {
 <DialogTitle>{V.dlgTitle}</DialogTitle>
 <DialogDescription>{V.dlgBody}</DialogDescription>
 </DialogHeader>
+{(V.dlgSplitItems.length > 0) && (<>
+<section aria-label="Seleccionar unidades para la cuenta nueva" style={css("display:flex;flex-direction:column;gap:10px;border:1px solid #e2e0d6;border-radius:10px;padding:12px") }>
+<div style={css("font-size:12.5px;font-weight:600")}>Unidades para la nueva cuenta</div>
+{V.dlgSplitItems.map((item, index) => (<div key={index} style={css("display:flex;align-items:center;justify-content:space-between;gap:12px") }>
+<div style={css("min-width:0;display:flex;flex-direction:column;gap:2px") }>
+<Label htmlFor={item.inputId} style={css("overflow-wrap:anywhere")}>{item.name}{item.modifiers ? ' · ' + item.modifiers : ''}{item.notes ? ' · ' + item.notes : ''}</Label>
+<span style={css("font-size:11.5px;color:#6b6a63")}>Disponibles: {item.quantity} · 0 deja todas en {V.dlgSplitPreview?.sourceFolio || V.dlgTitle.replace('Dividir ', '')}</span>
+</div>
+<Input id={item.inputId} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" className="min-h-11 w-20 shrink-0 text-center" aria-label={`Unidades para la nueva cuenta · ${item.name}${item.modifiers ? ' · ' + item.modifiers : ''}${item.notes ? ' · ' + item.notes : ''} · línea ${index + 1}`} aria-invalid={!!V.dlgSplitError || undefined} aria-describedby={V.dlgSplitError ? 'split-selection-error' : undefined} value={item.value} onChange={item.set} />
+</div>))}
+{(V.dlgSplitError) && (<div id="split-selection-error" role="alert" aria-live="polite" style={css("font-size:12px;color:#141413")}>{V.dlgSplitError}</div>)}
+</section>
+</>)}
 {(V.dlgSplitPreview) && (<>
-<section aria-label="Vista previa de la división" style={css("display:flex;flex-direction:column;gap:12px;border:1px solid #e2e0d6;border-radius:10px;padding:12px;font-size:12.5px")}>
+<section aria-label="Vista previa de la división" aria-live="polite" style={css("display:flex;flex-direction:column;gap:12px;border:1px solid #e2e0d6;border-radius:10px;padding:12px;font-size:12.5px")}>
 <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:12px")}>
 {([[V.dlgSplitPreview.sourceFolio, V.dlgSplitPreview.sourceLines, V.dlgSplitPreview.sourceSubtotal, V.dlgSplitPreview.sourceDiscount, V.dlgSplitPreview.sourceTotal], [V.dlgSplitPreview.childFolio, V.dlgSplitPreview.childLines, V.dlgSplitPreview.childSubtotal, V.dlgSplitPreview.childDiscount, V.dlgSplitPreview.childTotal]]).map(([folio, items, subtotal, discount, total]) => (<section key={folio} aria-label={`Asignación de ${folio}`} style={css("min-width:0")}>
 <h3 style={css("font-weight:600;margin-bottom:5px")}>{folio}</h3>
@@ -2434,7 +2517,7 @@ export default class PosApp extends React.Component {
 <DialogFooter>
 <Button variant="outline" onClick={V.dlgClose}>{V.dlgCloseLabel}</Button>
 {(V.dlgHasConfirm) && (<>
-<Button variant={V.dlgConfirmVariant} onClick={V.dlgConfirm}>{V.dlgConfirmLabel}</Button>
+<Button variant={V.dlgConfirmVariant} onClick={V.dlgConfirm} disabled={V.dlgConfirmDisabled}>{V.dlgConfirmLabel}</Button>
 </>)}
 </DialogFooter>
 </DialogContent>
