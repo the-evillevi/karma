@@ -230,23 +230,33 @@
       "id": "EVL-118",
       "chain": "foundation",
       "branch": "codex/foundation/evl-118",
-      "baseBranch": "codex/foundation/evl-116",
+      "baseBranch": "codex/foundation/access-base",
       "requires": [
         "EVL-116"
       ],
-      "stage": "implementing",
-      "agent": "implement_foundation",
+      "stage": "awaiting_foundation",
+      "agent": null,
       "commits": [
         "d1b3b1c",
         "9bea334",
         "a0bdb8b",
-        "dec7ff9"
+        "dec7ff9",
+        "971e7cb",
+        "eb64ac0",
+        "70ff145"
       ],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Reviewed exact44d521migration authorized only newproject oncecompatibleRPCfixtures ready; securePOS/PIN/roles incomplete."
+      "pr": "https://github.com/the-evillevi/karma/pull/16",
+      "checks": [
+        "Root full combined check passed: 68 unit tests without skips, 27 components, format/lint/scoped types, four-entry builds, secret scans and PWA restart browser proof",
+        "Exact migration hash independently verified unchanged"
+      ],
+      "review": "bounded_policy_client_fixed_and_rereviewed",
+      "blockers": [
+        "Migration remains unapplied; private EVL-114 fixture is stale and compatible EVL-118 hosted proof is not run.",
+        "Actual POS role boundaries, draft-preserving identity switch and production enrollment/recovery are incomplete."
+      ],
+      "nextAction": "Complete production UI authority and compatible private synthetic fixtures, apply only exact approved migration to karma-pos after gates, independently verify hosted RPC/roles/concurrency/revocation before EVL-126.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-126",
@@ -526,14 +536,24 @@
         "EVL-113",
         "EVL-126"
       ],
-      "stage": "preparing",
-      "agent": "implement_design",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Actual immutable captured price/modifier/reopen fix on185;118/126productiongates stayopen."
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "5366d2b"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/17",
+      "checks": [
+        "Root combined 31 component tests and four-entry build passed after merge reconciliation",
+        "Root earlier 68 unit tests passed without skips; domain unchanged by188",
+        "git diff --check passed",
+        "Root final PWA rebuild, restart browser proof and credential scan passed"
+      ],
+      "review": "fixed_and_rereviewed_captured_prices_actual_app",
+      "blockers": [
+        "Trusted authorization118 and durable persistence126 are open. Formal version/tax113 catalog contract is not yet wired to this prototype history."
+      ],
+      "nextAction": "Resume orders122 after foundation gates; preserve captured facts and never infer missing historical prices.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-122",
@@ -1009,12 +1029,12 @@
   ],
   "sessionCheckpoint": {
     "manualResume": true,
-    "reason": "User authorized manual continuation after allowance reset",
-    "runningAgents": 3,
-    "integration": "d8f6f53",
+    "reason": "Near current allowance boundary (90% at last check); all delegates completed clean committed handoffs.",
+    "runningAgents": 0,
+    "integration": "b1e767d",
     "mainMerged": false,
-    "nextIssue": "EVL-118/123/188",
+    "nextIssue": "EVL-118 then EVL-126; resume payment/order chains from reviewed stacks.",
     "resumeDocument": "docs/execution/RESUME.md",
-    "status": "resumed"
+    "status": "saved_manual_resume"
   }
 }
