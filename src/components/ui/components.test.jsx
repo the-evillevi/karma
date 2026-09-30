@@ -392,6 +392,27 @@ describe('shared UI primitives', () => {
     expect(screen.queryByText('Revisa la orden')).toBeNull();
   });
 
+  it('rejects reserved modifier keys loaded from browser storage during a captured edit', async () => {
+    const storage = installMemoryStorage();
+    const account = {
+      folio: 'A-188-UNTRUSTED', type: 'local', ref: 'En local', time: '12:00', user: 'Marcela',
+      prep: 'en-cola', sync: 'sincronizada', discount: 0,
+      items: [{ prodId: 'concafe-americano', name: 'Americano', qty: 1,
+        mods: JSON.parse('{"constructor":["avena"],"__proto__":["entera"]}'),
+        modsText: '', notes: '', unit: 50 }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [account], kitchenTickets: [account] }));
+    const user = userEvent.setup();
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    await user.click(screen.getByRole('button', { name: 'Abrir' }));
+    await user.click(await screen.findByRole('button', { name: 'Editar partida' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar · $50.00' }));
+    expect(await screen.findByText(/Para cambiar modificadores, elimina el producto y agrégalo de nuevo/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Guardar · $50.00' })).toBeTruthy();
+    expect(Object.hasOwn(Object.prototype, 'avena')).toBe(false);
+  });
+
   it('requires an explicit remove-and-readd before changing a captured modifier', async () => {
     const storage = installMemoryStorage();
     const account = {
