@@ -28,6 +28,7 @@ Every transition computes the required aggregate set from prior state and verifi
 - Menu and inventory create/edit/receive/adjust/consume/compensation operations, stock projections, and inventory rollback.
 - Standalone customer directory, credit, merge, and profile operations. Only bounded inline contact snapshots are supported.
 - Sale void/reversal, provider authorization/settlement, invoices, external provider references, automatic payment claims, and tip-refund allocations.
+- Shared preparation line edits, repeat/delta preparation sends, and partial splits with a captured tax amount whose per-unit/per-line basis is unspecified. Those paths fail closed.
 - Arbitrary whole-order/sale/preparation replacement, client role claims, session/lease fields in immutable commands, and unknown action names.
 
 ## Required next gates
@@ -35,3 +36,5 @@ Every transition computes the required aggregate set from prior state and verifi
 This checkpoint has Node tests for stale multi-aggregate revision rollback, input immutability, split value conservation, role denial, revocation-safe historical replay, preparation lineage/progress, immutable checkout/refund facts, and contact, money, and provenance validation. It is a deterministic in-memory domain layer only; it is not the local journal transaction or a trusted authorization service.
 
 Next, add a local atomic transaction across command ledger, aggregate heads, and projections, including cross-tab revision contention and complete replay validation. Then implement explicit forward server migrations/RPCs with deterministic multi-aggregate locks, rollback proof, current actor/session/device/lease authorization, idempotent acknowledgements, and sanitized reads. Only after those gates pass can POS UI success depend on this contract. Applied EVL-114/118 SQL remains immutable; no schema, hosted proof, durable UI behavior, or production synchronization is claimed here.
+
+Root review reproduced and fixed independent kitchen progression after account cancellation, duplicate replay history, modifier identity/line bounds, and ambiguous partial-tax split duplication. Nineteen focused cases, scoped types/lint, and a zero medium+ source scan passed. See reviews/EVL-126-operations.md for exact scope and compatibility gates.

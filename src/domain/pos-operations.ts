@@ -432,6 +432,11 @@ export function replayPosOperations(
   for (const candidate of history) {
     const command = validatePosOperationCommand(candidate);
     const result = applyValidatedOperation(state, command);
+    if (result.duplicate)
+      throw new PosOperationError(
+        "OPERATION_DUPLICATE_HISTORY",
+        "Committed history contains a duplicate command ID.",
+      );
     state = result.state;
   }
   return state;
@@ -590,6 +595,11 @@ function reduceOrderLineChange(
         "Order line does not exist.",
       );
   }
+  if (lines.length > 200)
+    throw new PosOperationError(
+      "ORDER_TOO_MANY_LINES",
+      "An account must contain at most 200 lines.",
+    );
   if (lines.length === 0)
     throw new PosOperationError(
       "ORDER_MUST_RETAIN_LINE",
@@ -758,11 +768,6 @@ function reducePreparationChange(
     command.action === "preparation.cancelled"
       ? "cancelled"
       : command.payload.nextStatus;
-  if (order.status === "cancelled" && nextStatus !== "cancelled")
-    throw new PosOperationError(
-      "CANCELLED_ORDER_PREPARATION",
-      "A cancelled account's preparation cannot advance.",
-    );
   if (!canTransitionPreparation(preparation.status, nextStatus))
     throw new PosOperationError(
       "PREPARATION_TRANSITION_DENIED",
@@ -856,6 +861,13 @@ function reduceOrderSplit(
     if (transfer.quantity > line.quantity)
       throw new RangeError("split quantity exceeds the source line quantity.");
     const remainingQuantity = line.quantity - transfer.quantity;
+    // The v1 captured tax field has no unit/line amount basis. Copying a known
+    // amount into both partial lines would invent an allocation or double it.
+    if (remainingQuantity > 0 && line.tax.amountCents !== null)
+      throw new PosOperationError(
+        "SPLIT_TAX_BASIS_UNSUPPORTED",
+        "A partial tax amount split requires an explicit reviewed amount basis.",
+      );
     if (remainingQuantity > 0 && line.unitPriceCents === null)
       throw new PosOperationError(
         "SPLIT_UNIT_PRICE_UNKNOWN",
@@ -1542,6 +1554,12 @@ function validateLine(value: unknown): asserts value is PosOperationLine {
     assertNullableText(modifier.unit, "modifier.unit", 40);
     assertNullableMoney(modifier.priceEffectCents, "modifier.priceEffectCents");
   });
+  const modifierIdentities = line.modifiers.map((raw) => {
+    const modifier = raw as Record<string, unknown>;
+    return JSON.stringify([modifier.groupId, modifier.optionId]);
+  });
+  if (new Set(modifierIdentities).size !== modifierIdentities.length)
+    throw new TypeError("line contains a duplicate modifier identity.");
   if (
     modifierTotalCents !== null &&
     line.modifiers.every(

@@ -1107,3 +1107,149 @@ test("active preparation line edits touch both revisions and cancellation keeps 
   assert.equal(cancelled.preparations[0]?.history.at(-1)?.actorId, "manager-1");
   assert.equal(cancelled.orders[0]?.status, "open");
 });
+
+test("preparation can finish independently after its account is cancelled", () => {
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    openCommand(),
+    owner,
+  ).state;
+  const sent = applyPosOperation(
+    opened,
+    operation(
+      "preparation.sent",
+      { orderId: "order-1", preparationId: "prep-independent" },
+      [
+        revision("order", "order-1", 1),
+        revision("preparation", "prep-independent", 0),
+      ],
+    ),
+    owner,
+  ).state;
+  const cancelled = applyPosOperation(
+    sent,
+    operation(
+      "order.cancelled",
+      { orderId: "order-1" },
+      [revision("order", "order-1", 2)],
+      { reason: "Account cancelled separately" },
+    ),
+    owner,
+  ).state;
+  const progressed = applyPosOperation(
+    cancelled,
+    operation(
+      "preparation.transitioned",
+      {
+        orderId: "order-1",
+        preparationId: "prep-independent",
+        nextStatus: "preparing",
+      },
+      [
+        revision("order", "order-1", 3),
+        revision("preparation", "prep-independent", 1),
+      ],
+    ),
+    owner,
+  ).state;
+  assert.equal(progressed.orders[0]?.status, "cancelled");
+  assert.equal(progressed.preparations[0]?.status, "preparing");
+  assert.deepEqual(replayPosOperations(scope, progressed.commands), progressed);
+});
+
+test("replay rejects duplicate immutable history entries while command retries remain idempotent", () => {
+  const command = openCommand();
+  assert.throws(() => replayPosOperations(scope, [command, command]), {
+    code: "OPERATION_DUPLICATE_HISTORY",
+  });
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    command,
+    owner,
+  ).state;
+  assert.equal(applyPosOperation(opened, command, owner).duplicate, true);
+});
+
+test("line edits retain order size bounds and reject duplicate modifier identities", () => {
+  const command = openCommand();
+  const invalid = capturedLine();
+  invalid.modifiers.push(structuredClone(invalid.modifiers[0]!));
+  assert.throws(
+    () =>
+      validatePosOperationCommand({
+        ...command,
+        payload: { ...command.payload, lines: [invalid] },
+      }),
+    /modifier identity/,
+  );
+  const initial = applyPosOperation(
+    createPosOperationsState(scope),
+    {
+      ...command,
+      payload: {
+        ...command.payload,
+        lines: Array.from({ length: 200 }, (_, i) =>
+          capturedLine(`bounded-${i}`),
+        ),
+      },
+    },
+    owner,
+  ).state;
+  assert.throws(
+    () =>
+      applyPosOperation(
+        initial,
+        operation(
+          "order.line-added",
+          { orderId: "order-1", line: capturedLine("overflow-line") },
+          [revision("order", "order-1", 1)],
+        ),
+        owner,
+      ),
+    { code: "ORDER_TOO_MANY_LINES" },
+  );
+  assert.equal(initial.orders[0]?.lines.length, 200);
+});
+
+test("partial splits cannot duplicate a tax amount with unspecified unit versus line basis", () => {
+  const knownTax = capturedLine("taxed", {
+    quantity: 2,
+    lineTotalCents: 12000,
+    tax: {
+      currency: "MXN",
+      evidence: "prototype-captured",
+      rateBasisPoints: 1600,
+      amountCents: 1655,
+      policyId: null,
+    },
+  });
+  const initial = applyPosOperation(
+    createPosOperationsState(scope),
+    {
+      ...openCommand(),
+      payload: { ...openCommand().payload, lines: [knownTax] },
+    },
+    owner,
+  ).state;
+  assert.throws(
+    () =>
+      applyPosOperation(
+        initial,
+        operation(
+          "order.split",
+          {
+            sourceOrderId: "order-1",
+            childOrderId: "child-tax",
+            transfers: [
+              { lineId: "taxed", childLineId: "taxed-child", quantity: 1 },
+            ],
+          },
+          [revision("order", "child-tax", 0), revision("order", "order-1", 1)],
+        ),
+        owner,
+      ),
+    { code: "SPLIT_TAX_BASIS_UNSUPPORTED" },
+  );
+  assert.equal(initial.orders.length, 1);
+  assert.equal(initial.orders[0]?.lines[0]?.tax.amountCents, 1655);
+});
