@@ -10,6 +10,7 @@ import { Label } from './label.jsx';
 import { Table } from './table.jsx';
 import PosApp from '../../PosApp.jsx';
 import ComandaApp from '../../ComandaApp.jsx';
+import { adaptPosStateToCompatibleSnapshot } from '../../offline-sync/pos-compatible-snapshot.ts';
 import '../../karma-data.js';
 import {
   Dialog,
@@ -705,12 +706,25 @@ describe('manual checkout tips and offline tender capture', () => {
 
     const saved = JSON.parse(storage.getItem('karma-pos-v1'));
     const sale = saved.sales.find(entry => entry.folio === ticket.folio);
+    const compatible = adaptPosStateToCompatibleSnapshot(saved, {
+      snapshotId: 'ui-sale-capture-1',
+      capturedAt: '2026-09-30T12:30:00.000Z',
+      branchId: 'branch-ui-test',
+      deviceId: 'register-ui-test',
+      actorId: 'u1',
+    });
     expect(saved.sales.filter(entry => entry.folio === ticket.folio && entry.status === 'completada')).toHaveLength(1);
     expect(sale).toMatchObject({ totalCents: 7200, tipCents: 1200, externalPaymentVerification: 'manual_unverified', paymentRecordMode: 'manual' });
     expect(sale.payments.map(payment => [payment.method, payment.netAmountCents])).toEqual([['cash', 2000], ['card', 3000], ['transfer', 2200]]);
     expect(sale.payments.every(payment => payment.recordMode === 'manual')).toBe(true);
     expect(sale.payments.filter(payment => payment.method !== 'cash').every(payment => payment.verificationStatus === 'manual_unverified')).toBe(true);
     expect(sale.payments.reduce((sum, payment) => sum + payment.tipCents, 0)).toBe(1200);
+    expect(compatible.sales.find(entry => entry.folio === ticket.folio)?.items[0]).toMatchObject({
+      name: 'Americano',
+      quantity: 1,
+      price: { lineTotalCents: 6000, evidence: 'sale-line-total-only', catalogPriceVersionId: null },
+    });
+    expect(compatible.sales.find(entry => entry.folio === ticket.folio)?.audit.length).toBe(2);
     expect(saved.kitchenTickets).toMatchObject([{ folio: ticket.folio, prep: 'en-cola', ref: 'Mesa 12', items: [{ notes: 'Leche aparte' }] }]);
     expect(saved.open).toEqual([]);
 
