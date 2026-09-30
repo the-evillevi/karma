@@ -18,6 +18,6 @@ function visit(id) {
 }
 for (const id of byId.keys()) visit(id);
 const ready = manifest.issues.filter(issue => issue.stage === 'queued' && issue.requires.every(id => byId.get(id).artifactsReady === true));
-const active = manifest.issues.filter(issue => ['implementing', 'verifying', 'reviewing', 'fixing'].includes(issue.stage));
+const active = manifest.issues.filter(issue => ['researching', 'implementing', 'verifying', 'reviewing', 'fixing'].includes(issue.stage));
 const blocked = manifest.issues.filter(issue => (issue.blockers || []).length > 0);
 console.log(JSON.stringify({manifest: fileURLToPath(manifestPath), issueCount: byId.size, active: active.map(i => ({id:i.id, branch:i.branch, agent:i.agent})), ready: ready.map(i => i.id), blocked: blocked.map(i => ({id:i.id, blockers:i.blockers}))}, null, 2));
