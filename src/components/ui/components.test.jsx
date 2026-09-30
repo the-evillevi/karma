@@ -173,4 +173,41 @@ describe('shared UI primitives', () => {
     expect(await screen.findByText('Listo')).toBeTruthy();
     expect(JSON.parse(storage.getItem('karma-pos-v1')).open[0].prep).toBe('listo');
   });
+
+  it('keeps inventory, report, user, and setting controls operable in the real POS', async () => {
+    const storage = installMemoryStorage();
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1' }));
+    const user = userEvent.setup();
+
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: 'Inventario' }));
+    await user.type(screen.getByRole('textbox', { name: 'Buscar insumo o ingrediente' }), 'Leche');
+    expect(screen.getByText('Leche entera')).toBeTruthy();
+    const lowOnly = screen.getByRole('button', { name: 'Solo stock bajo' });
+    await user.click(lowOnly);
+    expect(lowOnly.getAttribute('aria-pressed')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Recetas' }));
+    expect(screen.getByText('Latte café')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Reportes' }));
+    const range = screen.getByRole('button', { name: 'Últimos 7 días' });
+    await user.click(range);
+    expect(range.getAttribute('aria-pressed')).toBe('true');
+
+    await user.click(screen.getByRole('button', { name: 'Usuarios y configuración' }));
+    await user.click(screen.getByRole('button', { name: 'Configuración' }));
+    const print = screen.getByRole('switch', { name: 'Imprimir comanda automáticamente' });
+    expect(print.getAttribute('aria-checked')).toBe('true');
+    await user.click(print);
+    expect(print.getAttribute('aria-checked')).toBe('false');
+    expect(JSON.parse(storage.getItem('karma-pos-v1')).flags.autoprint).toBe(false);
+
+    await user.click(screen.getByRole('button', { name: 'Usuarios' }));
+    await user.click(screen.getByRole('button', { name: 'Marcela Ortiz' }));
+    const name = screen.getByRole('textbox', { name: 'Nombre completo' });
+    await user.clear(name);
+    await user.type(name, 'Marcela Demo');
+    await user.click(screen.getByRole('button', { name: 'Guardar usuario' }));
+    expect(await screen.findByRole('button', { name: 'Marcela Demo' })).toBeTruthy();
+  });
 });

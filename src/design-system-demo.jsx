@@ -20,9 +20,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
 export default function DesignSystemDemo() {
+  const [category, setCategory] = React.useState('concafe');
+  const [enabled, setEnabled] = React.useState(true);
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
       <header className="flex flex-col gap-2">
@@ -77,6 +82,30 @@ export default function DesignSystemDemo() {
           <Badge variant="pending"><LoaderCircle aria-hidden="true" />Por sincronizar</Badge>
           <Badge variant="success"><Check aria-hidden="true" />Sincronizada</Badge>
           <Badge variant="conflict"><AlertCircle aria-hidden="true" />Conflicto</Badge>
+        </CardContent>
+      </Card>
+
+      <Card className="gap-4 p-4 sm:p-6">
+        <CardHeader className="px-0">
+          <CardTitle className="text-base">Selección y preferencias</CardTitle>
+          <CardDescription>Controles con estado visible, etiquetas asociadas y soporte de teclado.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 px-0 sm:grid-cols-2">
+          <div className="grid content-start gap-2">
+            <Label htmlFor="demo-category">Categoría del producto</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger id="demo-category"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="concafe">Con café</SelectItem>
+                <SelectItem value="lattes">Lattes</SelectItem>
+                <SelectItem value="postres">Postres</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex min-h-11 items-center gap-3">
+            <Label htmlFor="demo-availability">Disponible en el POS</Label>
+            <Switch id="demo-availability" checked={enabled} onCheckedChange={setEnabled} aria-label="Disponible en el POS" />
+          </div>
         </CardContent>
       </Card>
 
