@@ -6,7 +6,7 @@
   <title>Karma · fixture de impresión EVL-117</title>
   <style>
     @page {
-      size: 58mm auto;
+      size: auto;
       margin: 2mm;
     }
 
@@ -34,7 +34,9 @@
     .center { text-align: center; }
     .right { text-align: right; }
     .rule { border-top: 1px dashed #111; margin: 3mm 0; }
-    .row { display: flex; justify-content: space-between; gap: 2mm; }
+    .row { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; }
+    .row > :first-child { min-width: 0; overflow-wrap: anywhere; }
+    .row > :last-child { flex: 0 0 auto; white-space: nowrap; text-align: right; }
     .label { font-weight: 700; }
     .test-stamp {
       border: 1px solid #111;
@@ -47,14 +49,15 @@
     @media print {
       body { background: white; font-size: 10pt; }
       .instructions { display: none; }
-      .receipt { margin: 0; padding: 0; }
+      .receipt { width: 52mm; margin: 0; padding: 0; font-size: 10pt; }
     }
   </style>
 </head>
 <body>
   <aside class="instructions">
     <strong>EVL-117 print fixture · prueba solamente</strong>
-    <p>Abre este archivo en el host POS, elige la cola real y usa tamaño real / 100% si el controlador lo permite. Está preparado para rollo de 58 mm con contenido de 52 mm. Comprueba preview y papel: un preview correcto no demuestra conectividad física.</p>
+    <p>Abre este archivo en el host POS y usa la configuración de papel validada que ya tenga la estación, junto con el tamaño de papel correspondiente en el controlador. No cambies el ancho del rollo, las guías ni la configuración de la impresora solo para esta prueba. La columna de contenido mide 52 mm y cabe en rollos de 58 mm u 80 mm. CSS no selecciona el papel: elige el medio real existente en el diálogo/controlador. Comprueba preview y papel; un preview correcto no demuestra conectividad física.</p>
+    <p>Advertencia para Epson TM-T20III: su guía técnica indica que, después de convertir de 80 mm a 58 mm y usar la impresora, no se puede volver a 80 mm por desgaste del cabezal y la cortadora (pp. 40 y 44). No hagas esa conversión para esta prueba; cualquier cambio previsto requiere indicaciones de un técnico familiarizado con el modelo exacto.</p>
     <p>Los datos son sintéticos y esta hoja no tiene valor fiscal ni prueba el cálculo de IVA. Para la aceptación, confirma el importe de desglose con la configuración fiscal aprobada. No uses este fixture para cobrar a clientes.</p>
     <p>Imprime también la segunda página como comanda. Registra host, navegador, modelo/interfaz, papel, resultado, clipping, acentos, reimpresión y evidencia redactada según <code>docs/hardware/compatibility-matrix.md</code>.</p>
   </aside>
