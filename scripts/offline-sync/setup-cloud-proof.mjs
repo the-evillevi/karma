@@ -51,6 +51,14 @@ const ownerTwo = {
 const admin = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+const accessSchema = await admin
+  .from("branch_memberships")
+  .select("branch_id")
+  .limit(0);
+if (accessSchema.error)
+  throw new Error(
+    "EVL-118 access-control schema is not installed; no synthetic users were created.",
+  );
 const createdCashier = await admin.auth.admin.createUser({
   ...cashier,
   email_confirm: true,
@@ -196,6 +204,7 @@ await writeFile(
     `SUPABASE_CASH_DEVICE_ID=${cashDeviceId}`,
     `SUPABASE_PREP_DEVICE_ID=${prepDeviceId}`,
     `SUPABASE_LEASE_ID=${leaseId}`,
+    "SUPABASE_V118_TESTS_ENABLED=1",
     "",
   ].join("\n"),
   { mode: 0o600 },

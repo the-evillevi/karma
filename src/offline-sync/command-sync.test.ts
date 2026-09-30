@@ -127,6 +127,38 @@ test("secure sync uses the actor-bound RPC and keeps session rebinding out of th
   assert.equal(calls.length, 2);
 });
 
+test("a conflicting server command ID is held under a safe conflict code", async () => {
+  const batch = createDemoOrderBatch({
+    branchId: "branch-test",
+    actorId: "actor-test",
+    deviceId: "device-test",
+    leaseId: "lease-test",
+    commandId: "command-conflict",
+  });
+  const database = await syncDatabase([batch]);
+  const client = {
+    rpc: async () => ({
+      data: null,
+      error: {
+        code: "23505",
+        message: "Command ID conflicts with a different batch",
+      },
+    }),
+  };
+
+  const [outcome] = await syncPendingCommandBatches(database, client, {
+    sessionId: "session-test",
+    actorId: "actor-test",
+  });
+
+  assert.deepEqual(outcome, {
+    commandId: batch.commandId,
+    state: "blocked",
+    code: "COMMAND_CONFLICT",
+  });
+  assert.equal((await database.syncBlocks.find().exec()).length, 1);
+});
+
 function memoryCollection<T extends { commandId: string }>() {
   const documents = new Map<string, { toJSON(): T }>();
   return {

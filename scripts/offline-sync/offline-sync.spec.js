@@ -360,7 +360,9 @@ test("RLS allows valid cash and preparation writes but rejects forged, mutable, 
     deviceId: env.SUPABASE_CASH_DEVICE_ID,
     type: "OrderOpened",
   });
-  expect(forgedActor.error?.code).toBe("42501");
+  expect(forgedActor.error?.code).toBe(
+    env.SUPABASE_V118_TESTS_ENABLED === "1" ? "22023" : "42501",
+  );
   const forgedDevice = await insertBatch(cashierClient, {
     userId: cashierUserId,
     deviceId: env.SUPABASE_PREP_DEVICE_ID,
@@ -383,7 +385,15 @@ test("an altered retry with a command ID already stored is held for manual revie
   const testKey = randomUUID();
   await page.goto(`?db=alter-test-${testKey}`);
   const outcome = await page.evaluate(
-    async ({ testKey, email, password, branchId, deviceId, leaseId }) => {
+    async ({
+      testKey,
+      email,
+      password,
+      branchId,
+      deviceId,
+      leaseId,
+      secureMode,
+    }) => {
       const moduleUrl = (path) => new URL(path, window.location.href).href;
       const { openOfflineDatabase } = await import(
         moduleUrl("/src/offline-sync/database.js")
@@ -400,6 +410,21 @@ test("an altered retry with a command ID already stored is held for manual revie
         password,
       });
       if (signedIn.error) throw signedIn.error;
+      let syncOptions = {};
+      if (secureMode) {
+        const bound = await client.rpc("bind_register_session", {
+          p_branch_id: branchId,
+          p_device_id: deviceId,
+        });
+        if (bound.error) throw bound.error;
+        const boundSession = Array.isArray(bound.data)
+          ? bound.data[0]
+          : bound.data;
+        syncOptions = {
+          sessionId: boundSession.session_id,
+          actorId: signedIn.data.user.id,
+        };
+      }
       const dbOriginal = await openOfflineDatabase(`alter-original-${testKey}`);
       const original = createDemoOrderBatch({
         branchId,
@@ -410,13 +435,25 @@ test("an altered retry with a command ID already stored is held for manual revie
         occurredAt: "2026-09-29T10:00:00-06:00",
       });
       await captureCommandBatch(dbOriginal, original);
-      const first = await syncPendingCommandBatches(dbOriginal, client);
+      const first = await syncPendingCommandBatches(
+        dbOriginal,
+        client,
+        syncOptions,
+      );
       const dbChanged = await openOfflineDatabase(`alter-changed-${testKey}`);
       const changed = structuredClone(original);
       changed.events[0].payload.lines[0].unitPriceCents += 1;
       await captureCommandBatch(dbChanged, changed);
-      const conflict = await syncPendingCommandBatches(dbChanged, client);
-      const blockedRetry = await syncPendingCommandBatches(dbChanged, client);
+      const conflict = await syncPendingCommandBatches(
+        dbChanged,
+        client,
+        syncOptions,
+      );
+      const blockedRetry = await syncPendingCommandBatches(
+        dbChanged,
+        client,
+        syncOptions,
+      );
       return {
         first: first[0],
         conflict: conflict[0],
@@ -430,6 +467,7 @@ test("an altered retry with a command ID already stored is held for manual revie
       branchId: env.SUPABASE_BRANCH_ID,
       deviceId: env.SUPABASE_CASH_DEVICE_ID,
       leaseId: env.SUPABASE_LEASE_ID,
+      secureMode: env.SUPABASE_V118_TESTS_ENABLED === "1",
     },
   );
   expect(outcome.first.state).toBe("acknowledged");

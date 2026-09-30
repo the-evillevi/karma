@@ -235,10 +235,11 @@ export async function syncPendingCommandBatches(
         typeof error === "object" && error !== null
           ? (error as { code?: unknown })
           : {};
-      const code =
+      const remoteCode =
         typeof candidate.code === "string"
           ? candidate.code
           : "LOCAL_OR_NETWORK_ERROR";
+      const code = remoteCode === "23505" ? "COMMAND_CONFLICT" : remoteCode;
       const permanentlyBlocked = [
         "42501",
         "22023",
