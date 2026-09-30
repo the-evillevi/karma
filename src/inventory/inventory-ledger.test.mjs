@@ -565,3 +565,125 @@ test("archives only zero-stock items, retains all history, and makes archive ret
     /still has stock/,
   );
 });
+
+test("interleaves catalog edits and threshold history without invalidating reload or identical movement retries", () => {
+  let state = initial();
+  const movement = {
+    ...actor,
+    commandId: "entry-before-rename",
+    itemId: "beans",
+    kind: "entry",
+    quantityText: "0.25",
+    unit: "kg",
+    expectedRevision: 0,
+  };
+  state = applyInventoryMovement(state, movement).state;
+  const edit = {
+    ...actor,
+    commandId: "rename-before-threshold",
+    kind: "edit",
+    itemId: "beans",
+    name: "Nuevo café",
+    itemKind: "Ingrediente",
+    displayUnit: "g",
+    expectedCatalogRevision: 0,
+    expectedItemCatalogRevision: 0,
+  };
+  state = editInventoryItem(state, edit).state;
+  const threshold = {
+    ...actor,
+    commandId: "threshold-after-edit",
+    kind: "threshold",
+    itemId: "beans",
+    quantityText: "1000",
+    unit: "g",
+    expectedRevision: 1,
+  };
+  state = applyInventoryThreshold(state, threshold).state;
+  state = editInventoryItem(state, {
+    ...edit,
+    commandId: "rename-after-threshold",
+    name: "Café actualizado",
+    expectedCatalogRevision: 1,
+    expectedItemCatalogRevision: 1,
+  }).state;
+  assert.equal(
+    validateInventoryState(JSON.parse(JSON.stringify(state))).items.find(
+      (item) => item.itemId === "beans",
+    ).lowThresholdBaseUnits,
+    1000,
+  );
+  assert.equal(applyInventoryMovement(state, movement).duplicate, true);
+  assert.equal(applyInventoryThreshold(state, threshold).duplicate, true);
+  assert.throws(
+    () => editInventoryItem(state, { ...edit, expectedItemCatalogRevision: 9 }),
+    /different content/,
+  );
+  assert.equal(
+    state.entries.find((entry) => entry.commandId === movement.commandId)
+      .itemNameSnapshot,
+    "Café en grano",
+  );
+});
+
+test("binds operator opening audit to item creation and keeps subsequent thresholds independent", () => {
+  const create = {
+    ...actor,
+    commandId: "operator-open",
+    kind: "create",
+    itemId: "operator-cups",
+    name: "Vasos contados",
+    itemKind: "Insumo",
+    displayUnit: "pz",
+    openingQuantityText: "20",
+    thresholdText: "2",
+    expectedCatalogRevision: 0,
+  };
+  let state = createInventoryItem(initial(), create).state;
+  state = applyInventoryThreshold(state, {
+    ...actor,
+    commandId: "operator-minimum",
+    kind: "threshold",
+    itemId: "operator-cups",
+    quantityText: "5",
+    unit: "pz",
+    expectedRevision: 0,
+  }).state;
+  assert.equal(createInventoryItem(state, create).duplicate, true);
+  const corrupt = JSON.parse(JSON.stringify(state));
+  corrupt.entries.find(
+    (entry) => entry.itemId === "operator-cups" && entry.kind === "opening",
+  ).actorId = "forged-actor";
+  assert.throws(
+    () => validateInventoryState(corrupt),
+    /matching operator opening/,
+  );
+});
+
+test("keeps identical retries of legacy v1 movements without fabricating missing item snapshots", () => {
+  const command = {
+    ...actor,
+    commandId: "legacy-retry",
+    itemId: "beans",
+    kind: "entry",
+    quantityText: "1",
+    unit: "kg",
+    expectedRevision: 0,
+  };
+  const current = applyInventoryMovement(initial(), command).state;
+  const legacy = JSON.parse(JSON.stringify(current));
+  delete legacy.entries.at(-1).itemNameSnapshot;
+  delete legacy.entries.at(-1).itemKindSnapshot;
+  const retry = applyInventoryMovement(legacy, command);
+  assert.equal(retry.duplicate, true);
+  assert.deepEqual(retry.state, legacy);
+  assert.throws(
+    () =>
+      applyInventoryMovement(legacy, {
+        ...command,
+        itemNameSnapshot: "",
+        itemKindSnapshot: "Ingrediente",
+      }),
+    /non-empty string/,
+  );
+});

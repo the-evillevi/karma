@@ -84,7 +84,6 @@ function inventoryMetadataSnapshot(item) {
     kind: item.kind,
     baseUnit: item.baseUnit,
     displayUnit: item.displayUnit,
-    lowThresholdBaseUnits: item.lowThresholdBaseUnits,
     archived: item.archived === true,
     provenance: item.provenance,
   };
@@ -106,7 +105,6 @@ const CATALOG_SNAPSHOT_FIELDS = [
   "kind",
   "baseUnit",
   "displayUnit",
-  "lowThresholdBaseUnits",
   "archived",
   "provenance",
 ];
@@ -121,8 +119,6 @@ function validateCatalogSnapshot(snapshot, itemId) {
     snapshot.itemId !== itemId ||
     !ITEM_TYPES.has(snapshot.kind) ||
     !BASE_UNITS.has(snapshot.baseUnit) ||
-    !Number.isSafeInteger(snapshot.lowThresholdBaseUnits) ||
-    snapshot.lowThresholdBaseUnits < 0 ||
     typeof snapshot.archived !== "boolean" ||
     !["synthetic-seed-unverified", "operator-count"].includes(
       snapshot.provenance,
@@ -709,6 +705,7 @@ export function validateInventoryState(state) {
         "occurredAt",
         "reason",
         "sourceRevision",
+        "sourceItemRevision",
         "itemRevision",
         "before",
         "after",
@@ -744,6 +741,8 @@ export function validateInventoryState(state) {
     if (
       !Number.isFinite(Date.parse(event.occurredAt)) ||
       event.sourceRevision !== index ||
+      event.sourceItemRevision !==
+        (lastCatalogRevisionByItem.get(itemId) ?? 0) ||
       event.itemRevision !== index + 1 ||
       event.syncStatus !== "pending"
     )
@@ -767,7 +766,11 @@ export function validateInventoryState(state) {
         opening.itemNameSnapshot !== event.after.name ||
         opening.itemKindSnapshot !== event.after.kind ||
         opening.unitSnapshot !== event.after.displayUnit ||
-        opening.thresholdBaseUnits !== event.after.lowThresholdBaseUnits
+        opening.commandId !== `${commandId}:opening` ||
+        opening.actorId !== event.actorId ||
+        opening.actorName !== event.actorName ||
+        opening.occurredAt !== event.occurredAt ||
+        opening.reason !== event.reason
       )
         fail(
           "invalid_state",
@@ -778,16 +781,18 @@ export function validateInventoryState(state) {
       const previous = catalogByItem.get(itemId);
       if (previous && !sameRecord(previous, event.before))
         fail("invalid_state", "Inventory catalog history is not continuous.");
-      if (!previous && event.before.provenance !== current.metadata.provenance)
+      if (
+        !previous &&
+        (event.before.provenance !== "synthetic-seed-unverified" ||
+          current.metadata.provenance !== "synthetic-seed-unverified")
+      )
         fail("invalid_state", "Legacy catalog history provenance is invalid.");
       if (event.kind === "edit") {
         if (
           event.before.archived ||
           event.after.archived ||
           event.before.provenance !== event.after.provenance ||
-          event.before.baseUnit !== event.after.baseUnit ||
-          event.before.lowThresholdBaseUnits !==
-            event.after.lowThresholdBaseUnits
+          event.before.baseUnit !== event.after.baseUnit
         )
           fail(
             "invalid_state",
@@ -919,7 +924,9 @@ function assertCatalogCommand(command, expectedKind) {
   if (
     !Number.isFinite(Date.parse(command.occurredAt)) ||
     !Number.isSafeInteger(command.expectedCatalogRevision) ||
-    command.expectedCatalogRevision < 0
+    command.expectedCatalogRevision < 0 ||
+    !Number.isSafeInteger(command.expectedItemCatalogRevision ?? 0) ||
+    (command.expectedItemCatalogRevision ?? 0) < 0
   )
     fail("invalid_command", "Catalog source revision or audit is invalid.");
   return {
@@ -930,6 +937,7 @@ function assertCatalogCommand(command, expectedKind) {
     reason,
     occurredAt: command.occurredAt,
     expectedCatalogRevision: command.expectedCatalogRevision,
+    expectedItemCatalogRevision: command.expectedItemCatalogRevision ?? 0,
   };
 }
 
@@ -944,6 +952,7 @@ function catalogEvent(common, kind, before, after, sourceRevision) {
     occurredAt: common.occurredAt,
     reason: common.reason,
     sourceRevision,
+    sourceItemRevision: common.expectedItemCatalogRevision,
     itemRevision: sourceRevision + 1,
     before,
     after,
@@ -988,6 +997,7 @@ function commandMatchesCatalogEvent(event, common, kind, after) {
     event.occurredAt === common.occurredAt &&
     event.reason === common.reason &&
     event.sourceRevision === common.expectedCatalogRevision &&
+    event.sourceItemRevision === common.expectedItemCatalogRevision &&
     sameRecord(event.after, after)
   );
 }
@@ -1016,7 +1026,6 @@ export function createInventoryItem(state, command) {
   const after = {
     itemId: common.itemId,
     ...fields,
-    lowThresholdBaseUnits: thresholdBaseUnits,
     archived: false,
     provenance: "operator-count",
   };
@@ -1065,6 +1074,7 @@ export function createInventoryItem(state, command) {
     );
   const item = {
     ...after,
+    lowThresholdBaseUnits: thresholdBaseUnits,
     revision: 0,
     catalogRevision: catalogRevision + 1,
   };
@@ -1285,6 +1295,27 @@ function storeEvent(valid, item, event) {
   });
 }
 
+function movementItemSnapshot(command, item, duplicate) {
+  const supplied =
+    command.itemNameSnapshot !== undefined ||
+    command.itemKindSnapshot !== undefined;
+  if (supplied) {
+    assertText(command.itemNameSnapshot, "Inventory captured item name", 120);
+    if (!ITEM_TYPES.has(command.itemKindSnapshot))
+      fail("invalid_command", "Inventory captured item type is invalid.");
+  }
+  if (duplicate && !hasOwn(duplicate, "itemNameSnapshot") && !supplied)
+    return {};
+  return {
+    itemNameSnapshot: supplied
+      ? command.itemNameSnapshot
+      : (duplicate?.itemNameSnapshot ?? item.name),
+    itemKindSnapshot: supplied
+      ? command.itemKindSnapshot
+      : (duplicate?.itemKindSnapshot ?? item.kind),
+  };
+}
+
 /** Add an entry, waste, or signed adjustment to a validated immutable ledger. */
 export function applyInventoryMovement(state, command) {
   const valid = validateInventoryState(state);
@@ -1306,12 +1337,14 @@ export function applyInventoryMovement(state, command) {
       : command.kind === "waste"
         ? -quantityBaseUnits
         : quantityBaseUnits;
+  const duplicate = valid.entries.find(
+    (entry) => entry.commandId === common.commandId,
+  );
   const event = {
     movementId: `movement:${common.commandId}`,
     commandId: common.commandId,
     itemId: common.itemId,
-    itemNameSnapshot: command.itemNameSnapshot || item.name,
-    itemKindSnapshot: command.itemKindSnapshot || item.kind,
+    ...movementItemSnapshot(command, item, duplicate),
     kind: command.kind,
     quantityBaseUnits: Math.abs(quantityBaseUnits),
     deltaBaseUnits,
@@ -1325,9 +1358,6 @@ export function applyInventoryMovement(state, command) {
     itemRevision: command.expectedRevision + 1,
     syncStatus: "pending",
   };
-  const duplicate = valid.entries.find(
-    (entry) => entry.commandId === common.commandId,
-  );
   if (duplicate) {
     if (!sameEventContent(duplicate, event))
       fail(
@@ -1381,8 +1411,7 @@ export function applyInventoryThreshold(state, command) {
     movementId: `movement:${common.commandId}`,
     commandId: common.commandId,
     itemId: common.itemId,
-    itemNameSnapshot: command.itemNameSnapshot || item.name,
-    itemKindSnapshot: command.itemKindSnapshot || item.kind,
+    ...movementItemSnapshot(command, item, duplicate),
     kind: "threshold",
     quantityBaseUnits: 0,
     deltaBaseUnits: 0,
