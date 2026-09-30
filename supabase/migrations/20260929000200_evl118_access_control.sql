@@ -135,6 +135,16 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Serialize every membership change against a branch row before checking the
+  -- caller and remaining-owner invariant. Otherwise two owners can demote one
+  -- another from concurrent snapshots.
+  perform 1
+  from public.branches branch_row
+  where branch_row.branch_id = p_branch_id
+  for update;
+  if not found then
+    raise exception 'Branch was not found' using errcode = 'P0002';
+  end if;
   if auth.uid() is null or not exists (
     select 1 from public.branch_memberships owner_membership
     where owner_membership.branch_id = p_branch_id

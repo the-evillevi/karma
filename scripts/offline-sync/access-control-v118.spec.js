@@ -21,6 +21,11 @@ const anon = () =>
   createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+const service = env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : null;
 
 async function appendAs({
   email,
@@ -156,5 +161,54 @@ test.describe("EVL-118 hosted role and event-envelope checks", () => {
       events: [],
     });
     expect(result.error?.code).toBe("42501");
+  });
+
+  test("serializes concurrent owner changes and preserves at least one active owner", async () => {
+    const first = anon();
+    const second = anon();
+    const [firstLogin, secondLogin] = await Promise.all([
+      first.auth.signInWithPassword({
+        email: env.SUPABASE_OWNER_EMAIL,
+        password: env.SUPABASE_OWNER_PASSWORD,
+      }),
+      second.auth.signInWithPassword({
+        email: env.SUPABASE_OWNER_TWO_EMAIL,
+        password: env.SUPABASE_OWNER_TWO_PASSWORD,
+      }),
+    ]);
+    expect(firstLogin.error).toBeNull();
+    expect(secondLogin.error).toBeNull();
+    const [firstAttempt, secondAttempt] = await Promise.all([
+      first.rpc("manage_branch_membership", {
+        p_branch_id: env.SUPABASE_BRANCH_ID,
+        p_user_id: secondLogin.data.user.id,
+        p_display_name: "Dueña sintética 2",
+        p_role: "encargado",
+        p_active: true,
+      }),
+      second.rpc("manage_branch_membership", {
+        p_branch_id: env.SUPABASE_BRANCH_ID,
+        p_user_id: firstLogin.data.user.id,
+        p_display_name: "Dueña sintética 1",
+        p_role: "encargado",
+        p_active: true,
+      }),
+    ]);
+    const successes = [firstAttempt, secondAttempt].filter(
+      (result) => result.error === null,
+    ).length;
+    expect(successes).toBe(1);
+    expect(
+      [firstAttempt.error?.code, secondAttempt.error?.code].filter(Boolean),
+    ).toHaveLength(1);
+
+    const remainingOwners = await service
+      .from("branch_memberships")
+      .select("user_id")
+      .eq("branch_id", env.SUPABASE_BRANCH_ID)
+      .eq("role", "duena")
+      .eq("active", true);
+    expect(remainingOwners.error).toBeNull();
+    expect(remainingOwners.data.length).toBeGreaterThanOrEqual(1);
   });
 });

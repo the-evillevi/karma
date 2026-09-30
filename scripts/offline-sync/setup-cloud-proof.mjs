@@ -44,6 +44,10 @@ const owner = {
   email: `evl118-owner-${suffix}@example.invalid`,
   password: `Proof-${randomBytes(32).toString("base64url")}-O8!`,
 };
+const ownerTwo = {
+  email: `evl118-owner2-${suffix}@example.invalid`,
+  password: `Proof-${randomBytes(32).toString("base64url")}-O9!`,
+};
 const admin = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
@@ -71,9 +75,18 @@ if (createdOwner.error)
   throw new Error(
     `Synthetic owner creation failed: ${createdOwner.error.message}`,
   );
+const createdOwnerTwo = await admin.auth.admin.createUser({
+  ...ownerTwo,
+  email_confirm: true,
+});
+if (createdOwnerTwo.error)
+  throw new Error(
+    `Synthetic second owner creation failed: ${createdOwnerTwo.error.message}`,
+  );
 const cashierId = createdCashier.data.user.id;
 const waiterId = createdWaiter.data.user.id;
 const ownerId = createdOwner.data.user.id;
+const ownerTwoId = createdOwnerTwo.data.user.id;
 const now = new Date();
 const validFrom = new Date(now.getTime() - 60_000).toISOString();
 const expiresAt = new Date(now.getTime() + 30 * 60_000).toISOString();
@@ -101,6 +114,11 @@ for (const [table, row, conflictKey] of [
   [
     "branch_memberships",
     { branch_id: branchId, user_id: ownerId, role: "duena" },
+    "branch_id,user_id",
+  ],
+  [
+    "branch_memberships",
+    { branch_id: branchId, user_id: ownerTwoId, role: "duena" },
     "branch_id,user_id",
   ],
   [
@@ -169,6 +187,8 @@ await writeFile(
     `SUPABASE_WAITER_PASSWORD=${waiter.password}`,
     `SUPABASE_OWNER_EMAIL=${owner.email}`,
     `SUPABASE_OWNER_PASSWORD=${owner.password}`,
+    `SUPABASE_OWNER_TWO_EMAIL=${ownerTwo.email}`,
+    `SUPABASE_OWNER_TWO_PASSWORD=${ownerTwo.password}`,
     `SUPABASE_BRANCH_ID=${branchId}`,
     `SUPABASE_CASH_DEVICE_ID=${cashDeviceId}`,
     `SUPABASE_PREP_DEVICE_ID=${prepDeviceId}`,
