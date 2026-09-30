@@ -15,6 +15,7 @@ import { captureProductLine } from './catalog/catalog-domain.mjs';
 import { normalizeCatalog } from '../scripts/catalog/catalog-normalizer.mjs';
 import { saveMenuProduct } from './catalog/menu-products.mjs';
 import { toggleModifierSelection } from './catalog/sales-selection.mjs';
+import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue.js';
 
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
 // it (keypad key, product card, sales row). Merges base + hover style on hover.
@@ -55,6 +56,7 @@ export default class PosApp extends React.Component {
       toasts: [],
       order: sv.order || this.blank(),
       open: sv.open || D.seedOrders.map(o => ({ ...o })),
+      kitchenTickets: Array.isArray(sv.kitchenTickets) ? sv.kitchenTickets : (sv.open || D.seedOrders.map(o => ({ ...o }))),
       sales: sv.sales || D.sales.map(s => ({ ...s })),
       prods: sv.prods || D.products.map(p => ({ ...p })),
       usersX: sv.usersX || D.users.map(u => ({ ...u })),
@@ -73,7 +75,13 @@ export default class PosApp extends React.Component {
     this._t = setTimeout(() => this.setState({ loading: false }), 650);
     this._sl = e => {
       if (e.key === 'karma-pos-v1' && e.newValue) {
-        try { const v = JSON.parse(e.newValue); if (v.open) this.setState({ open: v.open }); } catch (_) {}
+        try {
+          const v = JSON.parse(e.newValue);
+          this.setState({
+            ...(Array.isArray(v.open) ? { open: v.open } : {}),
+            ...(Array.isArray(v.kitchenTickets) ? { kitchenTickets: v.kitchenTickets } : {}),
+          });
+        } catch (_) {}
       }
     };
     window.addEventListener('storage', this._sl);
@@ -84,7 +92,8 @@ export default class PosApp extends React.Component {
     try {
       localStorage.setItem('karma-pos-v1', JSON.stringify({
         session: s.session, pick: s.pick, online: s.online, pending: s.pending, order: s.order,
-        open: s.open, sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq: this._folio
+        open: s.open, kitchenTickets: s.kitchenTickets,
+        sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq: this._folio
       }));
     } catch (e) {}
   }
@@ -157,15 +166,17 @@ export default class PosApp extends React.Component {
     const s = this.state; const o = { ...s.order };
     if (!o.folio) o.folio = this.nf();
     const entry = this.openEntry(o);
-    const prev = s.open.find(x => x.folio === o.folio);
-    if (prev) { entry.prep = prev.prep; entry.time = prev.time; }
+    const prev = s.kitchenTickets.find(x => x.folio === o.folio) || s.open.find(x => x.folio === o.folio);
+    if (prev) { entry.prep = prev.prep; entry.time = prev.time; entry.user = prev.user; }
     const open = [entry, ...s.open.filter(x => x.folio !== o.folio)];
+    const kitchenTickets = upsertKitchenTicket(s.kitchenTickets, entry);
     const pending = s.online ? s.pending : [...s.pending, 'Orden ' + o.folio];
-    if (keepStation) this.up({ open, pending, order: o });
-    else this.up({ open, pending, order: this.blank() });
+    if (keepStation) this.up({ open, kitchenTickets, pending, order: o });
+    else this.up({ open, kitchenTickets, pending, order: this.blank() });
     return o.folio;
   }
   startCheckout(folio, lines, discount, type, fromStation) {
+    const sourceSnapshot = this.checkoutSourceSnapshot({ folio, fromStation }, this.state);
     const sub = lines.reduce((a, l) => a + (l.unit != null ? l.unit : this.lineUnit(l)) * l.qty, 0);
     const disc = Math.min(discount || 0, sub);
     const base = sub - disc;
@@ -174,12 +185,17 @@ export default class PosApp extends React.Component {
     this.up({
       module: 'checkout',
       ck: {
-        folio, fromStation, type, step: 'review', ok: null, error: '', change: 0,
+        folio, fromStation, sourceSnapshot, type, step: 'review', ok: null, error: '', change: 0,
         lines: lines.map(l => ({ name: l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, modsText: l.modsText != null ? l.modsText : this.modsText(l), unit: l.unit != null ? l.unit : this.lineUnit(l) })),
         sub, disc, tipSel, tipCustom: '',
         pays: [{ id: 1, method: 'efectivo', amount: (base + tipAmt).toFixed(2) }]
       }
     });
+  }
+  checkoutSourceSnapshot(checkout, state) {
+    if (checkout.fromStation) return JSON.stringify({ kind: 'station', record: state.order || null });
+    if (checkout.folio) return JSON.stringify({ kind: 'open', record: state.open.find(o => o.folio === checkout.folio) || null });
+    return JSON.stringify({ kind: 'new', record: null });
   }
   ckMath(ck) {
     const base = ck.sub - ck.disc;
@@ -195,15 +211,29 @@ export default class PosApp extends React.Component {
   }
   setCk(patch) { this.setState(s => ({ ck: { ...s.ck, ...patch } })); }
   register() {
-    const s = this.state; const ck = s.ck; const m = this.ckMath(ck);
-    this.setCk({ step: 'processing' });
+    const s = this.state; const ck = s.ck;
+    if (!ck || ck.step === 'processing' || (ck.step === 'result' && ck.ok)) return;
+    const m = this.ckMath(ck);
+    if (!m.valid) return;
+    const folio = ck.folio || this.nf();
+    const sourceSnapshot = ck.sourceSnapshot;
+    this.setCk({ folio, step: 'processing' });
     setTimeout(() => {
+      const st = this.state;
+      if (st.ck?.folio !== folio || st.ck?.step !== 'processing') return;
       const usesCard = ck.pays.some(p => p.method === 'tarjeta' && (parseFloat(p.amount) || 0) > 0);
       if (!this.state.online && usesCard) {
         this.setCk({ step: 'result', ok: false, error: 'La terminal bancaria no responde sin conexión. Reintenta cuando vuelva la señal, o cambia a efectivo o transferencia.' });
         return;
       }
-      const st = this.state; const folio = ck.folio || this.nf();
+      if (st.sales.some(sale => sale.folio === folio && sale.status === 'completada')) return;
+      let persisted = {};
+      try { persisted = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
+      const persistedState = { ...st, open: Array.isArray(persisted.open) ? persisted.open : [], order: persisted.order || this.blank() };
+      if (!sourceSnapshot || this.checkoutSourceSnapshot(ck, st) !== sourceSnapshot || this.checkoutSourceSnapshot(ck, persistedState) !== sourceSnapshot) {
+        this.setCk({ step: 'result', ok: false, error: 'La cuenta cambió mientras se confirmaba el cobro. Revisa la cuenta antes de volver a intentar.' });
+        return;
+      }
       const ml = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' };
       const sale = {
         folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: this.user().name, cobro: this.user().name,
@@ -240,9 +270,13 @@ export default class PosApp extends React.Component {
       dlg: {
         title: 'Cancelar ' + folio, body: 'La cuenta se cerrará sin cobro y quedará registrada como cancelada en los reportes.', needReason: true, danger: true, confirmLabel: 'Cancelar cuenta',
         onConfirm: d => {
+          if (!this.can('cancelar')) { this.notAllowed('cancelar cuentas abiertas'); return 'keep'; }
+          if (!d.reason || !d.reason.trim()) { this.toast('Captura el motivo de cancelación', 'warn'); return 'keep'; }
           const s = this.state; const o = s.open.find(x => x.folio === folio); if (!o) return;
-          const sale = { folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: o.user, cobro: '—', tipo: o.ref, items: o.items.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })), payments: [], tip: 0, total: o.items.reduce((a, l) => a + l.unit * l.qty, 0), status: 'cancelada', sync: s.online ? 'sincronizada' : 'pendiente', motivo: d.reason, audit: [[this.now(), 'Cancelada · ' + d.reason, this.user().name]] };
-          this.up({ open: s.open.filter(x => x.folio !== folio), sales: [sale, ...s.sales], order: s.order.folio === folio ? this.blank() : s.order });
+          const actor = this.user().name; const occurredAt = new Date().toISOString();
+          const sale = { folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: o.user, cobro: '—', tipo: o.ref, items: o.items.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })), payments: [], tip: 0, total: o.items.reduce((a, l) => a + l.unit * l.qty, 0), status: 'cancelada', sync: s.online ? 'sincronizada' : 'pendiente', motivo: d.reason.trim(), audit: [[occurredAt, 'Cancelada · ' + d.reason.trim(), actor]] };
+          const kitchenTickets = cancelKitchenTicket(s.kitchenTickets, folio, actor, occurredAt, d.reason);
+          this.up({ open: s.open.filter(x => x.folio !== folio), kitchenTickets, sales: [sale, ...s.sales], order: s.order.folio === folio ? this.blank() : s.order });
           this.toast(folio + ' cancelada');
         }
       }
@@ -386,8 +420,18 @@ export default class PosApp extends React.Component {
     };
     V.goCharge = () => { if (!this.needItems()) return; const oo = this.state.order; this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + (oo.type === 'mesa' && oo.mesa ? ' ' + oo.mesa : ''), true); };
     V.cancelOrder = () => {
+      if (!this.can('cancelar')) { this.notAllowed('cancelar la orden actual'); return; }
       if (!o.items.length && !o.folio) { this.toast('No hay orden que cancelar', 'warn'); return; }
-      this.setState({ dlg: { title: 'Cancelar orden actual', body: 'Se vaciará la estación de venta. Si la cuenta ya estaba guardada, quedará registrada como cancelada.', needReason: true, danger: true, confirmLabel: 'Cancelar orden', onConfirm: d => { const st = this.state; this.up({ order: this.blank(), open: st.open.filter(x => x.folio !== st.order.folio) }); this.toast('Orden cancelada · ' + d.reason); } } });
+      this.setState({ dlg: { title: 'Cancelar orden actual', body: 'Se vaciará la estación de venta. Si la cuenta ya estaba guardada, quedará registrada como cancelada.', needReason: true, danger: true, confirmLabel: 'Cancelar orden', onConfirm: d => {
+        if (!this.can('cancelar')) { this.notAllowed('cancelar la orden actual'); return 'keep'; }
+        if (!d.reason || !d.reason.trim()) { this.toast('Captura el motivo de cancelación', 'warn'); return 'keep'; }
+        const st = this.state; const folio = st.order.folio; const account = st.open.find(x => x.folio === folio);
+        const actor = this.user().name; const occurredAt = new Date().toISOString();
+        const kitchenTickets = folio ? cancelKitchenTicket(st.kitchenTickets, folio, actor, occurredAt, d.reason) : st.kitchenTickets;
+        const sale = account ? { folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: account.user, cobro: '—', tipo: account.ref, items: account.items.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })), payments: [], tip: 0, total: account.items.reduce((a, l) => a + l.unit * l.qty, 0), status: 'cancelada', sync: st.online ? 'sincronizada' : 'pendiente', motivo: d.reason.trim(), audit: [[occurredAt, 'Cancelada · ' + d.reason.trim(), actor]] } : null;
+        this.up({ order: this.blank(), open: st.open.filter(x => x.folio !== folio), kitchenTickets, ...(sale ? { sales: [sale, ...st.sales] } : {}) });
+        this.toast('Orden cancelada · ' + d.reason.trim());
+      } } });
     };
 
     // ---- editor
@@ -459,10 +503,11 @@ export default class PosApp extends React.Component {
     V.ordersCount = s.open.length; V.ordersEmpty = s.open.length === 0;
     V.orders = s.open.map(oo => {
       const total = oo.items.reduce((a, l) => a + (l.unit || 0) * l.qty, 0) - (oo.discount || 0);
-      const pt = prepTags[oo.prep] || prepTags['en-cola']; const st2 = syncTags[oo.sync] || syncTags.sincronizada;
+      const prep = (s.kitchenTickets.find(ticket => ticket.folio === oo.folio) || oo).prep;
+      const pt = prepTags[prep] || prepTags['en-cola']; const st2 = syncTags[oo.sync] || syncTags.sincronizada;
       return {
         folio: oo.folio, total: this.fmt(total),
-        prepLabel: pt[0], prepVariant: oo.prep === 'listo' ? 'success' : oo.prep === 'preparando' ? 'pending' : 'outline',
+        prepLabel: pt[0], prepVariant: prep === 'listo' ? 'success' : prep === 'preparando' ? 'pending' : 'outline',
         syncLabel: st2[0], syncVariant: oo.sync === 'pendiente' ? 'pending' : oo.sync === 'conflicto' ? 'conflict' : 'outline',
         meta: this.typeLabel(oo.type) + ' · ' + oo.ref + ' · ' + oo.time + ' · ' + oo.user,
         itemsText: oo.items.map(l => l.qty + '× ' + l.name).join(' · '),

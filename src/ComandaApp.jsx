@@ -3,6 +3,7 @@ import { css } from './css.js';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { activeKitchenTickets, advanceKitchenTicket } from './domain/kitchen-queue.js';
 
 // Ported verbatim from design/Comanda.dc.html. The original `class Component
 // extends DCLogic` becomes a real React.Component (identical setState /
@@ -11,27 +12,42 @@ import { Card } from '@/components/ui/card';
 export default class ComandaApp extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { open: this.load(), tab: 'todas', online: true };
+    this.state = { tickets: this.load(), tab: 'todas', online: true };
   }
   load() {
     try {
       const v = JSON.parse(localStorage.getItem('karma-pos-v1')) || {};
-      if (v.open) { this._online = v.online !== false; return v.open; }
+      this._online = v.online !== false;
+      if (Array.isArray(v.kitchenTickets)) return v.kitchenTickets;
+      if (Array.isArray(v.open)) return v.open;
     } catch (e) {}
     this._online = true;
     return (window.KARMA ? window.KARMA.seedOrders : []).map(o => ({ ...o }));
   }
-  save(open) {
+  advanceTicket(folio, expectedStatus) {
     try {
+      // Re-read and validate at click time: the card may have been rendered
+      // before another caja/comanda tab cancelled or changed this ticket.
       const v = JSON.parse(localStorage.getItem('karma-pos-v1')) || {};
-      v.open = open;
+      const tickets = Array.isArray(v.kitchenTickets) ? v.kitchenTickets : (Array.isArray(v.open) ? v.open : []);
+      const fresh = advanceKitchenTicket(tickets, folio, expectedStatus);
+      const before = tickets.find(ticket => ticket.folio === folio);
+      const after = fresh.find(ticket => ticket.folio === folio);
+      if (!before || !after || before.prep === after.prep) {
+        this.setState({ tickets, online: v.online !== false });
+        return;
+      }
+      v.kitchenTickets = fresh;
       localStorage.setItem('karma-pos-v1', JSON.stringify(v));
-    } catch (e) {}
+      this.setState({ tickets: fresh, online: v.online !== false });
+    } catch (e) {
+      this.setState({ tickets: this.load(), online: this._online });
+    }
   }
   componentDidMount() {
-    this._l = e => { if (e.key === 'karma-pos-v1') this.setState({ open: this.load(), online: this._online }); };
+    this._l = e => { if (e.key === 'karma-pos-v1') this.setState({ tickets: this.load(), online: this._online }); };
     window.addEventListener('storage', this._l);
-    this._p = setInterval(() => this.setState({ open: this.load(), online: this._online }), 4000);
+    this._p = setInterval(() => this.setState({ tickets: this.load(), online: this._online }), 4000);
     this.setState({ online: this._online });
   }
   componentWillUnmount() { window.removeEventListener('storage', this._l); clearInterval(this._p); }
@@ -43,7 +59,7 @@ export default class ComandaApp extends React.Component {
     const typeLabel = t => ({ local: 'En local', mesa: 'Mesa', llevar: 'Para llevar', domicilio: 'Domicilio', recoger: 'Recoger' })[t] || t;
     const next = { 'en-cola': ['preparando', 'Empezar preparación'], preparando: ['listo', 'Marcar listo'], listo: ['entregado', 'Marcar entregado'] };
     const order = { 'en-cola': 0, preparando: 1, listo: 2, entregado: 3 };
-    const visible = s.open.filter(o => o.prep !== 'entregado');
+    const visible = activeKitchenTickets(s.tickets);
     const counts = { todas: visible.length, 'en-cola': 0, preparando: 0, listo: 0 };
     visible.forEach(o => { if (counts[o.prep] != null) counts[o.prep] += 1; });
     const list = (s.tab === 'todas' ? visible : visible.filter(o => o.prep === s.tab)).slice().sort((a, b) => (order[a.prep] || 0) - (order[b.prep] || 0));
@@ -67,11 +83,7 @@ export default class ComandaApp extends React.Component {
           hasAction: !!nx,
           actionLabel: nx ? nx[1] : '',
           actionVariant: o.prep === 'preparando' ? 'default' : 'outline',
-          advance: () => {
-            const open = this.state.open.map(x => x.folio === o.folio ? { ...x, prep: nx[0] } : x);
-            this.setState({ open });
-            this.save(open);
-          }
+          advance: () => this.advanceTicket(o.folio, o.prep)
         };
       }),
       footNote: visible.length + ' comandas activas — se actualiza sola desde la caja'
