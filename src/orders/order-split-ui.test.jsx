@@ -204,3 +204,85 @@ it('rechecks current authorization and paid status at the confirmation boundary'
   expect(storage.getItem('karma-pos-v1')).toBe(paidBaseline);
   expect(paidView.appRef.current.state.open).toEqual([source]);
 });
+
+it.each(['state', 'saved record'])('rejects malformed split-operation history in the %s without throwing', async location => {
+  const { source, ticket } = fixture();
+  const malformedSource = location === 'state' ? { ...source, splitOperations: 'corrupt-history' } : source;
+  const storage = memoryStorage({ session: 'u1', open: [malformedSource], kitchenTickets: [ticket], sales: [], pending: [] });
+  const view = mount();
+  const actions = view.appRef.current.renderVals().orders.find(order => order.folio === source.folio);
+  await act(async () => actions.split());
+  if (location === 'saved record') {
+    const saved = JSON.parse(storage.getItem('karma-pos-v1'));
+    saved.open[0].splitOperations = { malformed: true };
+    storage.setItem('karma-pos-v1', JSON.stringify(saved));
+  }
+
+  await act(async () => expect(view.appRef.current.state.dlg.onConfirm()).toBe('keep'));
+  expect(await screen.findByText('No se puede dividir: el historial de divisiones está mal formado y requiere revisión.')).toBeTruthy();
+  expect(view.appRef.current.state.open).toEqual([malformedSource]);
+});
+
+it('uses the latest stored folio sequence and declines a folio made stale after preview', async () => {
+  const { source, ticket } = fixture();
+  let storage = memoryStorage({ session: 'u1', open: [source], kitchenTickets: [ticket], sales: [], pending: [], folioSeq: 1051 });
+  let view = mount();
+  const actions = view.appRef.current.renderVals().orders.find(order => order.folio === source.folio);
+  const latest = JSON.parse(storage.getItem('karma-pos-v1'));
+  latest.folioSeq = 3000;
+  storage.setItem('karma-pos-v1', JSON.stringify(latest));
+  await act(async () => actions.split());
+  expect(view.appRef.current.state.dlg.splitPreview.childFolio).toBe('A-3000');
+  await act(async () => expect(view.appRef.current.state.dlg.onConfirm()).toBe(true));
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).folioSeq).toBe(3001);
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).open.some(order => order.folio === 'A-3000')).toBe(true);
+  view.unmount();
+
+  storage = memoryStorage({ session: 'u1', open: [source], kitchenTickets: [ticket], sales: [], pending: [], folioSeq: 1051 });
+  view = mount();
+  const staleActions = view.appRef.current.renderVals().orders.find(order => order.folio === source.folio);
+  await act(async () => staleActions.split());
+  const staleSaved = JSON.parse(storage.getItem('karma-pos-v1'));
+  staleSaved.folioSeq = 4000;
+  storage.setItem('karma-pos-v1', JSON.stringify(staleSaved));
+  const latestBaseline = storage.getItem('karma-pos-v1');
+  await act(async () => expect(view.appRef.current.state.dlg.onConfirm()).toBe('keep'));
+  expect(storage.getItem('karma-pos-v1')).toBe(latestBaseline);
+  expect(view.appRef.current.state.open).toEqual([source]);
+  expect(await screen.findByText('El siguiente folio cambió mientras revisabas la división. Cierra esta ventana y vuelve a intentarlo.')).toBeTruthy();
+});
+
+it('applies the split to the latest saved state and synchronizes unrelated orders, sales, kitchen work, draft, and settings', async () => {
+  const { source, ticket } = fixture();
+  const storage = memoryStorage({ session: 'u1', open: [source], kitchenTickets: [ticket], sales: [], pending: [], folioSeq: 1051 });
+  const view = mount();
+  const actions = view.appRef.current.renderVals().orders.find(order => order.folio === source.folio);
+  await act(async () => actions.split());
+
+  const newer = JSON.parse(storage.getItem('karma-pos-v1'));
+  const unrelatedOrder = { folio: 'A-3300', type: 'local', reference: 'Otra cuenta', items: [], discount: 0 };
+  const unrelatedTicket = { folio: 'A-3301', prep: 'en-cola', items: [] };
+  const unrelatedSale = { folio: 'S-3302', status: 'completada', items: [], total: 0, tip: 0, payments: [], cobro: 'Sofía Delgado' };
+  const stationDraft = { folio: 'A-3303', type: 'local', items: [{ lineId: 'draft-line', prodId: 'draft', qty: 1, unit: 12 }], discount: 0 };
+  newer.open = [source, unrelatedOrder];
+  newer.kitchenTickets = [ticket, unrelatedTicket];
+  newer.sales = [unrelatedSale];
+  newer.order = stationDraft;
+  newer.orderSettings = { tableCount: 7 };
+  newer.pending = ['Unrelated update'];
+  storage.setItem('karma-pos-v1', JSON.stringify(newer));
+
+  await act(async () => expect(view.appRef.current.state.dlg.onConfirm()).toBe(true));
+  const saved = JSON.parse(storage.getItem('karma-pos-v1'));
+  expect(saved.open.map(order => order.folio)).toEqual([source.folio, 'A-1051', unrelatedOrder.folio]);
+  expect(saved.kitchenTickets).toEqual([ticket, unrelatedTicket]);
+  expect(saved.sales).toEqual([unrelatedSale]);
+  expect(saved.order).toEqual(stationDraft);
+  expect(saved.orderSettings).toEqual({ tableCount: 7 });
+  expect(saved.pending).toEqual(['Unrelated update', expect.stringMatching(/^Split split:A-2200:/)]);
+  expect(view.appRef.current.state.open).toEqual(saved.open);
+  expect(view.appRef.current.state.kitchenTickets).toEqual(saved.kitchenTickets);
+  expect(view.appRef.current.state.sales).toEqual(saved.sales);
+  expect(view.appRef.current.state.order).toEqual(stationDraft);
+  expect(view.appRef.current.state.orderSettings).toEqual({ tableCount: 7 });
+});

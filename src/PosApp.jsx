@@ -55,6 +55,38 @@ function hasText(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function hasValidSplitHistory(order) {
+  if (!order || typeof order !== 'object' || Array.isArray(order)) return false;
+  if (!Object.prototype.hasOwnProperty.call(order, 'splitOperations')) return true;
+  if (!Array.isArray(order.splitOperations)) return false;
+  return order.splitOperations.every(operation => operation && typeof operation === 'object' && !Array.isArray(operation)
+    && typeof operation.operationId === 'string' && operation.operationId.length > 0 && operation.operationId.length <= 160
+    && typeof operation.childFolio === 'string' && operation.childFolio.length > 0 && operation.childFolio.length <= 80
+    && typeof operation.createdAt === 'string' && operation.createdAt.length <= 40
+    && Array.isArray(operation.selection) && operation.selection.length > 0
+    && operation.selection.every(selection => selection && typeof selection === 'object' && !Array.isArray(selection)
+      && typeof selection.lineId === 'string' && selection.lineId.length > 0 && selection.lineId.length <= 120
+      && Number.isSafeInteger(selection.quantity) && selection.quantity > 0));
+}
+
+function persistedRecords(state, key, fallback) {
+  if (!Object.prototype.hasOwnProperty.call(state, key)) return fallback;
+  const records = state[key];
+  if (!Array.isArray(records) || records.some(record => !record || typeof record !== 'object' || Array.isArray(record)
+    || typeof record.folio !== 'string' || record.folio.length === 0 || record.folio.length > 160)) {
+    throw new TypeError(`saved ${key} must be an array of records`);
+  }
+  return records;
+}
+
+function persistedPending(state, fallback) {
+  if (!Object.prototype.hasOwnProperty.call(state, 'pending')) return fallback;
+  if (!Array.isArray(state.pending) || state.pending.some(entry => typeof entry !== 'string')) {
+    throw new TypeError('saved pending operations must be an array of strings');
+  }
+  return state.pending;
+}
+
 function tableFromReference(reference) {
   if (typeof reference !== 'string') return '';
   const match = /^\s*mesa\s+(.+?)\s*$/i.exec(reference);
@@ -350,15 +382,27 @@ export default class PosApp extends React.Component {
       : 'La cuenta ya no está disponible. Vuelve a Órdenes abiertas y revisa su estado.', 'warn');
   }
   nextSplitFolio() {
-    const persisted = this.persistedOrderState();
+    let persisted;
+    try {
+      const raw = localStorage.getItem(this._storageKey || 'karma-pos-v1');
+      persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) throw new TypeError('saved POS state must be a record');
+    } catch (error) {
+      throw new TypeError('No se puede leer el folio guardado: ' + (error.message || 'estado inválido'));
+    }
+    const savedOpen = persistedRecords(persisted, 'open', this.state.open);
+    const savedKitchen = persistedRecords(persisted, 'kitchenTickets', this.state.kitchenTickets);
+    const savedSales = persistedRecords(persisted, 'sales', this.state.sales);
+    let storedSequence = 1051;
+    if (Object.prototype.hasOwnProperty.call(persisted, 'folioSeq')) {
+      if (!Number.isSafeInteger(persisted.folioSeq) || persisted.folioSeq < 1) throw new TypeError('El siguiente folio guardado es inválido.');
+      storedSequence = persisted.folioSeq;
+    }
     const used = new Set();
-    for (const record of [...this.state.open, ...this.state.kitchenTickets, ...this.state.sales,
-      ...(Array.isArray(persisted.open) ? persisted.open : []),
-      ...(Array.isArray(persisted.kitchenTickets) ? persisted.kitchenTickets : []),
-      ...(Array.isArray(persisted.sales) ? persisted.sales : [])]) {
+    for (const record of [...this.state.open, ...this.state.kitchenTickets, ...this.state.sales, ...savedOpen, ...savedKitchen, ...savedSales]) {
       if (typeof record?.folio === 'string') used.add(record.folio);
     }
-    let sequence = Number.isSafeInteger(this._folio) && this._folio > 0 ? this._folio : 1051;
+    let sequence = Math.max(Number.isSafeInteger(this._folio) && this._folio > 0 ? this._folio : 1051, storedSequence);
     while (used.has('A-' + sequence)) {
       sequence += 1;
       if (!Number.isSafeInteger(sequence)) throw new RangeError('No quedan folios disponibles.');
@@ -397,7 +441,6 @@ export default class PosApp extends React.Component {
     }
 
     const stateSource = this.state.open.find(entry => entry.folio === sourceFolio);
-    const stateOperation = stateSource?.splitOperations?.find(operation => operation?.operationId === operationId);
     let persisted;
     try {
       const raw = localStorage.getItem(this._storageKey || 'karma-pos-v1');
@@ -407,18 +450,45 @@ export default class PosApp extends React.Component {
       this.toast('No se puede verificar la cuenta guardada. Revisa el almacenamiento antes de dividirla.', 'warn');
       return 'keep';
     }
-    const savedOpen = Array.isArray(persisted.open) ? persisted.open : null;
-    const savedSource = savedOpen?.find(entry => entry?.folio === sourceFolio);
-    const savedOperation = savedSource?.splitOperations?.find(operation => operation?.operationId === operationId);
+    let latestOpen; let latestKitchenTickets; let latestSales; let latestPending; let savedSequence; let latestOrder; let latestOrderSettings;
+    try {
+      latestOpen = persistedRecords(persisted, 'open', this.state.open);
+      latestKitchenTickets = persistedRecords(persisted, 'kitchenTickets', this.state.kitchenTickets);
+      latestSales = persistedRecords(persisted, 'sales', this.state.sales);
+      latestPending = persistedPending(persisted, this.state.pending);
+      if (Object.prototype.hasOwnProperty.call(persisted, 'folioSeq')) {
+        if (!Number.isSafeInteger(persisted.folioSeq) || persisted.folioSeq < 1) throw new TypeError('saved folio sequence is invalid');
+        savedSequence = persisted.folioSeq;
+      } else savedSequence = Number.isSafeInteger(this._folio) && this._folio > 0 ? this._folio : 1051;
+      if (Object.prototype.hasOwnProperty.call(persisted, 'order')) {
+        if (!persisted.order || typeof persisted.order !== 'object' || Array.isArray(persisted.order)) throw new TypeError('saved station draft is invalid');
+        latestOrder = persisted.order;
+      } else latestOrder = this.state.order;
+      if (Object.prototype.hasOwnProperty.call(persisted, 'orderSettings')) {
+        if (!persisted.orderSettings || typeof persisted.orderSettings !== 'object' || Array.isArray(persisted.orderSettings)) throw new TypeError('saved order settings are invalid');
+        latestOrderSettings = persisted.orderSettings;
+      } else latestOrderSettings = this.state.orderSettings;
+    } catch (error) {
+      this.toast('No se puede dividir: hay datos guardados inválidos (' + (error.message || 'estado incompleto') + '). Revisa el almacenamiento.', 'warn');
+      return 'keep';
+    }
+    const savedSource = latestOpen.find(entry => entry.folio === sourceFolio);
+    if ((stateSource && !hasValidSplitHistory(stateSource)) || (savedSource && !hasValidSplitHistory(savedSource))) {
+      this.toast('No se puede dividir: el historial de divisiones está mal formado y requiere revisión.', 'warn');
+      return 'keep';
+    }
+    const stateOperations = Array.isArray(stateSource?.splitOperations) ? stateSource.splitOperations : [];
+    const savedOperations = Array.isArray(savedSource?.splitOperations) ? savedSource.splitOperations : [];
+    const stateOperation = stateOperations.find(operation => operation.operationId === operationId);
+    const savedOperation = savedOperations.find(operation => operation.operationId === operationId);
     if (savedOperation) {
-      const savedChild = savedOpen?.find(entry => entry?.folio === savedOperation.childFolio && entry.splitFrom?.operationId === operationId);
+      const savedChild = latestOpen.find(entry => entry.folio === savedOperation.childFolio && entry.splitFrom?.operationId === operationId);
       if (!savedChild) {
         this.toast('La división guardada está incompleta y requiere revisión; no se repetirá.', 'warn');
         return 'keep';
       }
-      if (!stateOperation) {
-        this.setState({ open: savedOpen, ...(Array.isArray(persisted.pending) ? { pending: persisted.pending } : {}) });
-      }
+      this._folio = Math.max(Number.isSafeInteger(this._folio) ? this._folio : 1051, savedSequence);
+      this.setState({ open: latestOpen, kitchenTickets: latestKitchenTickets, sales: latestSales, pending: latestPending, order: latestOrder, orderSettings: latestOrderSettings });
       this.toast('La cuenta ya fue dividida en ' + savedOperation.childFolio);
       return true;
     }
@@ -430,49 +500,49 @@ export default class PosApp extends React.Component {
     const sourceStatus = this.orderSourceStatus(sourceFolio, 'open');
     if (sourceStatus !== 'available' || !stateSource) { this.blockOrderSource(sourceStatus); return 'keep'; }
     if (stateSource.sync === 'conflicto' || savedSource?.sync === 'conflicto') { this.blockOrderSource('conflict'); return 'keep'; }
-    if (this.state.sales.some(sale => sale.folio === sourceFolio && sale.status === 'completada')
-      || (Array.isArray(persisted.sales) && persisted.sales.some(sale => sale?.folio === sourceFolio && sale.status === 'completada'))) {
+    if ([...this.state.sales, ...latestSales].some(sale => sale.folio === sourceFolio && sale.status === 'completada')) {
       this.toast('No se puede dividir una cuenta con un pago registrado.', 'warn');
       return 'keep';
     }
     if (JSON.stringify(stateSource) !== expectedSnapshot
-      || (savedOpen && (!savedSource || JSON.stringify(savedSource) !== expectedSnapshot))) {
+      || (!savedSource && Object.prototype.hasOwnProperty.call(persisted, 'open'))
+      || (savedSource && JSON.stringify(savedSource) !== expectedSnapshot)) {
       this.toast('La cuenta cambió mientras se confirmaba la división. Revisa sus versiones antes de continuar.', 'warn');
       return 'keep';
     }
     const folioUsed = record => record?.folio === childFolio;
-    const stateCollision = [...this.state.open, ...this.state.kitchenTickets, ...this.state.sales].some(folioUsed);
-    const savedCollision = [
-      ...(Array.isArray(persisted.open) ? persisted.open : []),
-      ...(Array.isArray(persisted.kitchenTickets) ? persisted.kitchenTickets : []),
-      ...(Array.isArray(persisted.sales) ? persisted.sales : []),
-    ].some(folioUsed);
-    if (stateCollision || savedCollision) {
+    const collision = [...this.state.open, ...this.state.kitchenTickets, ...this.state.sales, ...latestOpen, ...latestKitchenTickets, ...latestSales].some(folioUsed);
+    if (collision) {
       this.toast('El folio propuesto ya existe. Cierra esta ventana y vuelve a abrir la división para revisar el nuevo folio.', 'warn');
+      return 'keep';
+    }
+    if (savedSequence > childSequence) {
+      this.toast('El siguiente folio cambió mientras revisabas la división. Cierra esta ventana y vuelve a intentarlo.', 'warn');
       return 'keep';
     }
 
     let plan;
-    try { plan = planOrderSplit(stateSource, selection); }
+    const splitSource = savedSource || stateSource;
+    try { plan = planOrderSplit(splitSource, selection); }
     catch (error) {
       this.toast(error.message || 'No se puede dividir esta cuenta con las cantidades capturadas.', 'warn');
       return 'keep';
     }
-    const preparationFolio = textField(stateSource.preparationFolio || stateSource.folio, 80);
+    const preparationFolio = textField(splitSource.preparationFolio || splitSource.folio, 80);
     const createdAt = new Date().toISOString();
     const operation = { operationId, childFolio, createdAt, selection: plan.selection };
     const sourceNext = {
-      ...stateSource,
+      ...splitSource,
       items: plan.sourceItems,
       discount: centsToMoney(plan.sourceDiscountCents),
       totalCents: plan.sourceTotalCents,
       preparationFolio,
       sharedPreparation: true,
       sync: 'pendiente',
-      splitOperations: [...(Array.isArray(stateSource.splitOperations) ? stateSource.splitOperations : []), operation],
+      splitOperations: [...savedOperations, operation],
     };
     const child = {
-      ...stateSource,
+      ...splitSource,
       folio: childFolio,
       items: plan.childItems,
       discount: centsToMoney(plan.childDiscountCents),
@@ -484,19 +554,44 @@ export default class PosApp extends React.Component {
       splitOperations: [],
       sync: 'pendiente',
     };
-    const sourceIndex = this.state.open.findIndex(entry => entry.folio === sourceFolio);
-    const open = [...this.state.open.slice(0, sourceIndex), sourceNext, child, ...this.state.open.slice(sourceIndex + 1)];
-    const pending = this.state.pending.includes('Split ' + operationId)
-      ? this.state.pending
-      : [...this.state.pending, 'Split ' + operationId];
-    const nextState = { ...this.state, open, pending };
-    const nextSequence = Math.max(childSequence + 1, Number.isSafeInteger(this._folio) ? this._folio : childSequence + 1);
-    if (!this.writePersistedState(nextState, nextSequence)) {
+    const sourceIndex = latestOpen.findIndex(entry => entry.folio === sourceFolio);
+    if (sourceIndex < 0) {
+      this.blockOrderSource('missing');
+      return 'keep';
+    }
+    const open = [...latestOpen.slice(0, sourceIndex), sourceNext, child, ...latestOpen.slice(sourceIndex + 1)];
+    const pending = latestPending.includes('Split ' + operationId) ? latestPending : [...latestPending, 'Split ' + operationId];
+    const nextSequence = Math.max(childSequence + 1, savedSequence, Number.isSafeInteger(this._folio) && this._folio > 0 ? this._folio : childSequence + 1);
+    const nextPersisted = {
+      ...this.storedState({
+        ...this.state,
+        open,
+        kitchenTickets: latestKitchenTickets,
+        sales: latestSales,
+        pending,
+        order: latestOrder,
+        orderSettings: latestOrderSettings,
+      }, nextSequence),
+      ...persisted,
+      open,
+      kitchenTickets: latestKitchenTickets,
+      sales: latestSales,
+      pending,
+      order: latestOrder,
+      orderSettings: latestOrderSettings,
+      folioSeq: nextSequence,
+    };
+    try {
+      localStorage.setItem(this._storageKey || 'karma-pos-v1', JSON.stringify(nextPersisted));
+    } catch {
       this.toast('No se guardó la división; las cuentas siguen intactas. Intenta de nuevo.', 'warn');
       return 'keep';
     }
     this._folio = nextSequence;
-    this.setState({ open, pending }, () => this.toast(sourceFolio + ' dividida — nueva cuenta ' + childFolio));
+    this.setState({
+      open, pending, kitchenTickets: latestKitchenTickets, sales: latestSales,
+      order: latestOrder, orderSettings: latestOrderSettings,
+    }, () => this.toast(sourceFolio + ' dividida — nueva cuenta ' + childFolio));
     return true;
   }
   typeLabel(t) { return ({ local: 'En local', mesa: 'Mesa', llevar: 'Para llevar', domicilio: 'Domicilio', recoger: 'Recoger' })[t] || t; }
