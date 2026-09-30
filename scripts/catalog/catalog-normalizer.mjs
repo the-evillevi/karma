@@ -1,6 +1,22 @@
 const CATALOG_SCHEMA = 'karma.catalog/v1';
+const CURRENCY = 'MXN';
 
 const toStableOptionId = (option) => option.id;
+
+function amountToCents(amount, context) {
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
+    throw new TypeError(`${context} must be a finite, non-negative peso amount`);
+  }
+  const match = String(amount).match(/^(\d+)(?:\.(\d{1,2}))?$/);
+  if (!match) throw new RangeError(`${context} must have no more than two decimal places`);
+  const cents = Number(match[1]) * 100 + Number((match[2] || '').padEnd(2, '0'));
+  if (!Number.isSafeInteger(cents)) throw new RangeError(`${context} exceeds the safe integer centavo range`);
+  return cents;
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 
 /** Convert the current prototype seed into a portable, explicit catalog shape. */
 export function normalizeCatalog(seed) {
@@ -37,7 +53,11 @@ export function normalizeCatalog(seed) {
       id: toStableOptionId(option),
       name: option.label,
       sortOrder: optionOrder,
-      priceEffect: { kind: option.price === 0 ? 'none' : 'fixed-addition', amount: option.price, currency: null },
+      priceEffect: {
+        kind: option.price === 0 ? 'none' : 'fixed-addition',
+        amountCents: amountToCents(option.price, `modifier ${id}/${option.id} price`),
+        currency: CURRENCY,
+      },
       active: true,
       source: { kind: 'prototype-seed', path: 'src/karma-data.js#modGroups.' + id },
     })),
@@ -52,7 +72,7 @@ export function normalizeCatalog(seed) {
       name: product.name,
       categoryId: product.cat,
       sortOrder: index,
-      price: { amount: product.price, currency: null, provenance: 'prototype-seed-unverified' },
+      price: { amountCents: amountToCents(product.price, `product ${product.id} price`), currency: CURRENCY, provenance: 'prototype-seed-unverified' },
       available: Boolean(product.available),
       modifierGroupIds: [...product.mods],
       stockControl: {
@@ -72,7 +92,7 @@ export function normalizeCatalog(seed) {
     schema: CATALOG_SCHEMA,
     catalogId: 'karma-cafe',
     revision: 1,
-    currency: null,
+    currency: CURRENCY,
     sourceStatus: 'prototype-seed-only',
     importGate: {
       readyForValidatedBusinessUse: false,
@@ -97,48 +117,147 @@ export function normalizeCatalog(seed) {
 /** Return structural errors and readiness blockers without mutating the catalog. */
 export function validateCatalog(catalog) {
   const errors = [];
-  const checkUnique = (records, label) => {
+  const requireString = (value, label) => {
+    if (typeof value !== 'string' || value.trim().length === 0) errors.push(`${label} must be a non-blank string`);
+  };
+  const requireArray = (value, label) => {
+    if (!Array.isArray(value)) {
+      errors.push(`${label} must be an array`);
+      return [];
+    }
+    return value;
+  };
+  const requireSafeInteger = (value, label, { min = 0 } = {}) => {
+    if (!Number.isSafeInteger(value) || value < min) errors.push(`${label} must be a safe integer >= ${min}`);
+  };
+  const checkSource = (source, label) => {
+    if (!isRecord(source)) {
+      errors.push(`${label} source metadata is required`);
+      return;
+    }
+    requireString(source.kind, `${label} source.kind`);
+    requireString(source.path, `${label} source.path`);
+  };
+  const checkUnique = (records, label, { names = false } = {}) => {
     const seen = new Set();
-    for (const record of records || []) {
-      if (!record.id || typeof record.id !== 'string') errors.push(`${label} has a missing or invalid id`);
+    const validRecords = requireArray(records, label).filter((record, index) => {
+      if (!isRecord(record)) {
+        errors.push(`${label}[${index}] must be an object`);
+        return false;
+      }
+      return true;
+    });
+    for (const record of validRecords) {
+      if (typeof record.id !== 'string' || record.id.trim().length === 0) errors.push(`${label} has a missing or invalid id`);
       else if (seen.has(record.id)) errors.push(`${label} id is duplicated: ${record.id}`);
       seen.add(record.id);
+      if (names) requireString(record.name, `${label} ${record.id || '(missing id)'} name`);
     }
+    return validRecords;
   };
 
-  if (!catalog || catalog.schema !== CATALOG_SCHEMA) errors.push(`schema must be ${CATALOG_SCHEMA}`);
-  if (!catalog) return { errors, blockers: [] };
+  if (!isRecord(catalog)) return { errors: [`catalog must be an object with schema ${CATALOG_SCHEMA}`], blockers: [] };
+  if (catalog.schema !== CATALOG_SCHEMA) errors.push(`schema must be ${CATALOG_SCHEMA}`);
+  requireString(catalog.catalogId, 'catalogId');
+  requireSafeInteger(catalog.revision, 'revision', { min: 1 });
+  if (catalog.currency !== CURRENCY) errors.push(`currency must be ${CURRENCY}`);
+  requireString(catalog.sourceStatus, 'sourceStatus');
+  if (!isRecord(catalog.importGate)) {
+    errors.push('importGate metadata is required');
+  } else {
+    if (typeof catalog.importGate.readyForValidatedBusinessUse !== 'boolean') errors.push('importGate.readyForValidatedBusinessUse must be boolean');
+    for (const [index, blocker] of requireArray(catalog.importGate.blockers, 'importGate.blockers').entries()) {
+      requireString(blocker, `importGate.blockers[${index}]`);
+    }
+  }
+  for (const [index, source] of requireArray(catalog.sources, 'sources').entries()) {
+    if (!isRecord(source)) {
+      errors.push(`sources[${index}] must be an object`);
+      continue;
+    }
+    requireString(source.id, `sources[${index}].id`);
+    requireString(source.status, `sources[${index}].status`);
+  }
 
-  checkUnique(catalog.categories, 'category');
-  checkUnique(catalog.products, 'product');
-  checkUnique(catalog.modifierGroups, 'modifier group');
-  const categoryIds = new Set((catalog.categories || []).map((item) => item.id));
-  const groups = new Map((catalog.modifierGroups || []).map((item) => [item.id, item]));
+  const categories = checkUnique(catalog.categories, 'categories', { names: true });
+  const products = checkUnique(catalog.products, 'products', { names: true });
+  const modifierGroups = checkUnique(catalog.modifierGroups, 'modifierGroups', { names: true });
+  const categoryIds = new Set(categories.filter((item) => typeof item.id === 'string').map((item) => item.id));
+  const groups = new Map(modifierGroups.filter((item) => typeof item.id === 'string').map((item) => [item.id, item]));
 
-  for (const group of catalog.modifierGroups || []) {
-    checkUnique(group.options, `option in ${group.id}`);
-    const selection = group.selection || {};
-    if (!Number.isInteger(selection.min) || !Number.isInteger(selection.max) || selection.min < 0 || selection.max < selection.min) {
+  for (const category of categories) {
+    requireSafeInteger(category.sortOrder, `category ${category.id} sortOrder`);
+    if (typeof category.active !== 'boolean') errors.push(`category ${category.id} active must be boolean`);
+    checkSource(category.source, `category ${category.id}`);
+  }
+
+  for (const group of modifierGroups) {
+    const label = `modifier group ${group.id || '(missing id)'}`;
+    requireSafeInteger(group.sortOrder, `${label} sortOrder`);
+    checkSource(group.source, label);
+    const options = checkUnique(group.options, `${label} options`, { names: true });
+    const selection = isRecord(group.selection) ? group.selection : {};
+    if (!isRecord(group.selection)) errors.push(`${label} selection metadata is required`);
+    const minValid = Number.isSafeInteger(selection.min) && selection.min >= 0;
+    const maxValid = Number.isSafeInteger(selection.max) && selection.max >= 0;
+    if (!minValid || !maxValid || (minValid && maxValid && selection.max < selection.min)) {
       errors.push(`modifier group ${group.id} has invalid selection limits`);
     }
-    if (selection.required !== (selection.min > 0)) errors.push(`modifier group ${group.id} required must match min`);
-    if (selection.multiple !== (selection.max > 1)) errors.push(`modifier group ${group.id} multiple must match max`);
-    if (selection.defaultOptionId !== null && !group.options.some((option) => option.id === selection.defaultOptionId)) {
-      errors.push(`modifier group ${group.id} default option does not exist`);
+    if (minValid && selection.min > options.length) errors.push(`${label} min exceeds its option count`);
+    if (maxValid && selection.max > options.length) errors.push(`${label} max exceeds its option count`);
+    if (typeof selection.required !== 'boolean') errors.push(`${label} required must be boolean`);
+    else if (minValid && selection.required !== (selection.min > 0)) errors.push(`${label} required must match min`);
+    if (typeof selection.multiple !== 'boolean') errors.push(`${label} multiple must be boolean`);
+    else if (maxValid && selection.multiple !== (selection.max > 1)) errors.push(`${label} multiple must match max`);
+    if (selection.defaultOptionId !== null && typeof selection.defaultOptionId !== 'string') errors.push(`${label} defaultOptionId must be a string or null`);
+    if (typeof selection.defaultOptionId === 'string' && !options.some((option) => option.id === selection.defaultOptionId)) {
+      errors.push(`${label} default option does not exist`);
     }
-    if (selection.required && selection.defaultOptionId === null) errors.push(`required modifier group ${group.id} must declare a default or be reconciled`);
-    for (const option of group.options || []) {
-      if (!Number.isFinite(option.priceEffect?.amount) || option.priceEffect.amount < 0) errors.push(`option ${group.id}/${option.id} has invalid price effect`);
+    if (selection.required === true && selection.defaultOptionId === null) errors.push(`required modifier group ${group.id} must declare a default or be reconciled`);
+    requireString(selection.defaultProvenance, `${label} defaultProvenance`);
+    for (const option of options) {
+      const optionLabel = `option ${group.id}/${option.id || '(missing id)'}`;
+      requireSafeInteger(option.sortOrder, `${optionLabel} sortOrder`);
+      if (typeof option.active !== 'boolean') errors.push(`${optionLabel} active must be boolean`);
+      checkSource(option.source, optionLabel);
+      const effect = option.priceEffect;
+      if (!isRecord(effect)) {
+        errors.push(`${optionLabel} priceEffect metadata is required`);
+      } else {
+        if (!['none', 'fixed-addition'].includes(effect.kind)) errors.push(`${optionLabel} price effect kind is invalid`);
+        requireSafeInteger(effect.amountCents, `${optionLabel} price effect amountCents`);
+        if (effect.currency !== catalog.currency) errors.push(`${optionLabel} price effect currency must match catalog currency`);
+        if (effect.kind === 'none' && effect.amountCents !== 0) errors.push(`${optionLabel} none price effect must be zero`);
+      }
     }
   }
 
-  for (const product of catalog.products || []) {
-    if (!categoryIds.has(product.categoryId)) errors.push(`product ${product.id} references missing category ${product.categoryId}`);
-    if (!Number.isFinite(product.price?.amount) || product.price.amount < 0) errors.push(`product ${product.id} has invalid price`);
-    for (const groupId of product.modifierGroupIds || []) if (!groups.has(groupId)) errors.push(`product ${product.id} references missing modifier group ${groupId}`);
-    if (!['recipe', 'piece', 'unknown'].includes(product.stockControl?.mode)) errors.push(`product ${product.id} has invalid stock control mode`);
-    if (product.stockControl?.validated !== false) errors.push(`product ${product.id} must retain its unvalidated stock-control state`);
+  for (const product of products) {
+    const label = `product ${product.id || '(missing id)'}`;
+    requireSafeInteger(product.sortOrder, `${label} sortOrder`);
+    if (typeof product.available !== 'boolean') errors.push(`${label} available must be boolean`);
+    checkSource(product.source, label);
+    if (!categoryIds.has(product.categoryId)) errors.push(`${label} references missing category ${product.categoryId}`);
+    if (!isRecord(product.price)) {
+      errors.push(`${label} price metadata is required`);
+    } else {
+      requireSafeInteger(product.price.amountCents, `${label} price amountCents`);
+      if (product.price.currency !== catalog.currency) errors.push(`${label} price currency must match catalog currency`);
+      requireString(product.price.provenance, `${label} price provenance`);
+    }
+    for (const [index, groupId] of requireArray(product.modifierGroupIds, `${label} modifierGroupIds`).entries()) {
+      if (typeof groupId !== 'string' || !groups.has(groupId)) errors.push(`${label} references missing modifier group ${groupId} at index ${index}`);
+    }
+    const stock = product.stockControl;
+    if (!isRecord(stock)) {
+      errors.push(`${label} stockControl metadata is required`);
+    } else {
+      if (!['recipe', 'piece', 'none', 'unknown'].includes(stock.mode)) errors.push(`${label} has invalid stock control mode`);
+      requireString(stock.evidence, `${label} stock control evidence`);
+      if (typeof stock.validated !== 'boolean') errors.push(`${label} stockControl.validated must be boolean`);
+    }
   }
 
-  return { errors, blockers: catalog.importGate?.blockers || [] };
+  const blockers = isRecord(catalog.importGate) && Array.isArray(catalog.importGate.blockers) ? catalog.importGate.blockers : [];
+  return { errors, blockers };
 }

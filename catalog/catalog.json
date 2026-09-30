@@ -2,7 +2,7 @@
   "schema": "karma.catalog/v1",
   "catalogId": "karma-cafe",
   "revision": 1,
-  "currency": null,
+  "currency": "MXN",
   "sourceStatus": "prototype-seed-only",
   "importGate": {
     "readyForValidatedBusinessUse": false,
@@ -149,8 +149,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -164,8 +164,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -179,8 +179,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -194,8 +194,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -209,8 +209,8 @@
           "sortOrder": 4,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -243,8 +243,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -258,8 +258,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -273,8 +273,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -288,8 +288,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -303,8 +303,8 @@
           "sortOrder": 4,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -318,8 +318,8 @@
           "sortOrder": 5,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -333,8 +333,8 @@
           "sortOrder": 6,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -348,8 +348,8 @@
           "sortOrder": 7,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -382,8 +382,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -397,8 +397,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -412,8 +412,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -446,8 +446,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -461,8 +461,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -476,8 +476,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -491,8 +491,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -506,8 +506,8 @@
           "sortOrder": 4,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -540,8 +540,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -555,8 +555,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -570,8 +570,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -585,8 +585,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -600,8 +600,8 @@
           "sortOrder": 4,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -615,8 +615,8 @@
           "sortOrder": 5,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -649,8 +649,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -664,8 +664,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -679,8 +679,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -713,8 +713,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -728,8 +728,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -743,8 +743,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -777,8 +777,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 13,
-            "currency": null
+            "amountCents": 1300,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -792,8 +792,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 13,
-            "currency": null
+            "amountCents": 1300,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -807,8 +807,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 13,
-            "currency": null
+            "amountCents": 1300,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -822,8 +822,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -856,8 +856,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -871,8 +871,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -886,8 +886,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -920,8 +920,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -935,8 +935,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -950,8 +950,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -965,8 +965,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -980,8 +980,8 @@
           "sortOrder": 4,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -995,8 +995,8 @@
           "sortOrder": 5,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1010,8 +1010,8 @@
           "sortOrder": 6,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1025,8 +1025,8 @@
           "sortOrder": 7,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1040,8 +1040,8 @@
           "sortOrder": 8,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1055,8 +1055,8 @@
           "sortOrder": 9,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1089,8 +1089,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1104,8 +1104,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1119,8 +1119,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1134,8 +1134,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1149,8 +1149,8 @@
           "sortOrder": 4,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1164,8 +1164,8 @@
           "sortOrder": 5,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1198,8 +1198,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1213,8 +1213,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1228,8 +1228,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1243,8 +1243,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "none",
-            "amount": 0,
-            "currency": null
+            "amountCents": 0,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1277,8 +1277,8 @@
           "sortOrder": 0,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1292,8 +1292,8 @@
           "sortOrder": 1,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1307,8 +1307,8 @@
           "sortOrder": 2,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1322,8 +1322,8 @@
           "sortOrder": 3,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1337,8 +1337,8 @@
           "sortOrder": 4,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1352,8 +1352,8 @@
           "sortOrder": 5,
           "priceEffect": {
             "kind": "fixed-addition",
-            "amount": 10,
-            "currency": null
+            "amountCents": 1000,
+            "currency": "MXN"
           },
           "active": true,
           "source": {
@@ -1375,8 +1375,8 @@
       "categoryId": "concafe",
       "sortOrder": 0,
       "price": {
-        "amount": 50,
-        "currency": null,
+        "amountCents": 5000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1400,8 +1400,8 @@
       "categoryId": "concafe",
       "sortOrder": 1,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1425,8 +1425,8 @@
       "categoryId": "concafe",
       "sortOrder": 2,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1450,8 +1450,8 @@
       "categoryId": "concafe",
       "sortOrder": 3,
       "price": {
-        "amount": 30,
-        "currency": null,
+        "amountCents": 3000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1475,8 +1475,8 @@
       "categoryId": "concafe",
       "sortOrder": 4,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1500,8 +1500,8 @@
       "categoryId": "concafe",
       "sortOrder": 5,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1525,8 +1525,8 @@
       "categoryId": "lattes",
       "sortOrder": 6,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1550,8 +1550,8 @@
       "categoryId": "lattes",
       "sortOrder": 7,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1575,8 +1575,8 @@
       "categoryId": "lattes",
       "sortOrder": 8,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1600,8 +1600,8 @@
       "categoryId": "lattes",
       "sortOrder": 9,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1625,8 +1625,8 @@
       "categoryId": "lattes",
       "sortOrder": 10,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1650,8 +1650,8 @@
       "categoryId": "lattes",
       "sortOrder": 11,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1675,8 +1675,8 @@
       "categoryId": "lattes",
       "sortOrder": 12,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1700,8 +1700,8 @@
       "categoryId": "lattes",
       "sortOrder": 13,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1725,8 +1725,8 @@
       "categoryId": "lattes",
       "sortOrder": 14,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1750,8 +1750,8 @@
       "categoryId": "lattes",
       "sortOrder": 15,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1775,8 +1775,8 @@
       "categoryId": "lattes",
       "sortOrder": 16,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1800,8 +1800,8 @@
       "categoryId": "lattes",
       "sortOrder": 17,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": false,
@@ -1825,8 +1825,8 @@
       "categoryId": "lattes",
       "sortOrder": 18,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1850,8 +1850,8 @@
       "categoryId": "frappes",
       "sortOrder": 19,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1875,8 +1875,8 @@
       "categoryId": "frappes",
       "sortOrder": 20,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1900,8 +1900,8 @@
       "categoryId": "frappes",
       "sortOrder": 21,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1925,8 +1925,8 @@
       "categoryId": "frappes",
       "sortOrder": 22,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1950,8 +1950,8 @@
       "categoryId": "frappes",
       "sortOrder": 23,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -1975,8 +1975,8 @@
       "categoryId": "frappes",
       "sortOrder": 24,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2000,8 +2000,8 @@
       "categoryId": "frappes",
       "sortOrder": 25,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2025,8 +2025,8 @@
       "categoryId": "frappes",
       "sortOrder": 26,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2050,8 +2050,8 @@
       "categoryId": "frappes",
       "sortOrder": 27,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2075,8 +2075,8 @@
       "categoryId": "frappes",
       "sortOrder": 28,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2100,8 +2100,8 @@
       "categoryId": "frappes",
       "sortOrder": 29,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2125,8 +2125,8 @@
       "categoryId": "frappes",
       "sortOrder": 30,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2150,8 +2150,8 @@
       "categoryId": "frappes",
       "sortOrder": 31,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2175,8 +2175,8 @@
       "categoryId": "frappes",
       "sortOrder": 32,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2200,8 +2200,8 @@
       "categoryId": "frappes",
       "sortOrder": 33,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2225,8 +2225,8 @@
       "categoryId": "frappes",
       "sortOrder": 34,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2250,8 +2250,8 @@
       "categoryId": "frappes",
       "sortOrder": 35,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2275,8 +2275,8 @@
       "categoryId": "frappes",
       "sortOrder": 36,
       "price": {
-        "amount": 75,
-        "currency": null,
+        "amountCents": 7500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2300,8 +2300,8 @@
       "categoryId": "sodas",
       "sortOrder": 37,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2322,8 +2322,8 @@
       "categoryId": "sodas",
       "sortOrder": 38,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2344,8 +2344,8 @@
       "categoryId": "sodas",
       "sortOrder": 39,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2366,8 +2366,8 @@
       "categoryId": "sodas",
       "sortOrder": 40,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2388,8 +2388,8 @@
       "categoryId": "sodas",
       "sortOrder": 41,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2410,8 +2410,8 @@
       "categoryId": "sodas",
       "sortOrder": 42,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2432,8 +2432,8 @@
       "categoryId": "sodas",
       "sortOrder": 43,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2454,8 +2454,8 @@
       "categoryId": "sodas",
       "sortOrder": 44,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2476,8 +2476,8 @@
       "categoryId": "sodas",
       "sortOrder": 45,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2498,8 +2498,8 @@
       "categoryId": "sodas",
       "sortOrder": 46,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2520,8 +2520,8 @@
       "categoryId": "magnolias",
       "sortOrder": 47,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2542,8 +2542,8 @@
       "categoryId": "magnolias",
       "sortOrder": 48,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2564,8 +2564,8 @@
       "categoryId": "magnolias",
       "sortOrder": 49,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2586,8 +2586,8 @@
       "categoryId": "magnolias",
       "sortOrder": 50,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": false,
@@ -2608,8 +2608,8 @@
       "categoryId": "te",
       "sortOrder": 51,
       "price": {
-        "amount": 45,
-        "currency": null,
+        "amountCents": 4500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2632,8 +2632,8 @@
       "categoryId": "te",
       "sortOrder": 52,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2656,8 +2656,8 @@
       "categoryId": "salados",
       "sortOrder": 53,
       "price": {
-        "amount": 80,
-        "currency": null,
+        "amountCents": 8000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2680,8 +2680,8 @@
       "categoryId": "salados",
       "sortOrder": 54,
       "price": {
-        "amount": 70,
-        "currency": null,
+        "amountCents": 7000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2704,8 +2704,8 @@
       "categoryId": "salados",
       "sortOrder": 55,
       "price": {
-        "amount": 70,
-        "currency": null,
+        "amountCents": 7000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2728,8 +2728,8 @@
       "categoryId": "salados",
       "sortOrder": 56,
       "price": {
-        "amount": 70,
-        "currency": null,
+        "amountCents": 7000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2752,8 +2752,8 @@
       "categoryId": "salados",
       "sortOrder": 57,
       "price": {
-        "amount": 70,
-        "currency": null,
+        "amountCents": 7000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2776,8 +2776,8 @@
       "categoryId": "salados",
       "sortOrder": 58,
       "price": {
-        "amount": 70,
-        "currency": null,
+        "amountCents": 7000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2800,8 +2800,8 @@
       "categoryId": "salados",
       "sortOrder": 59,
       "price": {
-        "amount": 70,
-        "currency": null,
+        "amountCents": 7000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2824,8 +2824,8 @@
       "categoryId": "salados",
       "sortOrder": 60,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2848,8 +2848,8 @@
       "categoryId": "salados",
       "sortOrder": 61,
       "price": {
-        "amount": 55,
-        "currency": null,
+        "amountCents": 5500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2873,8 +2873,8 @@
       "categoryId": "crepas",
       "sortOrder": 62,
       "price": {
-        "amount": 70,
-        "currency": null,
+        "amountCents": 7000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2897,8 +2897,8 @@
       "categoryId": "crepas",
       "sortOrder": 63,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2921,8 +2921,8 @@
       "categoryId": "crepas",
       "sortOrder": 64,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2945,8 +2945,8 @@
       "categoryId": "crepas",
       "sortOrder": 65,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2969,8 +2969,8 @@
       "categoryId": "crepas",
       "sortOrder": 66,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -2993,8 +2993,8 @@
       "categoryId": "crepas",
       "sortOrder": 67,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3017,8 +3017,8 @@
       "categoryId": "crepas",
       "sortOrder": 68,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3041,8 +3041,8 @@
       "categoryId": "postres",
       "sortOrder": 69,
       "price": {
-        "amount": 32,
-        "currency": null,
+        "amountCents": 3200,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3063,8 +3063,8 @@
       "categoryId": "postres",
       "sortOrder": 70,
       "price": {
-        "amount": 38,
-        "currency": null,
+        "amountCents": 3800,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3085,8 +3085,8 @@
       "categoryId": "postres",
       "sortOrder": 71,
       "price": {
-        "amount": 30,
-        "currency": null,
+        "amountCents": 3000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3107,8 +3107,8 @@
       "categoryId": "postres",
       "sortOrder": 72,
       "price": {
-        "amount": 45,
-        "currency": null,
+        "amountCents": 4500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3129,8 +3129,8 @@
       "categoryId": "postres",
       "sortOrder": 73,
       "price": {
-        "amount": 45,
-        "currency": null,
+        "amountCents": 4500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": false,
@@ -3151,8 +3151,8 @@
       "categoryId": "postres",
       "sortOrder": 74,
       "price": {
-        "amount": 45,
-        "currency": null,
+        "amountCents": 4500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3175,8 +3175,8 @@
       "categoryId": "postres",
       "sortOrder": 75,
       "price": {
-        "amount": 50,
-        "currency": null,
+        "amountCents": 5000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3201,8 +3201,8 @@
       "categoryId": "postres",
       "sortOrder": 76,
       "price": {
-        "amount": 60,
-        "currency": null,
+        "amountCents": 6000,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,
@@ -3226,8 +3226,8 @@
       "categoryId": "postres",
       "sortOrder": 77,
       "price": {
-        "amount": 65,
-        "currency": null,
+        "amountCents": 6500,
+        "currency": "MXN",
         "provenance": "prototype-seed-unverified"
       },
       "available": true,

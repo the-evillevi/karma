@@ -19,7 +19,7 @@ Status: **open**. This ledger records what can be established from the repositor
 
 * No workbook row was compared with a seed row. Duplicate names, category mismatches, missing prices, real availability, and actual option lists are therefore unresolved.
 * The current prototype contains 9 categories, 78 products, and 13 modifier groups. These counts describe only the prototype and must not be treated as the validated menu size.
-* Prices are represented as numeric prototype values with `currency: null`; this avoids asserting an unsupported currency or business-approved amount. The existing EVL-111 IVA decision is not evidence that these prototype prices are correct.
+* Money is represented as integer MXN centavos, as explicitly requested for this catalog. The seed's values still have prototype provenance and are not validated business prices; the EVL-111 IVA decision does not validate their amounts.
 * Required-group defaults are explicit in the JSON because the current POS initializes a required group to its first option. That is a preservation of prototype behavior, not confirmation that the business wants that default.
 * The seed lists certain products as unavailable. Those flags are preserved as prototype values pending source reconciliation.
 
