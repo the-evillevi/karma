@@ -13,7 +13,49 @@ export type AccessAction =
   | "viewStock"
   | "viewReports"
   | "manageUsers"
-  | "prepareOrder";
+  | "prepareOrder"
+  | "configureTables";
+
+const ACCESS_ACTIONS: readonly AccessAction[] = [
+  "openOrder",
+  "checkout",
+  "cancelWithReason",
+  "cancelPreparationWithReason",
+  "discountWithReason",
+  "reprintWithReason",
+  "editMenu",
+  "adjustInventory",
+  "viewStock",
+  "viewReports",
+  "manageUsers",
+  "prepareOrder",
+  "configureTables",
+];
+
+export type LegacyAccessAction =
+  | "cancelar"
+  | "descuento"
+  | "ajuste"
+  | "menu"
+  | "inventario"
+  | "reportes"
+  | "usuarios"
+  | "imprimir"
+  | "cobrar"
+  | "ordenes";
+
+const legacyActionMap: Readonly<Record<LegacyAccessAction, AccessAction>> = {
+  cancelar: "cancelWithReason",
+  descuento: "discountWithReason",
+  ajuste: "adjustInventory",
+  menu: "editMenu",
+  inventario: "viewStock",
+  reportes: "viewReports",
+  usuarios: "manageUsers",
+  imprimir: "reprintWithReason",
+  cobrar: "checkout",
+  ordenes: "openOrder",
+};
 
 const permissions: Record<AccessRole, ReadonlySet<AccessAction>> = {
   duena: new Set([
@@ -29,6 +71,7 @@ const permissions: Record<AccessRole, ReadonlySet<AccessAction>> = {
     "viewReports",
     "manageUsers",
     "prepareOrder",
+    "configureTables",
   ]),
   encargado: new Set([
     "openOrder",
@@ -42,6 +85,7 @@ const permissions: Record<AccessRole, ReadonlySet<AccessAction>> = {
     "viewStock",
     "viewReports",
     "prepareOrder",
+    "configureTables",
   ]),
   barra: new Set(["openOrder", "checkout", "viewStock", "prepareOrder"]),
   mesero: new Set(["openOrder", "viewStock", "prepareOrder"]),
@@ -58,7 +102,15 @@ export function canPerform(
   role: AccessRole | null | undefined,
   action: AccessAction,
 ): boolean {
-  return role !== null && role !== undefined && permissions[role].has(action);
+  return isAccessRole(role) && permissions[role].has(action);
+}
+
+export function resolveAccessAction(value: string): AccessAction | null {
+  if ((ACCESS_ACTIONS as readonly string[]).includes(value))
+    return value as AccessAction;
+  if (Object.hasOwn(legacyActionMap, value))
+    return legacyActionMap[value as LegacyAccessAction];
+  return null;
 }
 
 /** Legacy seeded-only role adapter; never use this to construct a secure principal. */

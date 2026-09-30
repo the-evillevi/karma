@@ -2,7 +2,11 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: ".",
-  testMatch: ["offline-sync.spec.js", "access-control-v118.spec.js"],
+  testMatch: [
+    "offline-sync.spec.js",
+    "access-control-v118.spec.js",
+    "pos-access-v118.spec.js",
+  ],
   outputDir: ".playwright-output",
   timeout: 45_000,
   expect: { timeout: 10_000 },
