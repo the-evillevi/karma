@@ -73,6 +73,7 @@ import {
 const compensationMethodLabels = new Map([['cash', 'Efectivo'], ['card', 'Tarjeta'], ['transfer', 'Transferencia']]);
 const RecipeConfigurationPanel = React.lazy(() => import('./inventory/RecipeConfigurationPanel.jsx'));
 const AuditHistoryPanel = React.lazy(() => import('./reports/AuditHistoryPanel.jsx'));
+const RecoveryGuidePanel = React.lazy(() => import('./reports/RecoveryGuidePanel.jsx'));
 const DEFAULT_TABLE_COUNT = 12;
 const MAX_TABLE_COUNT = 50;
 
@@ -346,6 +347,7 @@ export default class PosApp extends React.Component {
       module: 'pos',
       online: this._secureStorage ? navigator.onLine : sv.online !== false,
       syncing: false,
+      localWriteStatus: 'unknown',
       pending: sv.pending || (this._secureStorage ? [] : ['Venta A-1047', 'Orden A-1049']),
       toasts: [],
       order: restoredOrder,
@@ -395,8 +397,7 @@ export default class PosApp extends React.Component {
   }
   mutateOrder(action, transform, callback) {
     if (!this.requireAction('openOrder')) return false;
-    this.up({ order: this.stampOrder(transform(this.state.order), action) }, callback);
-    return true;
+    return this.up({ order: this.stampOrder(transform(this.state.order), action) }, saved => { if (saved && callback) callback(saved); });
   }
   componentDidMount() {
     this.reportPwaUpdateSafety();
@@ -484,8 +485,36 @@ export default class PosApp extends React.Component {
       return true;
     } catch { return false; }
   }
-  persist() { this.writePersistedState(); }
-  up(p, cb) { this.setState(p, () => { this.persist(); cb && cb(); }); }
+  persist() {
+    const saved = this.writePersistedState();
+    this._lastLocalWriteStatus = saved ? 'saved' : 'failed';
+    return saved;
+  }
+  noteLocalWrite(saved) {
+    this._lastLocalWriteStatus = saved ? 'saved' : 'failed';
+    if (this.state && this.state.localWriteStatus !== this._lastLocalWriteStatus)
+      this.setState({ localWriteStatus: this._lastLocalWriteStatus });
+  }
+  up(p, cb) {
+    const next = { ...this.state, ...p };
+    const saved = this.writePersistedState(next);
+    const status = saved ? 'saved' : 'failed';
+    this._lastLocalWriteStatus = status;
+    const update = saved
+      ? { ...p, localWriteStatus: status }
+      : {
+        localWriteStatus: status,
+        ...(p.ck?.step === 'result' ? { ck: {
+          ...this.state.ck, step: 'result', ok: false, saveFailed: true,
+          error: 'El guardado local falló. No repitas el cobro. Revisa el reporte y confirma el resultado antes de continuar.',
+        } } : {}),
+      };
+    this.setState(update, () => {
+      cb && cb(saved);
+      if (!saved) this.toast('No se pudo confirmar el guardado en este navegador. Revisa el estado antes de repetir cualquier operación.', 'warn');
+    });
+    return saved;
+  }
   latestOperationalState(persisted) {
     if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) throw new TypeError('saved POS state must be a record');
     const patch = {};
@@ -908,7 +937,7 @@ export default class PosApp extends React.Component {
       totalCents: plan.sourceTotalCents,
       preparationFolio,
       sharedPreparation: true,
-      sync: 'pendiente',
+      sync: this.isSecureMode() ? 'acuse_desconocido' : 'demo',
       splitOperations: [...savedOperations, operation],
     }, 'order_split');
     const child = this.stampOrder({
@@ -922,7 +951,7 @@ export default class PosApp extends React.Component {
       sharedPreparation: true,
       splitFrom: { folio: sourceFolio, operationId },
       splitOperations: [],
-      sync: 'pendiente',
+      sync: this.isSecureMode() ? 'acuse_desconocido' : 'demo',
     }, 'order_split');
     const sourceIndex = latestOpen.findIndex(entry => entry.folio === sourceFolio);
     if (sourceIndex < 0) {
@@ -930,7 +959,7 @@ export default class PosApp extends React.Component {
       return 'keep';
     }
     const open = [...latestOpen.slice(0, sourceIndex), sourceNext, child, ...latestOpen.slice(sourceIndex + 1)];
-    const pending = latestPending.includes('Split ' + operationId) ? latestPending : [...latestPending, 'Split ' + operationId];
+    const pending = latestPending;
     const nextSequence = Math.max(childSequence + 1, savedSequence, Number.isSafeInteger(this._folio) && this._folio > 0 ? this._folio : childSequence + 1);
     const nextPersisted = {
       ...this.storedState({
@@ -955,9 +984,11 @@ export default class PosApp extends React.Component {
     try {
       localStorage.setItem(this._storageKey || 'karma-pos-v1', JSON.stringify(nextPersisted));
     } catch {
+      this.noteLocalWrite(false);
       this.toast('No se guardó la división; las cuentas siguen intactas. Intenta de nuevo.', 'warn');
       return 'keep';
     }
+    this.noteLocalWrite(true);
     this._folio = nextSequence;
     this.setState({
       open, pending, kitchenTickets: latestKitchenTickets, sales: latestSales,
@@ -992,7 +1023,7 @@ export default class PosApp extends React.Component {
       folio: o.folio, type: o.type, ref: this.refOf(o), reference: this.refOf(o), time: textField(o.time || this.now(), 40),
       user: createdBy, responsible, totalCents, actorId: o.actorId || this.user()?.id, actorName: o.actorName || createdBy, actorHistory: o.actorHistory || [],
       phone: textField(o.phone, 40), address: textField(o.address, 240),
-      mesa: textField(o.mesa, 32), prep: 'en-cola', sync: this.state.online ? 'sincronizada' : 'pendiente',
+      mesa: textField(o.mesa, 32), prep: 'en-cola', sync: this.isSecureMode() ? 'acuse_desconocido' : 'demo',
       items: o.items.map(l => ({ ...l, prodId: l.prodId, name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, mods: l.mods, modsText: this.modsText(l), notes: l.notes, unit: this.orderLineUnitCents(l) === null ? null : centsToMoney(this.orderLineUnitCents(l)) })),
       name: o.name, discount: o.discount || 0,
       preparationFolio: textField(o.preparationFolio || o.folio, 80),
@@ -1031,9 +1062,12 @@ export default class PosApp extends React.Component {
     });
     const sharedPreparation = o.sharedPreparation === true || (Array.isArray(o.splitOperations) && o.splitOperations.length > 0) || (!!preparationFolio && preparationFolio !== o.folio);
     const kitchenTickets = sharedPreparation ? s.kitchenTickets : upsertKitchenTicket(kitchenBase, ticketEntry);
-    const pending = s.online ? s.pending : [...s.pending, 'Orden ' + o.folio];
-    if (keepStation) this.up({ open, kitchenTickets, pending, order: o });
-    else this.up({ open, kitchenTickets, pending, order: this.blank() });
+    const pending = s.pending;
+    const savedMessage = this.isSecureMode()
+      ? 'Cuenta ' + o.folio + ' guardada en este navegador; el servidor no ha confirmado recepción.'
+      : 'Demo: cuenta ' + o.folio + ' guardada localmente; no fue enviada a cocina ni a un servidor.';
+    if (keepStation) this.up({ open, kitchenTickets, pending, order: o }, saved => { if (saved) this.toast(savedMessage); });
+    else this.up({ open, kitchenTickets, pending, order: this.blank() }, saved => { if (saved) this.toast(savedMessage); });
     return o.folio;
   }
   startCheckout(folio, lines, discount, type, fromStation) {
@@ -1142,6 +1176,10 @@ export default class PosApp extends React.Component {
   setCk(patch) {
     const checkout = this.state.ck;
     if (!checkout || !this.requireAction('checkout')) return false;
+    if (checkout.saveFailed) {
+      this.toast('No repitas el cobro. Revisa primero el resultado en Reportes.', 'warn');
+      return false;
+    }
     if (this.isSecureMode() && checkout.actorId !== this.accessContext()?.userId) {
       this.notAllowed('continuar el cobro iniciado por otra identidad');
       return false;
@@ -1152,6 +1190,10 @@ export default class PosApp extends React.Component {
   register() {
     const s = this.state; const ck = s.ck;
     if (!ck || ck.step === 'processing' || (ck.step === 'result' && ck.ok)) return;
+    if (ck.saveFailed) {
+      this.toast('No repitas el cobro. Revisa primero el resultado en Reportes.', 'warn');
+      return;
+    }
     if (!this.requireAction('checkout')) return;
     if (this.isSecureMode() && ck.actorId !== this.accessContext()?.userId) {
       this.notAllowed('continuar el cobro iniciado por otra identidad');
@@ -1213,7 +1255,7 @@ export default class PosApp extends React.Component {
           tipCents: p.tipCents,
         })),
         tip: centsToMoney(m.tipCents), tipCents: m.tipCents, total: centsToMoney(m.totalCents), totalCents: m.totalCents,
-        currency: 'MXN', status: 'completada', sync: st.online ? 'sincronizada' : 'pendiente',
+        currency: 'MXN', status: 'completada', sync: this.isSecureMode() ? 'acuse_desconocido' : 'demo',
         paymentRecordMode: 'manual',
         externalPaymentVerification: m.payments.some(p => p.netAmountCents > 0 && p.method !== 'cash') ? 'manual_unverified' : 'not_applicable',
         audit: [[this.now(), 'Orden creada', ck.actorName], [this.now(), 'Pago neto registrado (' + m.payments.filter(p => p.netAmountCents > 0).map(p => ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method]).join(' + ') + ')', ck.actorName]]
@@ -1222,27 +1264,17 @@ export default class PosApp extends React.Component {
         sales: [sale, ...st.sales],
         open: st.open.filter(o => o.folio !== folio),
         order: ck.fromStation ? this.blank() : st.order,
-        pending: st.online ? st.pending : [...st.pending, 'Venta ' + folio],
+        pending: st.pending,
         ck: { ...this.state.ck, step: 'result', ok: true, change: m.change, folio }
+      }, saved => {
+        if (!saved) this.setState(current => ({ ck: { ...current.ck, ok: false, saveFailed: true, error: 'El guardado local falló. No repitas el cobro. Revisa el reporte y confirma el resultado antes de continuar.' } }));
       });
     }, 1400);
   }
   doSync() {
-    if (this.isSecureMode()) {
-      this.toast('Las operaciones se conservan en esta caja. La sincronización entre dispositivos aún no está disponible.', 'warn');
-      return;
-    }
-    const s = this.state;
-    if (!s.online) { this.toast('Sin conexión — no es posible sincronizar ahora', 'warn'); return; }
-    if (!s.pending.length) { this.toast('Todo está sincronizado'); return; }
-    this.setState({ syncing: true });
-    setTimeout(() => {
-      this.up({
-        syncing: false, pending: [],
-        open: this.state.open.map(o => o.sync === 'pendiente' ? { ...o, sync: 'sincronizada' } : o),
-        sales: this.state.sales.map(x => x.sync === 'pendiente' ? { ...x, sync: 'sincronizada' } : x)
-      }, () => this.toast('Sincronización completa — ' + 0 + ' operaciones pendientes'));
-    }, 1600);
+    this.toast(this.isSecureMode()
+      ? 'No hay sincronización POS disponible en esta estación. Se conservan las etiquetas locales sin cambiar su estado.'
+      : 'Demo: no se contacta un servidor ni se cambia el estado de las etiquetas de prueba.', 'warn');
   }
   currentReportProjection(at = new Date().toISOString()) {
     try {
@@ -1411,7 +1443,7 @@ export default class PosApp extends React.Component {
       items: source.items.map(item => ({ ...item, name: item.capturedSnapshot?.name || item.productNameSnapshot || item.name,
         qty: item.qty, mods: this.modsText(item), unit: this.lineUnit(item), total: this.lineUnit(item) * item.qty })),
       payments: [], tip: 0, subtotalCents, discount: source.discount || 0,
-      total: centsToMoney(totalCents), status: 'cancelada', sync: st.online ? 'sincronizada' : 'pendiente',
+      total: centsToMoney(totalCents), status: 'cancelada', sync: this.isSecureMode() ? 'acuse_desconocido' : 'demo',
       motivo: trimmedReason, cancelledAt: occurredAt, cancelledBy: actor.name, cancelledById: actor.id, cancelledByActorId: actor.id, cancelledByActorName: actor.name,
       audit: [[occurredAt, 'Cancelada · ' + trimmedReason, actor.name]]
     };
@@ -1420,12 +1452,13 @@ export default class PosApp extends React.Component {
       kitchenTickets: source.sharedPreparation === true ? persistedState.kitchenTickets : cancelKitchenTicket(persistedState.kitchenTickets, folio, actor.name, occurredAt, trimmedReason),
       sales: [sale, ...persistedState.sales],
       order: target.fromStation || st.order.folio === folio ? this.blank() : st.order,
-      pending: st.online ? persistedState.pending || st.pending : [...(persistedState.pending || st.pending), 'Cancelación ' + folio],
+      pending: persistedState.pending || st.pending,
     };
     // Store before announcing success or clearing the station; failed storage leaves it repairable.
     try {
       localStorage.setItem(this._storageKey || 'karma-pos-v1', JSON.stringify({ ...persisted, ...patch, folioSeq: this._folio }));
-    } catch { this.toast('No se pudo guardar la cancelación. La cuenta sigue abierta.', 'warn'); return 'keep'; }
+    } catch { this.noteLocalWrite(false); this.toast('No se pudo guardar la cancelación. La cuenta sigue abierta.', 'warn'); return 'keep'; }
+    this.noteLocalWrite(true);
     this.setState(patch);
     this.toast(folio + ' cancelada');
   }
@@ -1469,10 +1502,10 @@ export default class PosApp extends React.Component {
     }
     if (!planned.changed) { this.toast('La devolución ya está registrada.'); return; }
     const sales = persisted.sales.map(record => record.folio === folio ? planned.sale : record);
-    const oldPending = Array.isArray(persisted.pending) ? persisted.pending : this.state.pending;
-    const pending = [...oldPending, 'Devolución ' + commandId];
+    const pending = Array.isArray(persisted.pending) ? persisted.pending : this.state.pending;
     try { localStorage.setItem(this._storageKey || 'karma-pos-v1', JSON.stringify({ ...persisted, sales, pending })); }
-    catch { this.toast('No se pudo guardar la devolución. El historial sigue intacto; intenta de nuevo.', 'warn'); return 'keep'; }
+    catch { this.noteLocalWrite(false); this.toast('No se pudo guardar la devolución. El historial sigue intacto; intenta de nuevo.', 'warn'); return 'keep'; }
+    this.noteLocalWrite(true);
     const restored = { sales, pending, repSel: folio };
     for (const key of ['open', 'kitchenTickets', 'prods', 'flags', 'orderSettings']) if (persisted[key] !== undefined) restored[key] = persisted[key];
     if (persisted.order) restored.order = restoreStoredOrder(persisted.order);
@@ -1481,6 +1514,7 @@ export default class PosApp extends React.Component {
   }
   initializeInventoryState() {
     if (this.state.inventoryState || this.state.inventoryError) return;
+    let writeAttempted = false;
     try {
       const key = this._storageKey || 'karma-pos-v1';
       const raw = localStorage.getItem(key);
@@ -1492,9 +1526,13 @@ export default class PosApp extends React.Component {
         return;
       }
       const inventoryState = createInitialInventoryState(window.KARMA.inventory);
-      localStorage.setItem(key, JSON.stringify({ ...persisted, inventoryState }));
+      const encoded = JSON.stringify({ ...persisted, inventoryState });
+      writeAttempted = true;
+      localStorage.setItem(key, encoded);
+      this.noteLocalWrite(true);
       this.setState({ inventoryState, inventoryError: '' });
     } catch {
+      if (writeAttempted) this.noteLocalWrite(false);
       this.setState({ inventoryState: null, inventoryError: 'No se pudo cargar o inicializar el registro local de inventario. Reintenta antes de registrar movimientos.' });
     }
   }
@@ -1583,7 +1621,8 @@ export default class PosApp extends React.Component {
           : archiveInventoryItem(current, command);
       if (result.changed) {
         try { localStorage.setItem(key, JSON.stringify({ ...persisted, inventoryState: result.state })); }
-        catch { this.toast('No se pudo guardar el artículo. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+        catch { this.noteLocalWrite(false); this.toast('No se pudo guardar el artículo. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+        this.noteLocalWrite(true);
       }
       if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
       this.setState({ ...operational, inventoryState: result.state, inventoryError: '' });
@@ -1619,7 +1658,8 @@ export default class PosApp extends React.Component {
       const operational = this.latestOperationalState(persisted);
       if (!Object.prototype.hasOwnProperty.call(persisted, 'customerLedger')) {
         try { localStorage.setItem(key, JSON.stringify({ ...persisted, customerLedger })); }
-        catch { throw new Error('local customer ledger could not be initialized'); }
+        catch { this.noteLocalWrite(false); throw new Error('local customer ledger could not be initialized'); }
+        this.noteLocalWrite(true);
       }
       if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
       this.setState({ ...operational, customerLedger, customerLedgerError: '' });
@@ -1719,7 +1759,8 @@ export default class PosApp extends React.Component {
       const result = planCustomerCommand(ledger, command, { actorId: actor.id, role });
       if (result.changed) {
         try { localStorage.setItem(key, JSON.stringify({ ...persisted, customerLedger: result.ledger })); }
-        catch { this.toast('No se pudo guardar el cambio. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+        catch { this.noteLocalWrite(false); this.toast('No se pudo guardar el cambio. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+        this.noteLocalWrite(true);
       }
       if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
       this.setState({ ...operational, customerLedger: result.ledger, customerLedgerError: '', customerSelectedId: dialog.customerId });
@@ -1774,13 +1815,17 @@ export default class PosApp extends React.Component {
         try {
           localStorage.setItem(key, JSON.stringify({ ...persisted, recipeCatalog: result.catalog }));
         } catch {
+          this.noteLocalWrite(false);
           return { ok: false, message: 'No se pudo guardar la receta. El formulario sigue abierto para reintentar.' };
         }
+        this.noteLocalWrite(true);
       }
       if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0)
         this._folio = Math.max(this._folio, persisted.folioSeq);
       this.setState({ ...operational, recipeCatalog: result.catalog, recipeError: '' });
-      this.toast(result.duplicate ? 'Esta revisión ya estaba guardada; no se duplicó.' : 'Receta guardada en el historial local · sincronización pendiente.');
+      this.toast(result.duplicate ? 'Esta revisión ya estaba guardada; no se duplicó.' : this.isSecureMode()
+        ? 'Receta guardada en el historial local; el servidor no ha confirmado recepción.'
+        : 'Demo: receta guardada localmente; no se envió a un servidor.');
       return { ok: true, duplicate: result.duplicate };
     } catch (error) {
       const messages = new Map([
@@ -1869,7 +1914,8 @@ export default class PosApp extends React.Component {
         : applyInventoryMovement(current, command);
       if (result.changed) {
         try { localStorage.setItem(key, JSON.stringify({ ...persisted, inventoryState: result.state })); }
-        catch { this.toast('No se pudo guardar el movimiento. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+        catch { this.noteLocalWrite(false); this.toast('No se pudo guardar el movimiento. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+        this.noteLocalWrite(true);
       }
       if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
       this.setState({ ...operational, inventoryState: result.state, inventoryError: '' });
@@ -1888,7 +1934,7 @@ export default class PosApp extends React.Component {
     const chipSm = on => ({ padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '1px solid ' + (on ? acc : line), background: on ? acc : paper, color: on ? paper : ink, whiteSpace: 'nowrap' });
     const tag = (b, c) => ({ fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 999, background: b, color: c, whiteSpace: 'nowrap', justifySelf: 'start' });
     const prepTags = { 'en-cola': ['En cola', bg, mut], preparando: ['Preparando', tint, acc], listo: ['Listo', acc, paper], entregado: ['Entregado', bg, mut] };
-    const syncTags = { sincronizada: ['Sincronizada', 'transparent', '#a8a69c'], pendiente: ['Por sincronizar', tint, acc], conflicto: ['Conflicto', ink, paper] };
+    const pendingEvidence = Array.isArray(s.pending) ? s.pending : null;
     const secureMode = this.isSecureMode();
     const accessContext = secureMode ? this.accessContext() : null;
     const V = { loading: secureMode ? false : s.loading, two: 2, dlgFields: [], dlgSplitItems: [], dlgSplitError: '', dlgConfirmDisabled: false };
@@ -1899,9 +1945,9 @@ export default class PosApp extends React.Component {
     V.isSecureGate = secureMode && (!accessContext || accessContext.capability !== 'cash_register');
     V.accessScreen = this.props.accessScreen;
     V.accessControls = this.props.accessControls;
-    V.loginUsers = s.usersX.map(u => ({
+  V.loginUsers = s.usersX.map(u => ({
       name: u.name.split(' ')[0], roleLabel: D.roleLabels[u.role], active: u.id === s.pick, enabled: u.active,
-      pick: () => this.up({ pick: u.id, pin: '', pinErr: u.active ? '' : 'Acceso desactivado — contacta a la dueña' })
+      pick: () => this.setState({ pick: u.id, pin: '', pinErr: u.active ? '' : 'Acceso desactivado — contacta a la dueña' })
     }));
     V.pickName = pu ? pu.name.split(' ')[0] : '';
     V.pinDots = [0, 1, 2, 3].map(i => ({ style: { width: 13, height: 13, borderRadius: '50%', border: '1px solid ' + (i < s.pin.length ? acc : line), background: i < s.pin.length ? acc : 'transparent' } }));
@@ -1915,7 +1961,12 @@ export default class PosApp extends React.Component {
         if (pin.length === 4) {
           const u = this.state.usersX.find(x => x.id === this.state.pick);
           if (u && u.active && u.pin === pin) {
-            this.up({ session: u.id, pin: '', pinErr: '', module: u.role === 'cocina' ? 'ordenes' : 'pos' }, () => this.toast('Hola, ' + u.name.split(' ')[0] + ' — estación abierta'));
+            this.setState({ session: u.id, pin: '', pinErr: '', module: u.role === 'cocina' ? 'ordenes' : 'pos' }, () => {
+              const saved = this.persist();
+              this.noteLocalWrite(saved);
+              if (saved) this.toast('Hola, ' + u.name.split(' ')[0] + ' — estación abierta');
+              else this.toast('Demo: el acceso sigue abierto en esta pantalla, pero no se pudo guardar la sesión en este navegador.', 'warn');
+            });
           } else this.setState({ pin: '', pinErr: u && !u.active ? 'Acceso desactivado' : 'PIN incorrecto, intenta de nuevo' });
         } else this.setState({ pin, pinErr: '' });
       }
@@ -1927,38 +1978,61 @@ export default class PosApp extends React.Component {
     V.userName = me ? me.name : ''; V.userRoleLabel = me ? this.roleLabel() : '';
     V.userInitials = me ? me.name.split(' ').map(x => x[0]).slice(0, 2).join('') : '';
     V.switchUser = () => {
-      if (secureMode) this.setState({ ck: null, dlg: null, ed: null, module: 'pos', selUser: null, suForm: null, createdCredential: null }, () => { this.persist(); this.props.onSwitchIdentity?.(); });
-      else this.up({ session: null, pin: '', pinErr: '' });
+      if (secureMode) this.setState({ ck: null, dlg: null, ed: null, module: 'pos', selUser: null, suForm: null, createdCredential: null }, () => {
+        const saved = this.persist();
+        this.noteLocalWrite(saved);
+        if (!saved) this.toast('No se pudo confirmar el guardado en este navegador. Revisa el estado antes de cambiar de identidad.', 'warn');
+        this.props.onSwitchIdentity?.();
+      });
+      else this.setState({ session: null, pin: '', pinErr: '' }, () => {
+        const saved = this.persist();
+        this.noteLocalWrite(saved);
+        if (!saved) this.toast('Demo: la sesión se cerró en esta pantalla, pero no se pudo guardar el cierre en este navegador.', 'warn');
+      });
     };
-    V.goPos = () => this.navAllowed('pos') ? this.up({ module: 'pos', ck: null }) : this.notAllowed('usar la estación de venta');
+    V.goPos = () => this.navAllowed('pos') ? this.setState({ module: 'pos', ck: null }) : this.notAllowed('usar la estación de venta');
     const mods = [['pos', 'Punto de venta'], ['ordenes', 'Órdenes abiertas'], ['menu', 'Menú'], ['inventario', 'Inventario'], ['clientes', 'Clientes y cuentas'], ['reportes', 'Reportes'], ['config', 'Usuarios y configuración']];
     V.navItems = mods.map(([id, label]) => {
       const active = s.module === id; const allowed = this.navAllowed(id);
       return {
         label, active, allowed, hasBadge: id === 'ordenes' && s.open.length > 0, badge: s.open.length,
-        go: () => this.navAllowed(id) ? this.up({ module: id, ck: null, repSel: null }, id === 'clientes' ? () => this.ensureCustomerLedger() : undefined) : this.notAllowed('abrir «' + label + '»')
+        go: () => this.navAllowed(id)
+          ? this.setState({ module: id, ck: null, repSel: null }, () => { if (id === 'clientes') this.ensureCustomerLedger(); })
+          : this.notAllowed('abrir «' + label + '»')
       };
     });
     V.online = s.online; V.offline = !s.online && !!me && !s.loading;
     V.connDotStyle = { width: 9, height: 9, borderRadius: '50%', flex: 'none', background: s.online ? acc : 'transparent', border: '1px solid ' + acc };
-    V.connLabel = s.online ? 'Conectado' : 'Sin conexión';
-    V.connSub = secureMode ? 'Datos locales · sincronización entre dispositivos pendiente' : s.syncing ? 'Sincronizando…' : (s.pending.length ? s.pending.length + ' operaciones pendientes' : 'Todo sincronizado');
-    V.connToggleLabel = s.online ? 'Simular pérdida de conexión' : 'Restablecer conexión';
+    V.connLabel = secureMode ? (s.online ? 'Red del dispositivo disponible' : 'Sin red del dispositivo') : (s.online ? 'Demo · red simulada' : 'Demo · sin red simulada');
+    V.connSub = secureMode ? 'Recepción del servidor POS desconocida' : 'No se contacta un servidor';
+    V.offlineBanner = secureMode
+      ? 'Sin red. El servidor POS no confirma recepción; verifica el guardado local antes de repetir una operación.'
+      : 'Demo: red simulada sin conexión. No hay servidor ni sincronización real.';
+    V.connToggleLabel = s.online ? 'Simular pérdida de red' : 'Restablecer red simulada';
     V.showConnectionToggle = !secureMode;
     V.toggleOnline = () => {
       const on = !s.online;
-      this.up({ online: on }, () => {
-        if (!on) this.toast('Modo sin conexión — el flujo de venta sigue disponible', 'warn');
-        else if (this.state.pending.length) this.doSync();
+      this.setState({ online: on }, () => {
+        this.toast(on ? 'Demo: red simulada disponible; no hay conexión a servidor.' : 'Demo: red simulada sin conexión; no hay sincronización real.', 'warn');
       });
     };
-    V.showSyncBtn = !secureMode && s.online && s.pending.length > 0 && !s.syncing;
-    V.pendingCount = s.pending.length; V.syncNow = () => this.doSync(); V.syncing = s.syncing;
+    V.showSyncBtn = false;
+    V.remoteBadgeLabel = secureMode ? '?' : 'Demo';
+    V.pendingEvidence = pendingEvidence;
+    V.localWriteStatus = s.localWriteStatus;
+    V.openSalesReport = () => {
+      if (!this.requireAction('viewReports')) return;
+      this.setState({ module: 'reportes', reportTab: 'sales', repSel: null });
+    };
+    V.canViewRecovery = this.can('viewReports');
     V.toasts = s.toasts.map(t => ({ msg: t.msg, kind: t.kind }));
 
     // ---- module flags
     V.mPos = s.module === 'pos'; V.mOrders = s.module === 'ordenes'; V.mMenu = s.module === 'menu';
     V.mInv = s.module === 'inventario'; V.mCustomers = s.module === 'clientes' && this.can('viewCustomerAccounts'); V.mRep = s.module === 'reportes' && this.can('viewReports'); V.mCfg = s.module === 'config';
+    V.customerRecoveryNote = secureMode
+      ? 'Los cambios se guardan en esta estación; el servidor POS no ha confirmado recepción. Los pagos externos se registran manualmente y su liquidación no se verifica aquí.'
+      : 'Demo: los cambios y la conectividad son de prueba; no se contacta un servidor. Los pagos externos no se verifican.';
     V.mCheckout = s.module === 'checkout' && !!s.ck;
 
     // ---- POS catalog
@@ -2028,16 +2102,28 @@ export default class PosApp extends React.Component {
     V.subtotal = ot.sub === null ? 'Precio por verificar' : this.fmt(ot.sub); V.hasDiscount = ot.disc > 0; V.discount = this.fmt(ot.disc); V.total = ot.total === null ? 'Precio por verificar' : this.fmt(ot.total);
     V.addDiscount = () => {
       if (!this.can('discountWithReason')) { this.notAllowed('aplicar descuentos'); return; }
-      this.setState({ dlg: { title: 'Aplicar descuento', body: 'El descuento se resta del subtotal y queda auditado con tu usuario.', needReason: true, confirmLabel: 'Aplicar', fields: [{ key: 'monto', label: 'Monto (MXN)', ph: '0.00', value: '' }], onConfirm: d => { if (!this.requireAction('discountWithReason', d.reason || '') || !this.needItems()) return 'keep'; const f = (d.fields || []).find(x => x.key === 'monto'); const v = parseFloat(f && f.value) || 0; if (v <= 0) { this.toast('Captura un monto válido', 'warn'); return 'keep'; } const actor = this.user(); this.mutateOrder('discount_applied', order => ({ ...order, discount: v, discountReason: d.reason.trim(), discountActorId: actor.id, discountActorName: actor.name })); this.toast('Descuento de ' + this.fmt(v) + ' aplicado'); } } });
+      this.setState({ dlg: {
+        title: 'Aplicar descuento', body: 'El descuento se resta del subtotal y queda auditado con tu usuario.',
+        needReason: true, confirmLabel: 'Aplicar', fields: [{ key: 'monto', label: 'Monto (MXN)', ph: '0.00', value: '' }],
+        onConfirm: d => {
+          if (!this.requireAction('discountWithReason', d.reason || '') || !this.needItems()) return 'keep';
+          const f = (d.fields || []).find(x => x.key === 'monto'); const v = parseFloat(f && f.value) || 0;
+          if (v <= 0) { this.toast('Captura un monto válido', 'warn'); return 'keep'; }
+          const actor = this.user();
+          const saved = this.mutateOrder('discount_applied', order => ({ ...order, discount: v, discountReason: d.reason.trim(), discountActorId: actor.id, discountActorName: actor.name }),
+            () => this.toast('Descuento de ' + this.fmt(v) + ' aplicado'));
+          if (!saved) return 'keep';
+        }
+      } });
     };
-    V.saveOpen = () => { const f = this.saveOpen(); if (f) this.toast('Cuenta ' + f + ' guardada como abierta'); };
+    V.saveOpen = () => this.saveOpen();
     V.sendComanda = () => {
       if (!this.requireAction('openOrder')) return;
       if (!this.needItems()) return;
       if (!this.needCapturedPrices()) return;
       const f = this.saveOpen(true);
       if (!f) return;
-      this.toast('Comanda ' + f + ' enviada a cocina y barra');
+      // saveOpen reports only local persistence; no kitchen/server receipt exists here.
     };
     V.goCharge = () => { if (!this.requireAction('checkout') || !this.needItems()) return; const oo = this.state.order; this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + (oo.type === 'mesa' && oo.mesa ? ' ' + oo.mesa : ''), true); };
     V.cancelOrder = () => this.openCancellation({ folio: this.state.order.folio, fromStation: true });
@@ -2088,7 +2174,7 @@ export default class PosApp extends React.Component {
             ...x, qty: e2.qty, notes: e2.notes,
             ...(x.capturedSnapshot ? { capturedSnapshot: { ...x.capturedSnapshot, quantity: e2.qty, notes: e2.notes, lineTotalCents: x.capturedSnapshot.unitPriceCents * e2.qty } } : {})
           } : x);
-          this.up({ order: this.stampOrder({ ...st.order, items }, 'line_updated'), ed: null }, () => this.toast((e2.name || p.name) + ' actualizado'));
+          this.up({ order: this.stampOrder({ ...st.order, items }, 'line_updated'), ed: null }, saved => { if (saved) this.toast((e2.name || p.name) + ' actualizado'); });
           return;
         }
         let normalizedMods;
@@ -2125,7 +2211,7 @@ export default class PosApp extends React.Component {
           modsText: this.modsText({ mods: normalizedMods })
         }];
         const actor = this.user();
-        this.up({ order: this.stampOrder({ ...st.order, items, actorId: st.order.actorId || actor.id, actorName: st.order.actorName || actor.name }, 'line_added'), ed: null }, () => this.toast(p.name + ' agregado a la orden'));
+        this.up({ order: this.stampOrder({ ...st.order, items, actorId: st.order.actorId || actor.id, actorName: st.order.actorName || actor.name }, 'line_added'), ed: null }, saved => { if (saved) this.toast(p.name + ' agregado a la orden'); });
       };
     } else { V.edName = ''; V.edPrice = ''; V.edQty = 1; V.edGroups = []; V.edNotes = ''; V.edSetNotes = () => {}; V.edInc = V.edDec = V.edCancel = V.edConfirm = () => {}; V.edConfirmLabel = ''; }
 
@@ -2142,11 +2228,12 @@ export default class PosApp extends React.Component {
         return Number.isSafeInteger(splitQuantity);
       });
       const canSplit = validSplitQuantities && splitQuantity >= 2;
-      const pt = prepTags[prep] || prepTags['en-cola']; const st2 = syncTags[oo.sync] || syncTags.sincronizada;
+      const pt = prepTags[prep] || prepTags['en-cola'];
+      const syncLabel = oo.sync === 'conflicto' ? 'Conflicto' : secureMode ? 'Acuse del servidor desconocido' : 'Demo · sin envío';
       return {
         folio: oo.folio, total: totals === null ? 'Precio por verificar' : this.fmt(centsToMoney(totals.totalCents)),
         prepLabel: pt[0], prepVariant: prep === 'listo' ? 'success' : prep === 'preparando' ? 'pending' : 'outline',
-        syncLabel: st2[0], syncVariant: oo.sync === 'pendiente' ? 'pending' : oo.sync === 'conflicto' ? 'conflict' : 'outline',
+        syncLabel, syncVariant: oo.sync === 'conflicto' ? 'conflict' : 'outline',
         meta: this.typeLabel(oo.type) + ' · ' + textField(oo.reference || oo.ref || this.typeLabel(oo.type)) + ' · ' + textField(oo.time || '—', 40) + ' · ' + textField(oo.responsible || oo.user || '—', 100),
         itemsText: oo.items.map(l => l.qty + '× ' + l.name).join(' · '),
         conflict: oo.sync === 'conflicto',
@@ -2158,7 +2245,7 @@ export default class PosApp extends React.Component {
           if (status !== 'available' || !source) { this.blockOrderSource(status); return; }
           const items = source.items.map((l, i) => ({ ...l, lineId: l.lineId || 'l' + Date.now() + i, prodId: l.prodId, qty: l.qty, mods: l.mods || {}, notes: l.notes || '', unit: this.lineUnit(l), name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name, modsText: this.modsText(l) }));
           const mesa = source.type === 'mesa' ? textField(source.mesa, 32) || tableFromReference(source.reference || source.ref) : '';
-          this.up({ order: this.stampOrder({ folio: source.folio, type: source.type, mesa, name: textField(source.name, 100), phone: textField(source.phone, 40), address: textField(source.address, 240), user: textField(source.user || source.responsible, 100), responsible: textField(source.responsible || source.user, 100), time: textField(source.time, 40), reference: textField(source.reference || source.ref, 160), preparationFolio: textField(source.preparationFolio || source.folio, 80), ...(source.sharedPreparation === true ? { sharedPreparation: true } : {}), ...(source.splitFrom ? { splitFrom: source.splitFrom } : {}), ...(Array.isArray(source.splitOperations) ? { splitOperations: source.splitOperations } : {}), items, discount: source.discount || 0, actorId: source.actorId, actorName: source.actorName || source.user, actorHistory: source.actorHistory || [] }, 'order_resumed'), open: this.state.open.filter(x => x.folio !== source.folio), module: 'pos' }, () => this.toast(source.folio + ' abierta en la estación'));
+          this.up({ order: this.stampOrder({ folio: source.folio, type: source.type, mesa, name: textField(source.name, 100), phone: textField(source.phone, 40), address: textField(source.address, 240), user: textField(source.user || source.responsible, 100), responsible: textField(source.responsible || source.user, 100), time: textField(source.time, 40), reference: textField(source.reference || source.ref, 160), preparationFolio: textField(source.preparationFolio || source.folio, 80), ...(source.sharedPreparation === true ? { sharedPreparation: true } : {}), ...(source.splitFrom ? { splitFrom: source.splitFrom } : {}), ...(Array.isArray(source.splitOperations) ? { splitOperations: source.splitOperations } : {}), items, discount: source.discount || 0, actorId: source.actorId, actorName: source.actorName || source.user, actorHistory: source.actorHistory || [] }, 'order_resumed'), open: this.state.open.filter(x => x.folio !== source.folio), module: 'pos' }, saved => { if (saved) this.toast(source.folio + ' reanudada desde el estado local.'); });
         },
         charge: () => this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + ' · ' + oo.ref, false),
         reprint: () => {
@@ -2229,7 +2316,9 @@ export default class PosApp extends React.Component {
       V.ckTip = this.fmt(m.tip); V.ckTotal = this.fmt(m.total);
       V.ckReview = ck.step === 'review'; V.ckPay = ck.step === 'pay'; V.ckConfirm = ck.step === 'confirm';
       V.ckProcessing = ck.step === 'processing'; V.ckResult = ck.step === 'result';
-      V.ckOk = ck.ok === true; V.ckFail = ck.ok === false; V.ckError = ck.error;
+      V.ckLocalSaveFailed = ck.saveFailed === true;
+      V.ckOk = ck.ok === true && !V.ckLocalSaveFailed; V.ckFail = ck.ok === false || V.ckLocalSaveFailed;
+      V.ckError = V.ckLocalSaveFailed ? ck.error : ck.error;
       const retune = (patch) => {
         const nk = { ...this.state.ck, ...patch };
         if (nk.pays.length === 1) { const m2 = this.ckMath({ ...nk, pays: [{ ...nk.pays[0], amount: '0' }] }); nk.pays = [{ ...nk.pays[0], amount: m2.total.toFixed(2) }]; }
@@ -2276,16 +2365,21 @@ export default class PosApp extends React.Component {
       V.manualExternalPaymentNote = 'Tarjeta y transferencia se registran manualmente; su autorización externa no está verificada.';
       V.ckNext = () => { if (ck.step === 'review') this.setCk({ step: 'pay' }); else if (ck.step === 'pay' && m.valid) this.setCk({ step: 'confirm' }); };
       V.ckBack = () => this.setCk({ step: ck.step === 'confirm' ? 'pay' : 'review' });
-      V.ckExit = () => this.up({ ck: null, module: ck.fromStation ? 'pos' : 'ordenes' });
       V.ckRegister = () => this.register();
-      V.ckRetry = () => this.register();
-      V.ckChangeMethod = () => this.setCk({ step: 'pay', ok: null });
+      V.ckRetry = () => V.ckLocalSaveFailed
+        ? this.toast('No repitas el cobro. Revisa primero el resultado en Reportes.', 'warn')
+        : this.register();
+      V.ckChangeMethod = () => V.ckLocalSaveFailed ? undefined : this.setCk({ step: 'pay', ok: null });
+      V.ckCanRetry = !V.ckLocalSaveFailed;
+      V.ckExit = () => this.setState({ ck: null, module: ck.fromStation ? 'pos' : 'ordenes' });
       V.hasResultChange = ck.change > 0; V.resultChange = this.fmt(ck.change);
-      V.resultSyncNote = s.online ? 'Venta ' + (ck.folio || '') + ' sincronizada con el respaldo.' : 'Venta guardada localmente — se sincronizará al reconectar.';
+      V.resultSyncNote = secureMode
+        ? 'Folio ' + (ck.folio || '') + ' guardado en este navegador; el servidor POS no ha confirmado recepción.'
+        : 'Demo: resultado local de prueba; no se contacta un servidor.';
       V.ckPrint = () => this.requestReprint(ck.folio, 'receipt');
-      V.ckNew = () => this.up({ ck: null, module: 'pos' });
+      V.ckNew = () => this.setState({ ck: null, module: 'pos' });
     } else {
-      Object.assign(V, { ckFolio: '', ckTypeLabel: '', ckSteps: [], ckLines: [], ckItemCount: 0, ckSubtotal: '', ckHasDiscount: false, ckDiscount: '', ckTip: '', ckTotal: '', ckReview: false, ckPay: false, ckConfirm: false, ckProcessing: false, ckResult: false, ckOk: false, ckFail: false, ckError: '', tipBtns: [], showTipCustom: false, tipCustom: '', tipEquivalent: '', setTipCustom: () => {}, pays: [], addPay: () => {}, paid: '', remaining: '', hasChange: false, change: '', hasPayMsg: false, payMsg: '', payValid: false, confirmPays: [], hasManualExternalPayment: false, manualExternalPaymentNote: '', ckNext: () => {}, ckBack: () => {}, ckExit: () => {}, ckRegister: () => {}, ckRetry: () => {}, ckChangeMethod: () => {}, hasResultChange: false, resultChange: '', resultSyncNote: '', ckPrint: () => {}, ckNew: () => {} });
+      Object.assign(V, { ckFolio: '', ckTypeLabel: '', ckSteps: [], ckLines: [], ckItemCount: 0, ckSubtotal: '', ckHasDiscount: false, ckDiscount: '', ckTip: '', ckTotal: '', ckLocalSaveFailed: false, ckCanRetry: false, ckReview: false, ckPay: false, ckConfirm: false, ckProcessing: false, ckResult: false, ckOk: false, ckFail: false, ckError: '', tipBtns: [], showTipCustom: false, tipCustom: '', tipEquivalent: '', setTipCustom: () => {}, pays: [], addPay: () => {}, paid: '', remaining: '', hasChange: false, change: '', hasPayMsg: false, payMsg: '', payValid: false, confirmPays: [], hasManualExternalPayment: false, manualExternalPaymentNote: '', ckNext: () => {}, ckBack: () => {}, ckExit: () => {}, ckRegister: () => {}, ckRetry: () => {}, ckChangeMethod: () => {}, hasResultChange: false, resultChange: '', resultSyncNote: '', ckPrint: () => {}, ckNew: () => {} });
     }
 
     // ---- menu admin
@@ -2339,7 +2433,7 @@ export default class PosApp extends React.Component {
             this.toast(error.message || 'Revisa nombre, categoría y precio del producto', 'warn');
             return 'keep';
           }
-          this.up({ prods, admSel: null, admForm: null }, () => this.toast(this.isSecureMode() ? '«' + f.name + '» guardado localmente con el motivo registrado' : '«' + f.name + '» guardado en el menú'));
+          this.up({ prods, admSel: null, admForm: null }, saved => { if (saved) this.toast(this.isSecureMode() ? '«' + f.name + '» guardado localmente con el motivo registrado' : '«' + f.name + '» guardado en el menú'); });
         };
         if (!this.isSecureMode()) { saveProduct(''); return; }
         this.setState({ dlg: { title: 'Guardar cambios del menú', body: 'La razón y la identidad que autorizó este cambio quedarán en el registro local de la estación.', needReason: true, confirmLabel: 'Guardar cambios', onConfirm: d => {
@@ -2392,7 +2486,7 @@ export default class PosApp extends React.Component {
       return {
         id: event.commandId, tipoLabel: tag[0], tagVariant: tag[1], item: historicalName, qty: quantity,
         user: event.actorName, date: new Date(event.occurredAt).toLocaleString('es-MX'), motivo: event.reason,
-        sync: event.syncStatus === 'unverified' ? 'Saldo inicial sin verificar' : 'Guardado local · sincronización pendiente',
+        sync: event.syncStatus === 'unverified' ? 'Saldo inicial sin verificar' : this.isSecureMode() ? 'Guardado local · acuse del servidor desconocido' : 'Demo · sin envío',
         occurredAt: event.occurredAt,
       };
     });
@@ -2408,7 +2502,7 @@ export default class PosApp extends React.Component {
       return {
         id: event.catalogEventId, tipoLabel: tag[0], tagVariant: tag[1], item: event.after.name, qty,
         user: event.actorName, date: new Date(event.occurredAt).toLocaleString('es-MX'), motivo: event.reason,
-        sync: 'Guardado local · sincronización pendiente', occurredAt: event.occurredAt,
+        sync: this.isSecureMode() ? 'Guardado local · acuse del servidor desconocido' : 'Demo · sin envío', occurredAt: event.occurredAt,
       };
     });
     V.movs = [...stockEvents, ...catalogRows].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
@@ -2495,7 +2589,7 @@ export default class PosApp extends React.Component {
         return {
           id: event.commandId, movement, change, debt: this.fmt(debtCents / 100), prepaid: this.fmt(prepaidCents / 100),
           actor: event.actorName, date: new Date(event.occurredAt).toLocaleString('es-MX'), reference,
-          reason: event.reason, sync: 'Guardado local · sincronización pendiente',
+          reason: event.reason, sync: this.isSecureMode() ? 'Guardado local · acuse del servidor desconocido' : 'Demo · sin envío',
         };
       });
     }
@@ -2581,7 +2675,7 @@ export default class PosApp extends React.Component {
       try { return new Intl.DateTimeFormat('es-MX', { timeZone: s.reportTimeZone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(at)); }
       catch { return 'Fecha real sin dato'; }
     };
-    const saleRow = x => ({ folio: x.folio, fecha: branchDate(reportSaleInstant(x)), tipo: typeof x.tipo === 'string' ? x.tipo : 'Tipo sin dato', user: typeof x.cobro === 'string' ? x.cobro : 'Usuario sin dato', total: Number.isFinite(x.total) ? this.fmt(x.total) : '—', statusLabel: compensationLabel(x), statusVariant: (stTags[x.status] || ['Estado no identificado', 'outline'])[1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronización sin confirmar', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) });
+    const saleRow = x => ({ folio: x.folio, fecha: branchDate(reportSaleInstant(x)), tipo: typeof x.tipo === 'string' ? x.tipo : 'Tipo sin dato', user: typeof x.cobro === 'string' ? x.cobro : 'Usuario sin dato', total: Number.isFinite(x.total) ? this.fmt(x.total) : '—', statusLabel: compensationLabel(x), statusVariant: (stTags[x.status] || ['Estado no identificado', 'outline'])[1], syncLabel: x.sync === 'conflicto' ? 'Conflicto' : secureMode ? 'Acuse del servidor desconocido' : 'Demo · sin envío', syncVariant: x.sync === 'conflicto' ? 'conflict' : 'outline', open: () => this.setState({ repSel: x.folio }) });
     V.repSales = rs.filter(x => x && typeof x.folio === 'string').map(saleRow);
     V.unknownDateSales = storedSales.filter(sale => sale && typeof sale === 'object' && typeof sale.folio === 'string' && reportSaleInstant(sale) === null).map(sale => ({ folio: sale.folio, label: typeof sale.fecha === 'string' ? sale.fecha : 'Etiqueta histórica sin fecha', type: typeof sale.tipo === 'string' ? sale.tipo : 'Tipo sin dato', status: compensationLabel(sale), open: () => this.setState({ repSel: sale.folio }) }));
     V.periodReturns = periodReport ? periodReport.refundEvents.map(event => {
@@ -2595,7 +2689,8 @@ export default class PosApp extends React.Component {
     V.hasRepSel = !!sel && this.can('viewReports');
     if (sel) {
       V.dFolio = sel.folio; V.dStatusLabel = compensationLabel(sel); V.dStatusVariant = (stTags[sel.status] || ['Estado no identificado', 'outline'])[1];
-      V.dMeta = branchDate(reportSaleInstant(sel)) + ' · ' + textField(sel.tipo) + ' — creó ' + textField(sel.creo) + ' · cobró ' + textField(sel.cobro) + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'estado local');
+      const receiptStatus = sel.sync === 'conflicto' ? 'conflicto que requiere revisión' : secureMode ? 'acuse del servidor desconocido' : 'Demo · sin envío';
+      V.dMeta = branchDate(reportSaleInstant(sel)) + ' · ' + textField(sel.tipo) + ' — creó ' + textField(sel.creo) + ' · cobró ' + textField(sel.cobro) + ' · ' + receiptStatus;
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
       V.dItems = (Array.isArray(sel.items) ? sel.items : []).filter(i => i && typeof i === 'object').map(i => ({ qty: Number.isFinite(i.qty) ? i.qty : '—', name: textField(i.name), mods: textField(i.mods), hasMods: !!i.mods, total: Number.isFinite(i.total) ? this.fmt(i.total) : '—' }));
       const isExternalPayment = payment => {
@@ -2654,7 +2749,7 @@ export default class PosApp extends React.Component {
         if (typeof this.requireAction !== 'function') this.notAllowed('configurar las mesas disponibles');
         return;
       }
-      this.up({ orderSettings: { ...this.state.orderSettings, tableCount: count }, tableCountDraft: String(count) }, () => this.toast('Mesas disponibles actualizadas: ' + count));
+      this.up({ orderSettings: { ...this.state.orderSettings, tableCount: count }, tableCountDraft: String(count) }, saved => { if (saved) this.toast('Mesas disponibles actualizadas: ' + count); });
     };
     V.newUser = (accountMethod = 'existing') => {
       if (!this.requireAction('manageUsers')) return;
@@ -2679,7 +2774,7 @@ export default class PosApp extends React.Component {
           Promise.resolve(this.props.onSetMemberActive?.(u.id, !u.active)).then(() => this.toast(u.name + (u.active ? ' desactivado' : ' activado'))).catch(error => this.toast(error.message || 'No se pudo actualizar el acceso', 'warn'));
           return;
         }
-        this.up({ usersX: s.usersX.map(x => x.id === u.id ? { ...x, active: !x.active } : x) }, () => this.toast(u.name + (u.active ? ' desactivado' : ' activado')));
+        this.up({ usersX: s.usersX.map(x => x.id === u.id ? { ...x, active: !x.active } : x) }, saved => { if (saved) this.toast(u.name + (u.active ? ' desactivado' : ' activado')); });
       }
     }));
     const permDefaults = r => ({
@@ -2726,14 +2821,14 @@ export default class PosApp extends React.Component {
           }
           const userId = st.selUser === 'new' ? f.userId : st.selUser;
           Promise.resolve(this.props.onManageMember?.({ userId, displayName: f.name, role: f.role, active: f.active })).then(() => {
-            this.up({ selUser: null, suForm: null }, () => this.toast('Acceso de «' + f.name + '» guardado en Supabase'));
+            this.setState({ selUser: null, suForm: null }, () => this.toast('Acceso de «' + f.name + '» guardado en Supabase'));
           }).catch(error => this.toast(error.message || 'No se pudo guardar el acceso', 'warn'));
           return;
         }
         let usersX;
         if (st.selUser === 'new') usersX = [...st.usersX, { id: 'u' + Date.now(), name: f.name, role: f.role, pin: '0000', active: f.active }];
         else usersX = st.usersX.map(u => u.id === st.selUser ? { ...u, name: f.name, role: f.role, active: f.active } : u);
-        this.up({ usersX, selUser: null, suForm: null }, () => this.toast('Usuario «' + f.name + '» guardado' + (st.selUser === 'new' ? ' · PIN temporal 0000' : '')));
+        this.up({ usersX, selUser: null, suForm: null }, saved => { if (saved) this.toast('Usuario «' + f.name + '» guardado' + (st.selUser === 'new' ? ' · PIN temporal 0000' : '')); });
       };
     } else { Object.assign(V, { suName: '', setSuName: () => {}, suUserId: '', setSuUserId: () => {}, suRoles: [], suPerms: [], suAudit: [], suClose: () => {}, suSave: () => {} }); }
     V.createdCredential = this.isSecureMode() && this.role() === 'duena' && s.createdCredential?.ownerUserId === this.accessContext()?.userId ? s.createdCredential : null;
@@ -2753,9 +2848,7 @@ export default class PosApp extends React.Component {
       { title: 'Impresión', rows: [row('Tickets', 'EPSON TM-T20 · Caja'), row('Comandas', 'Estrella SP700 · Cocina'), { label: 'Imprimir comanda automáticamente', ...togg('autoprint') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Formas de pago', rows: [{ label: 'Efectivo', ...togg('fpEfectivo') }, { label: 'Tarjeta (registro manual)', ...togg('fpTarjeta') }, { label: 'Transferencia', ...togg('fpTransfer') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Propinas', rows: [row('Sugerencias', '5% · 10% · 15% · 20%'), { label: 'Permitir propina personalizada', ...togg('propCustom') }], hasAction: false, action: () => {}, actionLabel: '' },
-      { title: 'Reglas de cancelación', rows: [{ label: 'Requerir motivo', ...togg('cancelMotivo') }, { label: 'Autorización de encargado', ...togg('cancelAut') }], hasAction: false, action: () => {}, actionLabel: '' },
-      { title: 'Respaldo y recuperación', rows: [row('Último respaldo', 'Hoy · 03:00'), row('Copias locales', '7 días retenidos')], hasAction: true, actionLabel: 'Respaldar ahora', action: () => this.toast('Respaldo local creado — Hoy · ' + this.now()) },
-      { title: 'Sincronización', rows: [row('Estado', s.online ? 'Conectado' : 'Sin conexión'), row('Operaciones pendientes', String(s.pending.length)), row('Último contacto', s.online ? 'Hace unos segundos' : 'Hoy · 12:26')], hasAction: true, actionLabel: 'Forzar sincronización', action: () => this.doSync() }
+      { title: 'Reglas de cancelación', rows: [{ label: 'Requerir motivo', ...togg('cancelMotivo') }, { label: 'Autorización de encargado', ...togg('cancelAut') }], hasAction: false, action: () => {}, actionLabel: '' }
     ];
 
     // ---- dialog
@@ -2858,9 +2951,8 @@ export default class PosApp extends React.Component {
     <div className="flex min-w-0 items-center gap-2" aria-label={`Estado de conexión: ${V.connLabel}`}>
       <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={V.connDotStyle}></span>
       <div className="min-w-0 flex-1"><div className="text-sm font-medium">{V.connLabel}</div><div className="truncate text-xs text-muted-foreground">{V.connSub}</div></div>
-      <Badge variant={V.offline ? 'pending' : 'success'}>{V.pendingCount}</Badge>
+      <Badge variant={V.offline ? 'pending' : 'outline'} aria-label="Acuse de servidor">{V.remoteBadgeLabel}</Badge>
     </div>
-    {V.showSyncBtn && <Button variant="secondary" className="min-h-11 justify-start" onClick={V.syncNow}>Sincronizar ahora ({V.pendingCount})</Button>}
     {V.showConnectionToggle && <Button variant="outline" className="min-h-11 justify-start text-left" onClick={V.toggleOnline}>{V.connToggleLabel}</Button>}
     <a className="flex min-h-11 items-center px-1 text-sm" href={`${import.meta.env.BASE_URL}comanda.html`}>Ver comanda de cocina →</a>
     <div className="flex min-w-0 items-center gap-2 border-t border-sidebar-border pt-3">
@@ -2876,12 +2968,12 @@ export default class PosApp extends React.Component {
   <SidebarTrigger className="size-11" aria-label="Abrir menú de navegación" />
   <div className="min-w-0 flex-1">
     <div className="truncate text-sm font-medium">Karma · {V.navItems.find(item => item.active)?.label || 'Punto de venta'}</div>
-    <div className="truncate text-xs text-muted-foreground">{V.connLabel} · {V.pendingCount} pendientes</div>
+    <div className="truncate text-xs text-muted-foreground">{V.connLabel} · {V.connSub}</div>
   </div>
   <Button variant="ghost" className="min-h-11 shrink-0 px-2" onClick={V.switchUser} aria-label={`Salir de la estación de ${V.userName}`}>{V.userInitials} · Salir</Button>
 </header>
 {(V.offline) && (<>
-<div className="pos-offline-banner" style={css("background:#f6e5df;color:#836953;font-size:12.5px;font-weight:500;padding:8px 24px;position:sticky;top:0;z-index:40")}>Sin conexión — puedes seguir vendiendo; las operaciones se guardan localmente y se sincronizarán al reconectar.</div>
+<div className="pos-offline-banner" role="status" style={css("background:#f6e5df;color:#836953;font-size:12.5px;font-weight:500;padding:8px 24px;position:sticky;top:0;z-index:40")}>{V.offlineBanner}</div>
 </>)}
 
 {(V.mPos) && (<SalesStation V={V} />)}
@@ -3036,11 +3128,14 @@ export default class PosApp extends React.Component {
 {(V.ckFail) && (<>
 <div style={css("display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px 0;text-align:center")}>
 <span style={css("width:52px;height:52px;border-radius:50%;border:1px solid #836953;color:#836953;display:inline-flex;align-items:center;justify-content:center;font-size:24px")}>!</span>
-<div style={css("font-size:17px;font-weight:500")}>No se pudo procesar el pago</div>
+<div style={css("font-size:17px;font-weight:500")}>{V.ckLocalSaveFailed ? 'Guardado local no confirmado' : 'No se pudo procesar el pago'}</div>
 <div style={css("font-size:13px;color:#6b6a63;max-width:360px")}>{V.ckError}</div>
 <div style={css("display:flex;gap:8px;margin-top:6px")}>
+{V.ckCanRetry && <>
 <Button type="button" variant="outline" onClick={V.ckChangeMethod}>Cambiar método</Button>
 <Button type="button" onClick={V.ckRetry}>Reintentar</Button>
+</>}
+{V.ckLocalSaveFailed && <Button type="button" variant="outline" onClick={V.ckExit}>Cerrar aviso sin repetir cobro</Button>}
 </div>
 </div>
 </>)}
@@ -3195,7 +3290,7 @@ export default class PosApp extends React.Component {
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Clientes y cuentas</h1>
 <Button type="button" className="ml-auto" onClick={V.newCustomer} disabled={!V.customerCanManage}>+ Nuevo perfil</Button>
 </div>
-<p role="note" className="text-xs text-muted-foreground">Perfiles mínimos y saldos separados de ventas. Los cambios se guardan en esta estación y quedan pendientes de sincronización. Los pagos externos se registran manualmente; su liquidación no se verifica aquí.</p>
+<p role="note" className="text-xs text-muted-foreground">Perfiles mínimos y saldos separados de ventas. {V.customerRecoveryNote}</p>
 {V.customerError && <Card role="alert" className="gap-2 border-destructive/40 p-3"><span>{V.customerError}</span><Button type="button" variant="outline" onClick={V.retryCustomers}>Reintentar carga</Button></Card>}
 {V.customerReady && <>
 <div style={css("display:flex;gap:10px;flex-wrap:wrap")}>
@@ -3408,6 +3503,16 @@ export default class PosApp extends React.Component {
 </Card>
 </React.Fragment>))}
 </div>
+<React.Suspense fallback={<Card role="status" className="p-4">Cargando estado local…</Card>}>
+<RecoveryGuidePanel
+  canView={V.canViewRecovery && this.can('viewReports')}
+  demoMode={!this.isSecureMode()}
+  online={V.online}
+  localSaveStatus={V.localWriteStatus}
+  pendingEvidence={V.pendingEvidence}
+  onOpenSalesReport={V.openSalesReport}
+/>
+</React.Suspense>
 </>)}
 </div>
 </>)}

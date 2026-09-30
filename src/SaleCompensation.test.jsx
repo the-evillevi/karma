@@ -28,12 +28,12 @@ it('records a refund offline once, keeps sale/payment snapshots and displays gro
   const callback = open(app);
   confirm(callback);
   expect(read().sales[0]).toMatchObject({ status: 'completada', total: 50, payments: sale.payments, items: sale.items, compensations: [{ kind: 'refund', amountCents: 2000, actorId: 'u1', reason: 'Corrección autorizada' }] });
-  expect(read().pending).toHaveLength(1);
+  expect(read().pending).toHaveLength(0);
   act(() => app.setState({ module: 'reportes' }));
   expect(app.renderVals()).toMatchObject({ repVentas: '$50.00', repRefunds: '$20.00', repNet: '$30.00' });
   confirm(callback);
   expect(read().sales[0].compensations).toHaveLength(1);
-  expect(read().pending).toHaveLength(1);
+  expect(read().pending).toHaveLength(0);
 });
 it('requires current Dueña/Encargado authority at confirmation and leaves dismissal intact', () => {
   const { app, read } = setup();

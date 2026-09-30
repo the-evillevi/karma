@@ -295,7 +295,7 @@ function projectInventory(valid) {
         status:
           entry.syncStatus === "unverified"
             ? "Saldo inicial sin verificar"
-            : "Pendiente de sincronización",
+            : "Acuse del servidor desconocido",
         sourceRevision: entry.sourceRevision,
         changes,
       }),
@@ -328,7 +328,7 @@ function projectInventory(valid) {
         actorName: event.actorName,
         reason: event.reason,
         source: "Catálogo local de insumos",
-        status: "Pendiente de sincronización",
+        status: "Acuse del servidor desconocido",
         sourceRevision: event.sourceRevision,
         changes: snapshotChanges(event.before, event.after, labels),
       }),

@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-30",
+  "reviewedCodeHead": "a7e598d6eca138839318315c700bfa8421a457b0",
+  "severityThreshold": "medium",
+  "scans": [
+    {
+      "path": "src/PosApp.jsx",
+      "success": true,
+      "issueCount": 0
+    },
+    {
+      "path": "src/reports",
+      "success": true,
+      "issueCount": 0
+    }
+  ],
+  "scope": "Frozen new recovery/status/save-failure paths; no claim that the whole project is globally scan-clean."
+}
