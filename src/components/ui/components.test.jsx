@@ -124,10 +124,12 @@ describe('shared UI primitives', () => {
     storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1' }));
     const user = userEvent.setup();
 
-    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    let updateSafety;
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" onUpdateSafetyChange={next => { updateSafety = next; }} />);
     await screen.findByRole('button', { name: 'Menú' });
     await user.click(screen.getByRole('button', { name: 'Menú' }));
     await user.click(screen.getByRole('button', { name: /^Americano Con café \$50\.00 Activo$/ }));
+    expect(updateSafety.status).toBe('blocked');
 
     const category = screen.getByRole('combobox', { name: 'Categoría' });
     await user.click(category);
@@ -142,6 +144,7 @@ describe('shared UI primitives', () => {
     expect(await screen.findByRole('button', { name: /^Americano Lattes \$55\.00 Activo$/ })).toBeTruthy();
     expect((await screen.findByRole('status')).textContent).toContain('guardado en el menú');
     expect(screen.getByRole('region', { name: 'Notificaciones' })).toBeTruthy();
+    expect(updateSafety.status).toBe('safe');
   });
 
   it('completes a seeded open-order checkout through labeled shared payment controls', async () => {
@@ -149,12 +152,15 @@ describe('shared UI primitives', () => {
     storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1' }));
     const user = userEvent.setup();
 
-    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    let updateSafety;
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" onUpdateSafetyChange={next => { updateSafety = next; }} />);
     await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
     const chargeButtons = await screen.findAllByRole('button', { name: 'Cobrar' });
     await user.click(chargeButtons[0]);
 
     expect(await screen.findByText('Revisa la orden')).toBeTruthy();
+    expect(updateSafety.status).toBe('blocked');
+    expect(updateSafety.reason).toContain('cobro abierto');
     await user.click(screen.getByRole('button', { name: 'Continuar al pago' }));
     const amount = await screen.findByRole('textbox', { name: 'Monto con Efectivo' });
     expect(amount).toBeTruthy();

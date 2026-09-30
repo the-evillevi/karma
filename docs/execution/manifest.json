@@ -60,7 +60,7 @@
         "EVL-189",
         "EVL-155"
       ],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-orders/karma"
     },
     {
       "name": "payments",
@@ -200,24 +200,31 @@
       "requires": [
         "EVL-114"
       ],
-      "stage": "implementing",
-      "agent": "implement_foundation",
+      "stage": "awaiting_foundation",
+      "agent": null,
       "commits": [
         "c38a398",
-        "741aaef"
+        "741aaef",
+        "df4ec46",
+        "331a87b"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/10",
       "checks": [
         "Root pnpm check passed: scopedformat/lint/types,14Node,builds,bundlescan,PWAoffline restart",
         "Rootstrengthenedlogin/pageerrorofflineproofpassed",
         "Agent /karma/ subpath buildverified",
-        "Remote CI and actualpreview URL stillpending"
+        "Remote CI and actualpreview URL stillpending",
+        "Root standalone19unit stricttypes/build/secret/PWA checks passed",
+        "Root combined51unit10component four-entry builds and positiveupdate/offline proof passed",
+        "Root eight actual hosted RLS/sync cases passed afterrevocationdiagnosticfix",
+        "GitHubquality36671587292 passed"
       ],
-      "review": "bounded_foundation_fixed_rereviewed",
+      "review": "typed_runtime_update_fixed_rereviewed",
       "blockers": [
-        "Legacy type/lint migration coverage and remaining safe update diagnostics review; hosted preview and component CI integrated."
+        "LegacyJS/JSX whole-app type/lint coverage and production authorization118/persistence126 remain open."
       ],
-      "nextAction": "Manuallyresume116remaininggates; reconcilewithreviewed156integrationall4entriesbeforemerge. No118startyet."
+      "nextAction": "Start118 from reviewed runtime; keep116 fulllegacy/production acceptance open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-118",
@@ -227,14 +234,14 @@
       "requires": [
         "EVL-116"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_foundation",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Secureinitiallogin deviceenrollment offlineunlock and role-boundary implementation; rootreviewmigrationbeforecloudapply."
     },
     {
       "id": "EVL-126",
@@ -964,7 +971,7 @@
     "manualResume": true,
     "reason": "User authorized manual continuation after allowance reset",
     "runningAgents": 3,
-    "integration": "876808e",
+    "integration": "ba96377",
     "mainMerged": false,
     "nextIssue": "EVL-116",
     "resumeDocument": "docs/execution/RESUME.md",
