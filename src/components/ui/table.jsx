@@ -14,7 +14,14 @@ function Table({
 
   function onContainerKeyDown(event) {
     containerOnKeyDown?.(event)
-    if (event.defaultPrevented) return
+    if (
+      event.defaultPrevented ||
+      event.target !== event.currentTarget ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    ) return
     const container = event.currentTarget
     if (container.scrollWidth <= container.clientWidth) return
 

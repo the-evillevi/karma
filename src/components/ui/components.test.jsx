@@ -2,11 +2,12 @@
 // @vitest-environment-options {"url":"http://localhost/"}
 import React from 'react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Button } from './button.jsx';
 import { Input } from './input.jsx';
 import { Label } from './label.jsx';
+import { Table } from './table.jsx';
 import PosApp from '../../PosApp.jsx';
 import ComandaApp from '../../ComandaApp.jsx';
 import '../../karma-data.js';
@@ -92,6 +93,29 @@ describe('shared UI primitives', () => {
     expect(amount.getAttribute('aria-invalid')).toBe('true');
     expect(amount.getAttribute('aria-describedby')).toBe('amount-error');
     expect(screen.getByRole('alert').textContent).toBe('Captura un monto válido.');
+  });
+
+  it('scrolls the focused table region with arrows without stealing keys from child inputs', () => {
+    render(
+      <Table containerProps={{ 'aria-label': 'Scrollable stock table' }}>
+        <tbody><tr><td><input aria-label="Filter stock table" /></td></tr></tbody>
+      </Table>
+    );
+    const region = screen.getByRole('region', { name: 'Scrollable stock table' });
+    const input = screen.getByRole('textbox', { name: 'Filter stock table' });
+    Object.defineProperty(region, 'scrollWidth', { configurable: true, value: 600 });
+    Object.defineProperty(region, 'clientWidth', { configurable: true, value: 300 });
+
+    input.focus();
+    fireEvent.keyDown(input, { key: 'ArrowRight' });
+    expect(region.scrollLeft).toBe(0);
+
+    region.focus();
+    fireEvent.keyDown(region, { key: 'ArrowRight' });
+    expect(region.scrollLeft).toBeGreaterThan(0);
+    const afterArrow = region.scrollLeft;
+    fireEvent.keyDown(region, { key: 'ArrowRight', altKey: true });
+    expect(region.scrollLeft).toBe(afterArrow);
   });
 
   it('mounts the POS without a dialog and restores focus after an app warning closes', async () => {
