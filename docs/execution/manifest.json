@@ -60,7 +60,7 @@
         "EVL-189",
         "EVL-155"
       ],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-orders/karma"
     },
     {
       "name": "payments",
@@ -200,24 +200,31 @@
       "requires": [
         "EVL-114"
       ],
-      "stage": "implementing",
-      "agent": "implement_foundation",
+      "stage": "awaiting_foundation",
+      "agent": null,
       "commits": [
         "c38a398",
-        "741aaef"
+        "741aaef",
+        "df4ec46",
+        "331a87b"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/10",
       "checks": [
         "Root pnpm check passed: scopedformat/lint/types,14Node,builds,bundlescan,PWAoffline restart",
         "Rootstrengthenedlogin/pageerrorofflineproofpassed",
         "Agent /karma/ subpath buildverified",
-        "Remote CI and actualpreview URL stillpending"
+        "Remote CI and actualpreview URL stillpending",
+        "Root standalone19unit stricttypes/build/secret/PWA checks passed",
+        "Root combined51unit10component four-entry builds and positiveupdate/offline proof passed",
+        "Root eight actual hosted RLS/sync cases passed afterrevocationdiagnosticfix",
+        "GitHubquality36671587292 passed"
       ],
-      "review": "bounded_foundation_fixed_rereviewed",
+      "review": "typed_runtime_update_fixed_rereviewed",
       "blockers": [
-        "Fulllegacyqualitycoverage, safeupdateUI, componentCIintegration andhostedpreview stillimplementationwork."
+        "LegacyJS/JSX whole-app type/lint coverage and production authorization118/persistence126 remain open."
       ],
-      "nextAction": "Manuallyresume116remaininggates; reconcilewithreviewed156integrationall4entriesbeforemerge. No118startyet."
+      "nextAction": "Start118 from reviewed runtime; keep116 fulllegacy/production acceptance open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-118",
@@ -227,14 +234,14 @@
       "requires": [
         "EVL-116"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_foundation",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Secureinitiallogin deviceenrollment offlineunlock and role-boundary implementation; rootreviewmigrationbeforecloudapply."
     },
     {
       "id": "EVL-126",
@@ -287,8 +294,8 @@
         "EVL-154",
         "EVL-116"
       ],
-      "stage": "implementing",
-      "agent": "implement_design",
+      "stage": "awaiting_input",
+      "agent": null,
       "commits": [
         "84d3d4a",
         "0505fa0",
@@ -297,7 +304,9 @@
         "26cbb43",
         "ca2dd25",
         "c42afe8",
-        "a81e8d3"
+        "a81e8d3",
+        "818b15d",
+        "f4b3466"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/9",
       "checks": [
@@ -306,11 +315,12 @@
         "Root independent 8 Vitest flows and standard build passed on c42afe8",
         "Root integrated report detail Escape/focus-return regression passed"
       ],
-      "review": "controls_batches_reviewed_remaining_mapping_pending",
+      "review": "mapping_batches_reviewed_combined_visual_pending",
       "blockers": [
         "Remaining modal/table/toast mapping and combined visual acceptance; EVL158 owns mobile shell."
       ],
-      "nextAction": "Finish remaining156 mappings; root review before158."
+      "nextAction": "Combined responsive158 visual QA; keep remaining documented mappings and team acceptance open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-158",
@@ -320,14 +330,14 @@
       "requires": [
         "EVL-156"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_design",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Implement responsive shell/shared station from reviewed156 and121 anchors."
     },
     {
       "id": "EVL-115",
@@ -447,14 +457,23 @@
         "EVL-123",
         "EVL-158"
       ],
-      "stage": "implementing",
-      "agent": "implement_catalog",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Implement actual quick-sale station; recipe/BOM belongsEVL129, not121."
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "062537e",
+        "fee12e8",
+        "e02b812"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/11",
+      "checks": [
+        "Root23catalog tests with real113validator passed no skips",
+        "Root10combinedcomponent flows and preview build passed"
+      ],
+      "review": "station_fixed_rereviewed",
+      "blockers": [
+        "Combined responsive/shared UI158 and production authorization118/persistence126 still pending."
+      ],
+      "nextAction": "Draft station PR; integrate responsive158 then production storage126."
     },
     {
       "id": "EVL-185",
@@ -464,14 +483,14 @@
       "requires": [
         "EVL-126"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_catalog",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Fix paid preparation actual app regression from reviewed integration; production durability126 gate remains open."
     },
     {
       "id": "EVL-188",
@@ -952,7 +971,7 @@
     "manualResume": true,
     "reason": "User authorized manual continuation after allowance reset",
     "runningAgents": 3,
-    "integration": "6bf5323",
+    "integration": "ba96377",
     "mainMerged": false,
     "nextIssue": "EVL-116",
     "resumeDocument": "docs/execution/RESUME.md",
