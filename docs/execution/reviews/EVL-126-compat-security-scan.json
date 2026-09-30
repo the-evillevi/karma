@@ -1,0 +1,11 @@
+{
+  "candidate": "ae11b00b8e423ea4be6e3e9f6836c3ccc446474b",
+  "scan": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"issueCount\":0,\"issues\":null}"
+      }
+    ]
+  }
+}

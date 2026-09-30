@@ -1103,6 +1103,11 @@ function sale(value: unknown): PosCompatibleSale {
           }
           continue;
         }
+        if (event.paymentId !== null && paymentId !== event.paymentId) {
+          throw new RangeError(
+            "compensation allocation conflicts with its selected payment",
+          );
+        }
         if (eventPaymentIds.has(paymentId)) {
           throw new RangeError("compensation repeats a payment allocation");
         }

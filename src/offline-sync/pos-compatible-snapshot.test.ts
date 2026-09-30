@@ -333,6 +333,22 @@ test("validates compensation allocations against complete payment identities and
       metadata,
     );
 
+  assert.throws(
+    () =>
+      adapt(
+        [payment("selected", "cash", 2500), payment("other", "cash", 2500)],
+        [
+          refund(
+            "refund-selection",
+            1000,
+            [{ paymentId: "other", method: "cash", amountCents: 1000 }],
+            "selected",
+          ),
+        ],
+      ),
+    /conflicts with its selected payment/,
+  );
+
   const mismatchedMethod = refund("refund-method", 1000, [
     { paymentId: "payment-1", method: "card", amountCents: 1000 },
   ]);
