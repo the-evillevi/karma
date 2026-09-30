@@ -271,23 +271,28 @@
     {
       "id": "EVL-126",
       "chain": "foundation",
-      "branch": "codex/foundation/evl-126",
-      "baseBranch": "codex/foundation/evl-118",
+      "branch": "codex/foundation/evl-126-compat",
+      "baseBranch": "codex/foundation/evl-126",
       "requires": [
         "EVL-118"
       ],
-      "stage": "fixing",
+      "stage": "implementing",
       "agent": "foundation_xhigh",
       "commits": [
-        "9580c5a"
+        "9580c5a",
+        "0831ce19",
+        "fc0f455"
       ],
-      "pr": null,
-      "checks": [],
-      "review": "root_review_pending",
+      "pr": "https://github.com/the-evillevi/karma/pull/23",
+      "checks": [
+        "Root7/7 Chromium journal proof and0medium+ journal scan; combinedformat/lint/types/domain86/86 and7/7 Chromium passed"
+      ],
+      "review": "phase1_fixed_and_rereviewed_compat_adapter_in_progress",
       "blockers": [
         "Forward versioned server write/read contract and operational integration remain pending; applied114/118 immutable."
       ],
-      "nextAction": "Fix lifecycle/cache invalidation and validate derived journal state against immutable replay; browser proof before POS wiring."
+      "nextAction": "Phase2 compatible sanitized operational snapshot adapter on separate branch; preserve unknown catalog/tax facts. Atomic POS mutation/UI and server contracts still open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-154",
@@ -1088,9 +1093,9 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "15ea82b",
+    "integration": "b8b17c1",
     "mainMerged": false,
-    "nextIssue": "EVL-126 lifecycle/integrity fixes and EVL-155 retry identity review; integrate durable POS contracts next",
+    "nextIssue": "EVL-126 compatible snapshot contract and EVL-128 typed manual ledger",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed"
   }
