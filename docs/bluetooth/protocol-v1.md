@@ -6,13 +6,13 @@
 
 ## Transfer unit and identity
 
-Transport one complete immutable `CommandBatchDocument` at a time. Preserve the source `eventId`, `commandId`, `aggregateId`, `actorId`, `deviceId`, `occurredAt`, `schemaVersion`, event order, and captured payloads exactly. Do not mint new order/event IDs, re-sort by device clocks, or split a batch into separate domain commits.
+Transport one complete immutable EVL-114 `CommandBatchDocument` at a time, including its required `branchId` and `leaseId`. Preserve the source `eventId`, `commandId`, `aggregateId`, `actorId`, `deviceId`, `occurredAt`, `schemaVersion`, event order, and captured payloads exactly. Each source event ID is `${commandId}:${zeroBasedBatchIndex}`. Do not mint new order/event IDs, re-sort by device clocks, or split a batch into separate domain commits.
 
 A `karma-ble/1` message has `protocol`, `sessionId`, `senderDeviceId`, `recipientDeviceId`, strictly increasing direction-local `sequence`, unique attempt `messageId`, `kind`, and `body`. `messageId` is a transport attempt; `commandId` remains the idempotency key. V1 message kinds are:
 
 | Kind | Required body | Purpose |
 | --- | --- | --- |
-| `HELLO` | device ID, branch ID, configured coordinator ID/epoch, supported protocol versions | Negotiate a common version and compare authority. |
+| `HELLO` | device ID, branch ID, lease ID, supported protocol versions | Negotiate a common version and compare branch/lease context. |
 | `COMMAND_BATCH` | one complete command batch and its byte length | Transfer an immutable domain commit unit. |
 | `ACK` | command ID, content digest, `committed`, `duplicate`, or `conflict` | Confirm the receiver's durable outcome. |
 | `ERROR` | stable error code, retryable boolean, optional command ID | Report a bounded protocol/validation/permission failure. |
@@ -29,7 +29,7 @@ BLE pairing alone is not application authorization. Android's BLE guidance speci
 
 ## Serialization and validation guards
 
-V1 serializes JSON command batches with recursively sorted object keys and unchanged array order, then encodes UTF-8. The maximum canonical document is **64 KiB** and the maximum command batch is **100 events**. Reject non-JSON values, invalid UTF-8/JSON, empty or oversized batches, invalid event envelopes, duplicate event IDs, and metadata that differs between the outer batch and any event. Event schema must be supported by the receiver; unsupported versions return `UNSUPPORTED_SCHEMA` without partial application.
+V1 serializes JSON command batches with recursively sorted object keys and unchanged array order, then encodes UTF-8. The maximum canonical document is **64 KiB**, maximum nesting is **64 levels**, and maximum command batch is **100 events**. The required outer identity is `commandId`, `branchId`, `aggregateId`, `actorId`, `deviceId`, `leaseId`, `schemaVersion`, `occurredAt`, and `events`, matching EVL-114. Event IDs must equal `${commandId}:${zeroBasedBatchIndex}`. `occurredAt` is a valid millisecond ISO-8601 UTC timestamp (`toISOString()` form). Reject unknown outer fields, non-JSON values, sparse arrays, cycles, over-deep values, invalid UTF-8/JSON, empty or oversized batches, invalid event envelopes, duplicate/misderived event IDs, and metadata that differs between the outer batch and any event. Event schema must be supported by the receiver; unsupported versions return `UNSUPPORTED_SCHEMA` without partial application.
 
 A receiver validates the entire ordered batch before passing it to the domain's atomic `applyEventBatch`/storage commit. A repeated `commandId` with the same batch is a no-op (`duplicate`). The same command ID with different content, partial overlap, or an event ID already used by another command is `CONFLICT`. Do not acknowledge a command before the receiver's storage layer has durably persisted the complete command-batch document. These rules preserve EVL-113's single-document commit and retry semantics; actual durability awaits EVL-114's reviewed persistence contract.
 
@@ -51,9 +51,9 @@ any active state → cancel, permission loss, auth failure, or validation error 
 
 ## Coordinator authority
 
-EVL-113 defines one active cash-register writer. V1 has no automatic leader election: signal strength, message arrival, and local timestamps cannot prove authority while offline. `HELLO` compares a locally configured coordinator device and epoch. A mismatch stops order mutation with `COORDINATOR_CONFLICT`; an operator/setup flow must resolve it.
+EVL-113 defines one active cash-register writer. V1 has no automatic leader election: signal strength, message arrival, and local timestamps cannot prove authority while offline. `HELLO` compares branch and lease context; EVL-114's server contract binds each batch to `branchId`, `deviceId`, and `leaseId`. The exact offline lease validity/renewal rule must come from the reviewed EVL-114 authority contract. Until then, a lease mismatch or uncertain authority stops order mutation with `COORDINATOR_CONFLICT`; no local epoch or timestamp may override it.
 
-Only the configured coordinator may author line edits, discounts, payment/compensation, and cash-close commands. Other paired stations may submit only event types their authenticated business role is permitted to author, including allowed preparation events. The receiver validates branch, actor role, device authorization, event type, command IDs, and coordinator epoch before commit. Reconcile the exact role/event allowlist, writer lease and epoch persistence with reviewed EVL-114 before implementation. Never merge conflicting financial edits or use last-write-wins.
+Only the configured coordinator may author line edits, discounts, payment/compensation, and cash-close commands. Other paired stations may submit only event types their authenticated business role is permitted to author, including allowed preparation events. The receiver validates branch, actor role, device authorization, event type, command/event IDs, and lease context before peer commit. Reconcile the exact role/event allowlist and offline lease-validity rule with reviewed EVL-114 before implementation. Never merge conflicting financial edits or use last-write-wins.
 
 ## Backend reconciliation
 
@@ -68,7 +68,7 @@ Bluetooth receipt means only “this peer durably received the batch.” It is s
 | `REPLAY_OR_ORDER` | Drop frame and close the session; do not apply it. |
 | `INVALID_BATCH` / `TOO_LARGE` | Reject entire batch; no event is applied. |
 | `CONFLICT` | Preserve both histories; stop the affected aggregate for review. |
-| `COORDINATOR_CONFLICT` | Stop order mutations until the configured owner/epoch is resolved. |
+| `COORDINATOR_CONFLICT` | Stop order mutations until branch/lease authority is resolved. |
 | `PERMISSION_REQUIRED` / `BLUETOOTH_UNAVAILABLE` | Explain OS action; keep the command pending. |
 | `DISCONNECTED` / `STORAGE_FAILED` | Send no commit ACK; preserve the sender outbox and resumable receiver staging where valid. |
 | `BACKEND_PENDING` / `BACKEND_CONFLICT` | Show local receipt separately from server sync and surface conflict. |

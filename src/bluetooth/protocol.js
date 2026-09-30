@@ -4,6 +4,9 @@ export const BLUETOOTH_PROTOCOL = "karma-ble/1";
 export const MAX_COMMAND_BYTES = 64 * 1024;
 export const MAX_EVENTS_PER_COMMAND = 100;
 export const MAX_MESSAGE_BYTES = MAX_COMMAND_BYTES + 4096;
+export const MAX_JSON_DEPTH = 64;
+const ISO_UTC_MILLIS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const BATCH_FIELDS = new Set(["commandId", "branchId", "aggregateId", "actorId", "deviceId", "leaseId", "schemaVersion", "occurredAt", "events"]);
 
 const messageKinds = new Set(["HELLO", "COMMAND_BATCH", "ACK", "ERROR"]);
 const ackResults = new Set(["committed", "duplicate", "conflict"]);
@@ -14,14 +17,20 @@ const errorCodes = new Set([
   "DISCONNECTED", "STORAGE_FAILED", "BACKEND_PENDING", "BACKEND_CONFLICT",
 ]);
 
-/** Validate the full EVL-113 immutable command-batch envelope before encoding or applying. */
+/** Validate the full EVL-114 command-batch envelope and its EVL-113 events. */
 export function validateCommandBatch(batch) {
   requireObject(batch, "command batch");
-  for (const field of ["commandId", "aggregateId", "actorId", "deviceId", "occurredAt"]) {
-    requireNonEmptyString(batch[field], field);
+  requireBoundedString(batch.commandId, "commandId", 100);
+  requireBoundedString(batch.branchId, "branchId", 100);
+  requireBoundedString(batch.aggregateId, "aggregateId", 100);
+  requireBoundedString(batch.actorId, "actorId", 80);
+  requireBoundedString(batch.deviceId, "deviceId", 100);
+  requireBoundedString(batch.leaseId, "leaseId", 100);
+  for (const key of Object.keys(batch)) {
+    if (!BATCH_FIELDS.has(key)) throw protocolError("INVALID_BATCH", `unknown command-batch field: ${key}`);
   }
   requireSchemaVersion(batch.schemaVersion, "batch schemaVersion");
-  if (Number.isNaN(Date.parse(batch.occurredAt))) throw protocolError("INVALID_BATCH", "occurredAt must be an ISO-compatible timestamp");
+  requireIsoUtcTimestamp(batch.occurredAt, "occurredAt");
   if (!Array.isArray(batch.events) || batch.events.length === 0) throw protocolError("INVALID_BATCH", "events must be a non-empty array");
   if (batch.events.length > MAX_EVENTS_PER_COMMAND) throw protocolError("TOO_LARGE", `a command may contain at most ${MAX_EVENTS_PER_COMMAND} events`);
 
@@ -32,16 +41,25 @@ export function validateCommandBatch(batch) {
     } catch (error) {
       throw protocolError("INVALID_BATCH", error.message);
     }
+    requireBoundedString(event.eventId, "eventId", 200);
+    requireBoundedString(event.commandId, "event commandId", 100);
+    requireBoundedString(event.aggregateId, "event aggregateId", 100);
+    requireBoundedString(event.type, "event type", 80);
+    requireBoundedString(event.actorId, "event actorId", 80);
+    requireBoundedString(event.deviceId, "event deviceId", 100);
     if (event.schemaVersion !== 1 || batch.schemaVersion !== 1) {
       throw protocolError("UNSUPPORTED_SCHEMA", `domain schema ${event.schemaVersion} is not supported by karma-ble/1`);
     }
     for (const field of ["commandId", "aggregateId", "actorId", "deviceId", "occurredAt", "schemaVersion"]) {
       if (event[field] !== batch[field]) throw protocolError("INVALID_BATCH", `event ${field} must match the command-batch metadata`);
     }
+    if (event.eventId !== `${batch.commandId}:${eventIds.size}`) {
+      throw protocolError("INVALID_BATCH", "eventId must equal commandId plus its zero-based batch index");
+    }
     if (eventIds.has(event.eventId)) throw protocolError("INVALID_BATCH", `duplicate eventId: ${event.eventId}`);
     eventIds.add(event.eventId);
   }
-  assertJsonValue(batch, new Set());
+  assertJsonValue(batch, new Set(), 0);
   const bytes = utf8Encode(canonicalJson(batch));
   if (bytes.byteLength > MAX_COMMAND_BYTES) throw protocolError("TOO_LARGE", `canonical command exceeds ${MAX_COMMAND_BYTES} bytes`);
   return true;
@@ -83,9 +101,10 @@ export function validateProtocolMessage(message, expected = {}) {
 
   requireObject(message.body, "message body");
   if (message.kind === "HELLO") {
-    requireNonEmptyString(message.body.branchId, "branchId");
-    requireNonEmptyString(message.body.coordinatorDeviceId, "coordinatorDeviceId");
-    requireNonEmptyString(message.body.coordinatorEpoch, "coordinatorEpoch");
+    requireBoundedString(message.body.branchId, "branchId", 100);
+    requireBoundedString(message.body.deviceId, "deviceId", 100);
+    requireBoundedString(message.body.leaseId, "leaseId", 100);
+    if (message.body.deviceId !== message.senderDeviceId) throw protocolError("AUTH_FAILED", "HELLO deviceId must match senderDeviceId");
     if (!Array.isArray(message.body.supportedVersions) || !message.body.supportedVersions.includes(BLUETOOTH_PROTOCOL)) {
       throw protocolError("UNSUPPORTED_VERSION", "HELLO must list a supported karma-ble protocol version");
     }
@@ -99,7 +118,7 @@ export function validateProtocolMessage(message, expected = {}) {
     if (!errorCodes.has(message.body.code)) throw protocolError("INVALID_BATCH", "ERROR code is unknown");
     if (typeof message.body.retryable !== "boolean") throw protocolError("INVALID_BATCH", "ERROR retryable must be boolean");
   }
-  assertJsonValue(message, new Set());
+  assertJsonValue(message, new Set(), 0);
   if (utf8Encode(canonicalJson(message)).byteLength > MAX_MESSAGE_BYTES) throw protocolError("TOO_LARGE", "protocol message exceeds maximum size");
   return true;
 }
@@ -119,7 +138,8 @@ function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
-function assertJsonValue(value, ancestors) {
+function assertJsonValue(value, ancestors, depth) {
+  if (depth > MAX_JSON_DEPTH) throw protocolError("INVALID_BATCH", `JSON nesting exceeds ${MAX_JSON_DEPTH} levels`);
   if (value === null || typeof value === "string" || typeof value === "boolean") return;
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw protocolError("INVALID_BATCH", "JSON numbers must be finite");
@@ -132,9 +152,12 @@ function assertJsonValue(value, ancestors) {
   }
   ancestors.add(value);
   if (Array.isArray(value)) {
-    value.forEach((item) => assertJsonValue(item, ancestors));
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.hasOwn(value, index)) throw protocolError("INVALID_BATCH", "sparse arrays are not valid JSON command data");
+      assertJsonValue(value[index], ancestors, depth + 1);
+    }
   } else {
-    for (const key of Object.keys(value)) assertJsonValue(value[key], ancestors);
+    for (const key of Object.keys(value)) assertJsonValue(value[key], ancestors, depth + 1);
   }
   ancestors.delete(value);
 }
@@ -147,8 +170,23 @@ function requireNonEmptyString(value, label) {
   if (typeof value !== "string" || !value.trim()) throw protocolError("INVALID_BATCH", `${label} is required`);
 }
 
+function requireBoundedString(value, label, maxLength) {
+  requireNonEmptyString(value, label);
+  if (Array.from(value).length > maxLength) throw protocolError("INVALID_BATCH", `${label} exceeds ${maxLength} characters`);
+}
+
 function requireSchemaVersion(value, label) {
   if (!Number.isInteger(value) || value < 1) throw protocolError("INVALID_BATCH", `${label} must be a positive integer`);
+}
+
+function requireIsoUtcTimestamp(value, label) {
+  if (typeof value !== "string" || !ISO_UTC_MILLIS.test(value)) {
+    throw protocolError("INVALID_BATCH", `${label} must be a millisecond ISO-8601 UTC timestamp`);
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString() !== value) {
+    throw protocolError("INVALID_BATCH", `${label} must be a valid ISO-8601 UTC timestamp`);
+  }
 }
 
 function requireBytes(value, maximum, label) {
