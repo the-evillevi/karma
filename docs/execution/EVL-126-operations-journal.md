@@ -8,7 +8,7 @@ Each database is named from a stable digest of the exact branch and logical-devi
 
 An append first validates the strict business envelope and uses the caller's fresh verified actor/branch/device/role/capability context. This applies to identical retries as well as new commands. The session and lease remain outside the immutable command. A changed reuse of a command ID conflicts. Pending history always keeps its original actor; this local journal does not upload it under a different identity.
 
-One IndexedDB read/write transaction covers the command ledger, aggregate-event index, all affected heads, projections, and any retained revision-conflict evidence. IDB serializes overlapping writers across tabs. The command is added and every expected aggregate is advanced atomically; the result is exposed only after transaction completion. Failure or abort returns no projection as a successful write.
+One IndexedDB read/write transaction covers the command ledger, aggregate-event index, every changed head/projection, and any retained revision-conflict evidence. All expected aggregate revisions are checked, including read-only dependencies; only aggregates whose deterministic transition advances are written. IDB serializes overlapping writers across tabs. The command and all changed aggregates commit atomically; the result is exposed only after transaction completion. Failure or abort returns no projection as a successful write.
 
 ## Integrity and bounded reads
 
@@ -21,3 +21,7 @@ An append/retry starts from the exact aggregates named by the command and expand
 The journal writes local business commands and derived local projections only. A saved projection or local diagnostic does not prove remote receipt, provider settlement, cross-device sync, or trusted catalog/tax validation. Server acknowledgements, authenticated upload, permanent server blocks, shared sanitized reads, SQL, and UI success wiring remain future gates. UI may not restore only open accounts from this journal; startup must consume a complete verified snapshot so closed, cancelled, refunded, split, and in-progress kitchen facts are retained.
 
 The currently supported families and explicit unsupported actions are listed in `EVL-126-operations.md`. Current PosApp tip semantics require an explicit adapter because its payment `netAmountCents` includes allocated tip while the v1 operational sale records the sale due separately from tips; the journal does not silently reinterpret that prototype shape.
+
+## Verification
+
+The local Chromium lane covers cold restart of a split account with a manually recorded cash payment, refund, cancelled child, and still-ready kitchen ticket; retry identity after authority loss and with changed content; branch/device storage isolation; concurrent two-tab revision contention with retained conflict evidence; projection, event-index, and immutable-command tampering; and a late multi-store write failure followed by a clean retry. The focused domain suite also verifies replay and business invariants. These checks demonstrate local IndexedDB behavior only; there is no receipt, server sync, payment-provider, or POS UI proof in this slice.
