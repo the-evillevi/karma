@@ -217,6 +217,8 @@ describe('shared UI primitives', () => {
 
     let saved = JSON.parse(storage.getItem('karma-pos-v1'));
     expect(saved.sales[0]).toMatchObject({ total: 50, totalCents: 5000, tip: 0, tipCents: 0 });
+    expect(saved.sales[0].occurredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(Number.isFinite(Date.parse(saved.sales[0].occurredAt))).toBe(true);
     expect(saved.sales[0].payments).toEqual([{ paymentId: 'EVL-186-CASH:payment:1', method: 'cash', methodLabel: 'Efectivo', netAmountCents: 5000, amountCents: 5000, amount: 50, tipCents: 0, recordMode: 'manual', verificationStatus: 'not_applicable', cashReceivedCents: 10000, changeCents: 5000 }]);
     expect(saved.sales[0].tenders).toEqual([{ tenderId: 'EVL-186-CASH:tender:1', method: 'cash', methodLabel: 'Efectivo', tenderedCents: 10000, netAmountCents: 5000, changeCents: 5000, tipCents: 0 }]);
     await user.click(screen.getByRole('button', { name: 'Reportes' }));
