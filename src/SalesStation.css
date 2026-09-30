@@ -25,7 +25,8 @@
 }
 .sales-search-input:focus-visible,
 .sales-station button:focus-visible,
-.sales-field input:focus-visible {
+.sales-field input:focus-visible,
+.sales-field textarea:focus-visible {
   outline: 2px solid #836953;
   outline-offset: 2px;
 }
@@ -69,7 +70,8 @@
 .sales-order-types { display: flex; flex-wrap: wrap; gap: 6px; }
 .sales-type-button { min-height: 44px; white-space: normal; }
 .sales-field { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
-.sales-field input {
+.sales-field input,
+.sales-field textarea {
   width: 100%;
   min-height: 44px;
   padding: 9px 12px;
@@ -78,6 +80,7 @@
   background: #f0eee6;
   font-size: 13px;
 }
+.sales-field textarea { resize: vertical; }
 .sales-cart-empty { padding: 24px 12px; border-radius: 10px; font-size: 13px; }
 .sales-lines { display: flex; flex-direction: column; }
 .sales-line { display: flex; align-items: flex-start; gap: 9px; padding: 11px 0; border-bottom: 1px solid #e2e0d6; }
