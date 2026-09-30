@@ -1303,15 +1303,23 @@ export default class PosApp extends React.Component {
 </div>
 </>)}
 
-{(V.hasRepSel) && (<>
-<div style={css("position:fixed;inset:0;background:rgba(20,20,19,.38);z-index:210;display:flex;align-items:center;justify-content:center;padding:24px")} onClick={V.closeDetail}>
-<div style={css("width:520px;max-width:100%;max-height:84vh;overflow-y:auto;background:#faf9f5;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px;animation:rise .25s ease")} onClick={V.stop}>
-<div style={css("display:flex;align-items:center;gap:10px")}>
-<span style={css("font-size:17px;font-weight:500")}>{V.dFolio}</span>
-<Badge variant={V.dStatusVariant}>{V.dStatusLabel}</Badge>
-<Button type="button" variant="ghost" size="icon" className="ml-auto" aria-label="Cerrar detalle de venta" onClick={V.closeDetail}>×</Button>
-</div>
-<div style={css("font-size:12.5px;color:#6b6a63;line-height:1.6")}>{V.dMeta}</div>
+<Dialog open={V.hasRepSel} onOpenChange={open => { if (!open) V.closeDetail(); }}>
+<DialogContent
+  className="max-h-[calc(100dvh-2rem)] w-[520px] max-w-[calc(100vw-2rem)] overflow-y-auto p-5"
+  onOpenAutoFocus={() => { this._dialogReturnFocus = document.activeElement; }}
+  onCloseAutoFocus={event => {
+    const opener = this._dialogReturnFocus;
+    this._dialogReturnFocus = null;
+    if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) {
+      event.preventDefault();
+      opener.focus({ preventScroll: true });
+    }
+  }}
+>
+<DialogHeader className="pr-8 text-left">
+<DialogTitle className="flex items-center gap-2">{V.dFolio}<Badge variant={V.dStatusVariant}>{V.dStatusLabel}</Badge></DialogTitle>
+<DialogDescription className="leading-relaxed">{V.dMeta}</DialogDescription>
+</DialogHeader>
 {(V.dHasMotivo) && (<><div style={css("font-size:12.5px;color:#836953;background:#f6e5df;border-radius:8px;padding:8px 12px")}>Motivo: {V.dMotivo}</div></>)}
 <div style={css("display:flex;flex-direction:column")}>
 {(V.dItems).map((i, iI) => (<React.Fragment key={iI}>
@@ -1335,9 +1343,8 @@ export default class PosApp extends React.Component {
 <div style={css("display:flex;gap:12px;font-size:12.5px;padding:5px 0;border-bottom:1px solid #e2e0d6")}><span style={css("color:#6b6a63;flex:none;width:44px")}>{a.t}</span><span style={css("flex:1")}>{a.e}</span><span style={css("color:#a8a69c")}>{a.u}</span></div>
 </React.Fragment>))}
 </div>
-</div>
-</div>
-</>)}
+</DialogContent>
+</Dialog>
 
 <Dialog open={V.dlg} onOpenChange={open => { if (!open) V.dlgClose(); }}>
 <DialogContent
