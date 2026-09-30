@@ -1,7 +1,7 @@
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
-import { resolve } from 'path';
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { resolve } from "path";
 
 // Multi-page app: the POS (root) and the kitchen Comanda screen are separate
 // HTML entry points, mirroring the original two-file design. They share state
@@ -10,23 +10,23 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
-    include: ['src/**/*.test.jsx'],
+    include: ["src/**/*.test.{jsx,tsx}"],
   },
   server: {
-    fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '.env.offline-test.local'] },
+    fs: { deny: [".env", ".env.*", "*.{crt,pem}", ".env.offline-test.local"] },
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
+      "@": resolve(__dirname, "src"),
     },
   },
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        comanda: resolve(__dirname, 'comanda.html'),
-        offlineDemo: resolve(__dirname, 'offline-demo.html'),
-        components: resolve(__dirname, 'components-demo.html'),
+        main: resolve(__dirname, "index.html"),
+        comanda: resolve(__dirname, "comanda.html"),
+        offlineDemo: resolve(__dirname, "offline-demo.html"),
+        components: resolve(__dirname, "components-demo.html"),
       },
     },
   },

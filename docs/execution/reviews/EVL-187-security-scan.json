@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-30",
+  "scope": "codex/payments/evl-187 at 4d441e7",
+  "issueCount": 12,
+  "posAppIssues": [
+    {
+      "id": "javascript/PrototypePollution",
+      "line": 932,
+      "column": 104,
+      "fingerprint": "170abd2f.fc0e7de9.693cee93.84a399d8.5c2b5c9d.fb6e1fba.f0256597.0d627752.170abd2f.4773f344.693cee93.a8c24974.79a7d027.39e5b116.f0256597.5b5a306a"
+    },
+    {
+      "id": "javascript/PrototypePollution",
+      "line": 932,
+      "column": 127,
+      "fingerprint": "170abd2f.fc0e7de9.693cee93.2015d42e.5c2b5c9d.5eccefd7.f0256597.da42f3f1.170abd2f.4773f344.693cee93.2015d42e.5c2b5c9d.39e5b116.f0256597.8b6f8f4b"
+    },
+    {
+      "id": "javascript/PrototypePollution",
+      "line": 934,
+      "column": 85,
+      "fingerprint": "bcb843aa.fc0e7de9.693cee93.345deb24.5c2b5c9d.5eccefd7.f0256597.47e5e904.bcb843aa.4773f344.2ba6c148.345deb24.3f452f8c.b54f370d.f0256597.b9d6e5db"
+    },
+    {
+      "id": "javascript/PrototypePollution",
+      "line": 934,
+      "column": 105,
+      "fingerprint": "bcb843aa.fc0e7de9.693cee93.345deb24.5c2b5c9d.5eccefd7.f0256597.47e5e904.bcb843aa.4773f344.693cee93.345deb24.5c2b5c9d.e55739c9.f0256597.1f55c1aa"
+    }
+  ],
+  "note": "All PosApp findings anchor unchanged pre-existing Reports aggregation sinks. No cancellation-path finding. Baseline attribution evidence is EVL-188-security-scan.json. Whole-project scan is not clean; pre-existing issues were not modified."
+}

@@ -178,37 +178,47 @@ test.describe("EVL-118 hosted role and event-envelope checks", () => {
     ]);
     expect(firstLogin.error).toBeNull();
     expect(secondLogin.error).toBeNull();
-    const [firstAttempt, secondAttempt] = await Promise.all([
-      first.rpc("manage_branch_membership", {
-        p_branch_id: env.SUPABASE_BRANCH_ID,
-        p_user_id: secondLogin.data.user.id,
-        p_display_name: "Dueña sintética 2",
-        p_role: "encargado",
-        p_active: true,
-      }),
-      second.rpc("manage_branch_membership", {
-        p_branch_id: env.SUPABASE_BRANCH_ID,
-        p_user_id: firstLogin.data.user.id,
-        p_display_name: "Dueña sintética 1",
-        p_role: "encargado",
-        p_active: true,
-      }),
-    ]);
-    const successes = [firstAttempt, secondAttempt].filter(
-      (result) => result.error === null,
-    ).length;
-    expect(successes).toBe(1);
-    expect(
-      [firstAttempt.error?.code, secondAttempt.error?.code].filter(Boolean),
-    ).toHaveLength(1);
+    try {
+      const [firstAttempt, secondAttempt] = await Promise.all([
+        first.rpc("manage_branch_membership", {
+          p_branch_id: env.SUPABASE_BRANCH_ID,
+          p_user_id: secondLogin.data.user.id,
+          p_display_name: "Dueña sintética 2",
+          p_role: "encargado",
+          p_active: true,
+        }),
+        second.rpc("manage_branch_membership", {
+          p_branch_id: env.SUPABASE_BRANCH_ID,
+          p_user_id: firstLogin.data.user.id,
+          p_display_name: "Dueña sintética 1",
+          p_role: "encargado",
+          p_active: true,
+        }),
+      ]);
+      const successes = [firstAttempt, secondAttempt].filter(
+        (result) => result.error === null,
+      ).length;
+      expect(successes).toBe(1);
+      expect(
+        [firstAttempt.error?.code, secondAttempt.error?.code].filter(Boolean),
+      ).toHaveLength(1);
 
-    const remainingOwners = await service
-      .from("branch_memberships")
-      .select("user_id")
-      .eq("branch_id", env.SUPABASE_BRANCH_ID)
-      .eq("role", "duena")
-      .eq("active", true);
-    expect(remainingOwners.error).toBeNull();
-    expect(remainingOwners.data.length).toBeGreaterThanOrEqual(1);
+      const remainingOwners = await service
+        .from("branch_memberships")
+        .select("user_id")
+        .eq("branch_id", env.SUPABASE_BRANCH_ID)
+        .eq("role", "duena")
+        .eq("active", true);
+      expect(remainingOwners.error).toBeNull();
+      expect(remainingOwners.data.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      // Keep isolated synthetic owners reusable after the destructive race proof.
+      const restored = await service
+        .from("branch_memberships")
+        .update({ role: "duena", active: true })
+        .eq("branch_id", env.SUPABASE_BRANCH_ID)
+        .in("user_id", [firstLogin.data.user.id, secondLogin.data.user.id]);
+      expect(restored.error).toBeNull();
+    }
   });
 });
