@@ -7,5 +7,14 @@
   "createdAt": "2026-09-29",
   "schemaDeployed": false,
   "productionReady": false,
-  "credentials": "Stored privately outside the public repository; never commit keys or passwords."
+  "credentials": "Stored privately outside the public repository; never commit keys or passwords.",
+  "appliedMigrations": [
+    {
+      "version": "20260929000100",
+      "issue": "EVL-114",
+      "sha256": "4cbd6999a2d8f4151769da2b923ed001474ea502192470ada15d86afd0cdc8d3",
+      "method": "ManagementAPI file query + CLI migration repair",
+      "verification": "cloud proof in progress"
+    }
+  ]
 }

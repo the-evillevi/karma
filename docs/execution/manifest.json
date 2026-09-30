@@ -168,14 +168,20 @@
       "requires": [
         "EVL-113"
       ],
-      "stage": "implementing",
+      "stage": "verifying",
       "agent": "implement_foundation",
-      "commits": [],
+      "commits": [
+        "bab9eb2",
+        "115c638"
+      ],
       "pr": null,
-      "checks": [],
-      "review": "pending",
+      "checks": [
+        "Vite build passed",
+        "Playwright test discovery passed"
+      ],
+      "review": "ddl_reviewed_cloud_apply_authorized",
       "blockers": [],
-      "nextAction": "ADR and real RxDB/Supabase offline/reconnect proof; root reviews DDL before remote application."
+      "nextAction": "Newproject migration applied with reviewedhash and historyrepair; verify realcloud API RLS/browser offline/restart/reconnect/retry proof."
     },
     {
       "id": "EVL-116",
@@ -262,14 +268,16 @@
         "EVL-154",
         "EVL-116"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "preparing",
+      "agent": "implement_design",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "blockers": [
+        "EVL-116 integration and desktop/mobile visual verification pending."
+      ],
+      "nextAction": "Official shadcn/Tailwind setup and shared presentation migration in isolateddesignWT; merge reviewed foundation and visual QA before completion."
     },
     {
       "id": "EVL-158",
@@ -348,16 +356,24 @@
         "EVL-118",
         "EVL-126"
       ],
-      "stage": "preparing",
-      "agent": "implement_catalog",
-      "commits": [],
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "fd83d62",
+        "3225008",
+        "4c5937b"
+      ],
       "pr": null,
-      "checks": [],
-      "review": "pending",
+      "checks": [
+        "17 focused Node tests passed",
+        "Catalog reproducibility passed",
+        "git diff --check"
+      ],
+      "review": "domain_preparation_passed_after_fixes",
       "blockers": [
         "Reviewed foundation runtime/auth/sync required before application integration."
       ],
-      "nextAction": "Independent catalog command/adapter preparation; wire real CRUD after reviewed116/118/126."
+      "nextAction": "Wire PWA CRUD/auth/durable audit/sync after116/118/126; reviewed modules may support independent modifier preparation."
     },
     {
       "id": "EVL-120",
@@ -849,16 +865,26 @@
       "requires": [
         "EVL-114"
       ],
-      "stage": "researching",
-      "agent": "implement_design",
-      "commits": [],
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "3777613",
+        "1a66a69",
+        "7375bfc",
+        "b019cc4",
+        "ceac901"
+      ],
       "pr": null,
-      "checks": [],
-      "review": "pending",
+      "checks": [
+        "20 codec/domain Node tests passed",
+        "Current official Chrome/WebKit/Capacitor sources checked",
+        "git diff --check"
+      ],
+      "review": "bounded_artifact_passed_after_fixes",
       "blockers": [
         "EVL-114 reviewed contracts and actual two-device hardware validation pending."
       ],
-      "nextAction": "Independent official capability research and bounded protocol work; reconcile with reviewed EVL-114 before publication."
+      "nextAction": "Rebase on reviewed114, reconcile final authority/outbox contract and publish draft; real two-device/native gates remain open."
     },
     {
       "id": "EVL-140",
