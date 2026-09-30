@@ -173,8 +173,73 @@ describe('shared UI primitives', () => {
     await user.click(await screen.findByRole('button', { name: 'Marcar listo' }));
 
     expect(await screen.findByText('Listo')).toBeTruthy();
-    expect(JSON.parse(storage.getItem('karma-pos-v1')).open[0].prep).toBe('listo');
+    expect(JSON.parse(storage.getItem('karma-pos-v1')).kitchenTickets[0].prep).toBe('listo');
+    expect(JSON.parse(storage.getItem('karma-pos-v1')).open[0].prep).toBe('preparando');
   });
+
+  it.each(['en-cola', 'preparando', 'listo', 'entregado'])(
+    'keeps a paid kitchen ticket at %s across POS and kitchen reloads', async prep => {
+      const storage = installMemoryStorage();
+      const ticket = {
+        folio: 'A-185-TEST', type: 'mesa', ref: 'Mesa 7', time: '12:00', user: 'Sofía', prep, sync: 'sincronizada', name: 'Mesa 7', discount: 0,
+        items: [{ prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: { leche: ['avena'] }, modsText: 'Avena +$10', notes: 'Sin canela', unit: 60 }],
+      };
+      storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [ticket], kitchenTickets: [ticket] }));
+      const user = userEvent.setup();
+
+      const pos = render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+      await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+      await user.click((await screen.findAllByRole('button', { name: 'Cobrar' }))[0]);
+      await user.click(await screen.findByRole('button', { name: 'Continuar al pago' }));
+      await screen.findByRole('textbox', { name: 'Monto con Efectivo' });
+      await user.click(screen.getByRole('button', { name: 'Continuar' }));
+      const registerPayment = await screen.findByRole('button', { name: /Registrar pago/ });
+      await user.dblClick(registerPayment);
+      expect(await screen.findByText('Pago registrado', {}, { timeout: 4000 })).toBeTruthy();
+
+      const afterPayment = JSON.parse(storage.getItem('karma-pos-v1'));
+      expect(afterPayment.sales.filter(sale => sale.folio === ticket.folio && sale.status === 'completada')).toHaveLength(1);
+      expect(afterPayment.open).toEqual([]);
+      expect(afterPayment.kitchenTickets).toHaveLength(1);
+      expect(afterPayment.kitchenTickets[0]).toMatchObject({ folio: ticket.folio, ref: 'Mesa 7', prep, user: 'Sofía' });
+      expect(afterPayment.kitchenTickets[0].items[0]).toMatchObject({ name: 'Americano', qty: 1, modsText: 'Avena +$10', notes: 'Sin canela' });
+
+      pos.unmount();
+      cleanup();
+      const reloadedPos = render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+      await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+      expect(screen.queryByText(ticket.folio)).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Cobrar' })).toBeNull();
+      reloadedPos.unmount();
+      cleanup();
+
+      let kitchen = render(<ComandaApp />);
+      const terminal = prep === 'entregado';
+      if (terminal) {
+        expect(screen.queryByText(ticket.folio)).toBeNull();
+        return;
+      }
+
+      await screen.findByText(ticket.folio);
+      expect(screen.getByText('Avena +$10')).toBeTruthy();
+      expect(screen.getByText('“Sin canela”')).toBeTruthy();
+      expect(screen.getByText(/Mesa 7/)).toBeTruthy();
+      const nextAction = { 'en-cola': 'Empezar preparación', preparando: 'Marcar listo', listo: 'Marcar entregado' };
+      let currentPrep = prep;
+      while (currentPrep !== 'entregado') {
+        await user.click(screen.getByRole('button', { name: nextAction[currentPrep] }));
+        const expected = { 'en-cola': 'preparando', preparando: 'listo', listo: 'entregado' }[currentPrep];
+        expect(JSON.parse(storage.getItem('karma-pos-v1')).kitchenTickets[0].prep).toBe(expected);
+        currentPrep = expected;
+        kitchen.unmount();
+        cleanup();
+        kitchen = render(<ComandaApp />);
+        if (currentPrep !== 'entregado') await screen.findByText(ticket.folio);
+      }
+      expect(screen.queryByText(ticket.folio)).toBeNull();
+      expect(JSON.parse(storage.getItem('karma-pos-v1')).kitchenTickets[0].prep).toBe('entregado');
+    },
+  );
 
   it('keeps inventory, report, user, and setting controls operable in the real POS', async () => {
     const storage = installMemoryStorage();
