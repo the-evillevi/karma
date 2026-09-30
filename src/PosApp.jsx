@@ -1,5 +1,12 @@
 import React from 'react';
 import { createSalesCsv } from './reports/sales-export.ts';
+import {
+  buildSalesPeriodReport,
+  customReportPeriod,
+  presetReportPeriod,
+  recordedUtcInstant,
+  reportSaleInstant,
+} from './reports/report-period.ts';
 import { css } from './css.js';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +39,7 @@ import { toggleModifierSelection } from './catalog/sales-selection.mjs';
 import { sameCapturedModifiers } from './catalog/captured-modifiers.mjs';
 import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue.js';
 import { planSaleCompensation, compensationTotalCents, saleTotalCents } from './domain/sale-compensation.js';
-import { calculateTender, centsToMoney, moneyToCents, paymentMethodTotalsCents, paymentNetCents } from './domain/payment-tender.js';
+import { calculateTender, centsToMoney, moneyToCents, paymentNetCents } from './domain/payment-tender.js';
 import { canPerform, resolveAccessAction, seededRoleToAccessRole } from './access/role-policy.ts';
 import { parseVerifiedAccessContext } from './access/offline-identity.ts';
 import { planOrderSplit, splitLineId, suggestSplitSelection } from './orders/order-split.mjs';
@@ -125,6 +132,25 @@ function customerOperatorError(error) {
     ['invalid_history', 'El registro local de clientes requiere revisión. No se aplicaron cambios.'],
   ]);
   return messages.get(error?.code) || 'No se pudo guardar el cambio local de la cuenta. Revisa e intenta de nuevo.';
+}
+
+function reportPeriodError(error) {
+  const messages = new Map([
+    ['invalid_time_zone', 'Escribe una zona horaria IANA válida, por ejemplo America/Mexico_City.'],
+    ['invalid_local_time', 'Revisa la fecha y hora local capturadas.'],
+    ['nonexistent_local_time', 'Esa hora local no existió por el cambio de horario. Elige otra hora.'],
+    ['ambiguous_local_time', 'Esa hora ocurrió dos veces. Elige la primera o segunda ocurrencia.'],
+    ['invalid_repeated_hour_choice', 'Selecciona cómo resolver la hora repetida.'],
+    ['invalid_period', 'La hora final debe ser posterior a la hora inicial.'],
+    ['unsafe_report_amount', 'Los importes del periodo exceden el rango seguro. Revisa el historial.'],
+    ['missing_sale_amount', 'Hay una venta sin total verificable. No se calculó el periodo.'],
+    ['invalid_tip', 'Hay una propina mayor que el total de venta. Revisa el historial.'],
+    ['invalid_payment_total', 'Los pagos capturados no coinciden con el total de una venta. Revisa el historial.'],
+    ['invalid_refund_allocation', 'Las devoluciones capturadas no coinciden con su importe. Revisa el historial.'],
+    ['refund_on_unpaid_cancellation', 'Hay una devolución asociada a una cuenta cancelada sin cobro. Revisa el historial antes de calcular el corte.'],
+    ['invalid_refund_kind', 'Hay un tipo de devolución no reconocido. Revisa el historial.'],
+  ]);
+  return messages.get(error?.code) || 'No se pudo calcular el periodo. Revisa la información guardada.';
 }
 
 function textField(value, maxLength = 160) {
@@ -337,7 +363,12 @@ export default class PosApp extends React.Component {
       admCat: 'all', admSearch: '', admSel: null, admForm: null,
       invTab: 'stock', invSearch: '', invLow: false,
       recipeEditorOpen: false,
-      range: 'hoy', repSel: null,
+      range: 'hoy',
+      reportTimeZone: typeof props.branchTimeZone === 'string' && props.branchTimeZone.trim()
+        ? props.branchTimeZone.trim()
+        : 'America/Mexico_City',
+      reportStartLocal: '', reportEndLocal: '', reportRepeatedChoice: 'reject',
+      repSel: null,
       cfgTab: 'usuarios', selUser: null, suForm: null, createdCredential: null,
       flags: sv.flags || { autoprint: true, fpEfectivo: true, fpTarjeta: true, fpTransfer: true, propCustom: true, cancelMotivo: true, cancelAut: true }
     };
@@ -1212,20 +1243,54 @@ export default class PosApp extends React.Component {
       }, () => this.toast('Sincronización completa — ' + 0 + ' operaciones pendientes'));
     }, 1600);
   }
+  currentReportProjection(at = new Date().toISOString()) {
+    try {
+      const current = this.state;
+      let period;
+      if (current.range === 'custom') {
+        if (!current.reportStartLocal || !current.reportEndLocal)
+          throw Object.assign(new Error('custom range incomplete'), { code: 'invalid_local_time' });
+        period = customReportPeriod(
+          current.reportStartLocal,
+          current.reportEndLocal,
+          current.reportTimeZone,
+          current.reportRepeatedChoice,
+        );
+      } else {
+        period = presetReportPeriod(current.range, at, current.reportTimeZone);
+      }
+      const actor = this.user();
+      const context = this.isSecureMode() ? this.accessContext() : null;
+      const data = buildSalesPeriodReport(current.sales, period, {
+        snapshotId: `sales-report:${at}`,
+        capturedAt: at,
+        branchId: context?.branchId || 'demo-local',
+        deviceId: context?.deviceId || 'demo-register',
+        actorId: actor?.id || 'local-unknown',
+      });
+      return { period, data, error: '' };
+    } catch (error) {
+      return { period: null, data: null, error: reportPeriodError(error) };
+    }
+  }
   exportSales() {
     if (!this.requireAction('viewReports')) return;
     const current = this.state;
-    const limit = current.range === 'hoy' ? 0 : current.range === '7d' ? 6 : 30;
-    const selected = current.sales.filter(sale => (sale.day || 0) <= limit);
     const actor = this.user();
     const context = this.isSecureMode() ? this.accessContext() : null;
     try {
       const at = new Date().toISOString();
-      const report = createSalesCsv(selected, {
+      const projection = this.currentReportProjection(at);
+      if (!projection.data || !projection.period) {
+        this.toast(projection.error || 'No se pudo calcular el periodo. Revisa el historial.', 'warn');
+        return;
+      }
+      const report = createSalesCsv(current.sales, {
         snapshotId: `sales-export:${at}`, capturedAt: at,
-        branchId: context?.branchId || 'demo-local', deviceId: context?.deviceId || 'demo-register', actorId: actor.id,
-        timeZone: this.props.branchTimeZone || 'America/Mexico_City',
-        selectionLabel: `Vista local ${current.range}; selección por días relativos del prototipo`,
+        branchId: context?.branchId || 'demo-local', deviceId: context?.deviceId || 'demo-register', actorId: actor?.id || 'local-unknown',
+        timeZone: current.reportTimeZone,
+        selectionLabel: projection.period.label,
+        period: projection.period,
       });
       const blob = new Blob([report.csv], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -1235,9 +1300,9 @@ export default class PosApp extends React.Component {
         anchor.click();
       } catch (error) { URL.revokeObjectURL(url); throw error; }
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      this.toast(`Archivo CSV generado con ${report.saleCount} registros de venta.${report.unknownDateCount ? ` ${report.unknownDateCount} sin fecha real; revisa esa evidencia antes de usarla en un corte.` : ''}`);
-    } catch {
-      this.toast('No se pudo generar el archivo. Revisa los importes, fechas y pagos guardados antes de exportar.', 'warn');
+      this.toast(`Archivo CSV del periodo generado con ${report.saleCount} ventas fechadas.${report.unknownDateCount ? ` ${report.unknownDateCount} registros heredados sin fecha real se separaron del corte.` : ''}`);
+    } catch (error) {
+      this.toast(reportPeriodError(error), 'warn');
     }
   }
   requestReprint(folio, kind) {
@@ -2434,55 +2499,98 @@ export default class PosApp extends React.Component {
       });
     }
 
-    // ---- reports
-    V.ranges = [['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['30d', 'Últimos 30 días']].map(([id, label]) => ({ label, active: s.range === id, pick: () => this.setState({ range: id }) }));
-    const lim = s.range === 'hoy' ? 0 : s.range === '7d' ? 6 : 30;
-    const rs = s.sales.filter(x => (x.day || 0) <= lim);
+    // ---- reports: all totals and rows use captured instants, never demo day offsets.
+    const storedSales = Array.isArray(s.sales) ? s.sales : [];
+    V.ranges = [['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['30d', 'Últimos 30 días'], ['custom', 'Personalizado']].map(([id, label]) => ({ label, active: s.range === id, pick: () => this.setState({ range: id }) }));
+    V.reportTimeZone = s.reportTimeZone;
+    V.reportStartLocal = s.reportStartLocal;
+    V.reportEndLocal = s.reportEndLocal;
+    V.reportRepeatedChoice = s.reportRepeatedChoice;
+    V.isCustomReportRange = s.range === 'custom';
+    V.setReportTimeZone = event => this.setState({ reportTimeZone: event.target.value, repSel: null });
+    V.setReportStart = event => this.setState({ reportStartLocal: event.target.value, repSel: null });
+    V.setReportEnd = event => this.setState({ reportEndLocal: event.target.value, repSel: null });
+    V.setReportRepeatedChoice = event => this.setState({ reportRepeatedChoice: event.target.value, repSel: null });
+    const reportProjection = V.mRep ? this.currentReportProjection() : { period: null, data: null, error: '' };
+    const periodReport = reportProjection.data;
+    V.reportPeriodLabel = reportProjection.period
+      ? `${reportProjection.period.label} · UTC ${reportProjection.period.startUtc} — ${reportProjection.period.endUtcExclusive} (final excluido)`
+      : '';
+    V.reportError = reportProjection.error;
+    V.reportReady = !!periodReport;
+    const rs = periodReport ? periodReport.selectedIndexes.map(index => storedSales[index]).filter(Boolean) : [];
     const done = rs.filter(x => x.status === 'completada');
-    V.repVentas = this.fmt(done.reduce((a, x) => a + x.total, 0));
-    V.repTickets = done.length;
-    V.repProps = this.fmt(done.reduce((a, x) => a + x.tip, 0));
-    V.repCanc = rs.length - done.length;
-    const mmCents = paymentMethodTotalsCents(done);
-    const mmax = Math.max(1, ...Object.values(mmCents));
-    V.methods = Object.keys(mmCents).map(k => ({ label: k, amount: this.fmt(centsToMoney(mmCents[k])), barStyle: { height: 5, borderRadius: 999, background: acc, width: (mmCents[k] / mmax * 100).toFixed(0) + '%' } }));
-    const tp = {}; done.forEach(x => x.items.forEach(i => { tp[i.name] = tp[i.name] || { q: 0, a: 0 }; tp[i.name].q += i.qty; tp[i.name].a += i.total; }));
-    V.topProds = Object.keys(tp).sort((a, b) => tp[b].a - tp[a].a).slice(0, 6).map(k => ({ name: k, qty: tp[k].q, amount: this.fmt(tp[k].a) }));
-    const bu = {}; done.forEach(x => { bu[x.cobro] = bu[x.cobro] || { t: 0, a: 0 }; bu[x.cobro].t += 1; bu[x.cobro].a += x.total; });
-    V.byUser = Object.keys(bu).map(k => ({ name: k, meta: bu[k].t + ' tickets', amount: this.fmt(bu[k].a) }));
-    let refundedCents = 0;
-    let voidCount = 0;
-    let refundCount = 0;
-    const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - lim);
-    for (const sale of s.sales) {
-      for (const event of Array.isArray(sale.compensations) ? sale.compensations : []) {
-        if (event && ['refund', 'void'].includes(event.kind) && Number.isSafeInteger(event.amountCents) && event.amountCents > 0 && Date.parse(event.occurredAt) >= start.getTime() && Date.parse(event.occurredAt) <= Date.now()) {
-          const next = refundedCents + event.amountCents;
-          if (Number.isSafeInteger(next)) refundedCents = next;
-          if (event.kind === 'void') voidCount += 1; else refundCount += 1;
-        }
-      }
-    }
-    V.repRefunds = this.fmt(centsToMoney(refundedCents)); V.repRefundCount = refundCount; V.repVoids = voidCount;
-    V.repNet = this.fmt(done.reduce((sum, sale) => sum + sale.total, 0) - centsToMoney(refundedCents));
+    V.repVentas = periodReport ? this.fmt(centsToMoney(periodReport.grossReceiptsCents)) : '—';
+    V.repTickets = periodReport?.completedCount ?? '—';
+    V.repProps = periodReport ? this.fmt(centsToMoney(periodReport.tipsCents)) : '—';
+    V.unknownTips = periodReport?.unknownTipCount || 0;
+    V.repCanc = periodReport?.cancelledCount ?? '—';
+    const maxReceived = Math.max(1, ...Object.values(periodReport?.receivedByMethod || {}));
+    V.methods = periodReport ? [
+      ['Efectivo', 'cash'], ['Tarjeta', 'card'], ['Transferencia', 'transfer'], ['Forma sin dato', 'unknown'],
+    ].map(([label, key]) => ({
+      label,
+      amount: this.fmt(centsToMoney(periodReport.receivedByMethod[key])),
+      returned: this.fmt(centsToMoney(periodReport.returnedByMethod[key])),
+      net: this.fmt(periodReport.netByMethod[key] / 100),
+      barStyle: { height: 5, borderRadius: 999, background: acc, width: (periodReport.receivedByMethod[key] / maxReceived * 100).toFixed(0) + '%' },
+    })) : [];
+    const productsByName = new Map();
+    done.forEach(x => (Array.isArray(x.items) ? x.items : []).forEach(i => {
+      if (!i || typeof i.name !== 'string' || !Number.isFinite(i.qty) || !Number.isFinite(i.total)) return;
+      const prior = productsByName.get(i.name) || { q: 0, a: 0 };
+      productsByName.set(i.name, { q: prior.q + i.qty, a: prior.a + i.total });
+    }));
+    V.topProds = [...productsByName.entries()].sort((a, b) => b[1].a - a[1].a).slice(0, 6).map(([name, value]) => ({ name, qty: value.q, amount: this.fmt(value.a) }));
+    const usersByName = new Map();
+    done.forEach(x => {
+      const name = typeof x.cobro === 'string' ? x.cobro : 'Usuario sin dato';
+      const prior = usersByName.get(name) || { t: 0, a: 0 };
+      usersByName.set(name, { t: prior.t + 1, a: prior.a + (Number.isFinite(x.total) ? x.total : 0) });
+    });
+    V.byUser = [...usersByName.entries()].map(([name, value]) => ({ name, meta: value.t + ' tickets', amount: this.fmt(value.a) }));
+    V.repRefunds = periodReport ? this.fmt(centsToMoney(periodReport.refundsCents + periodReport.voidsCents)) : '—';
+    V.repRefundOnly = periodReport ? this.fmt(centsToMoney(periodReport.refundsCents)) : '—';
+    V.repVoidOnly = periodReport ? this.fmt(centsToMoney(periodReport.voidsCents)) : '—';
+    V.repRefundCount = periodReport?.refundEvents.filter(event => event.kind === 'refund').length ?? '—';
+    V.repVoids = periodReport?.refundEvents.filter(event => event.kind === 'void').length ?? '—';
+    V.repNet = periodReport ? this.fmt(periodReport.netReceiptsCents / 100) : '—';
+    V.unknownPaymentCount = periodReport?.unknownPaymentCount || 0;
+    V.unknownRefundDateCount = periodReport?.unknownRefundDateCount || 0;
+    V.unknownStatusCount = periodReport?.unknownStatusCount || 0;
     const stTags = { completada: ['Completada', 'success'], cancelada: ['Cancelada', 'destructive'], reembolsada: ['Reembolsada', 'outline'] };
     const compensationLabel = sale => {
-      if (!Array.isArray(sale.compensations) || !sale.compensations.length) return stTags[sale.status][0];
+      const status = stTags[sale.status] || ['Estado no identificado', 'outline'];
+      if (!Array.isArray(sale.compensations) || !sale.compensations.length) return status[0];
       try {
         const returned = compensationTotalCents(sale);
         const suffix = sale.compensations.some(event => event.kind === 'void') ? 'anulada' : returned === saleTotalCents(sale) ? 'reembolsada' : 'reembolso parcial';
-        return stTags[sale.status][0] + ' · ' + suffix;
-      } catch { return stTags[sale.status][0] + ' · devoluciones por revisar'; }
+        return status[0] + ' · ' + suffix;
+      } catch { return status[0] + ' · devoluciones por revisar'; }
     };
-    V.repSales = rs.map(x => ({ folio: x.folio, fecha: x.fecha, tipo: x.tipo, user: x.cobro, total: this.fmt(x.total), statusLabel: compensationLabel(x), statusVariant: stTags[x.status][1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronizada', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) }));
+    const branchDate = value => {
+      const at = recordedUtcInstant(value);
+      if (!at) return 'Fecha real sin dato';
+      try { return new Intl.DateTimeFormat('es-MX', { timeZone: s.reportTimeZone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(at)); }
+      catch { return 'Fecha real sin dato'; }
+    };
+    const saleRow = x => ({ folio: x.folio, fecha: branchDate(reportSaleInstant(x)), tipo: typeof x.tipo === 'string' ? x.tipo : 'Tipo sin dato', user: typeof x.cobro === 'string' ? x.cobro : 'Usuario sin dato', total: Number.isFinite(x.total) ? this.fmt(x.total) : '—', statusLabel: compensationLabel(x), statusVariant: (stTags[x.status] || ['Estado no identificado', 'outline'])[1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronización sin confirmar', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) });
+    V.repSales = rs.filter(x => x && typeof x.folio === 'string').map(saleRow);
+    V.unknownDateSales = storedSales.filter(sale => sale && typeof sale === 'object' && typeof sale.folio === 'string' && reportSaleInstant(sale) === null).map(sale => ({ folio: sale.folio, label: typeof sale.fecha === 'string' ? sale.fecha : 'Etiqueta histórica sin fecha', type: typeof sale.tipo === 'string' ? sale.tipo : 'Tipo sin dato', status: compensationLabel(sale), open: () => this.setState({ repSel: sale.folio }) }));
+    V.periodReturns = periodReport ? periodReport.refundEvents.map(event => {
+      const source = storedSales[event.saleIndex];
+      const original = Array.isArray(source?.compensations) ? source.compensations.find(item => item.commandId === event.commandId && recordedUtcInstant(item.occurredAt) === event.occurredAt) : null;
+      return { kind: event.kind === 'void' ? 'Anulación' : 'Reembolso', folio: typeof source?.folio === 'string' ? source.folio : 'Folio sin dato', date: branchDate(event.occurredAt), amount: this.fmt(centsToMoney(event.amountCents)), reason: typeof original?.reason === 'string' ? original.reason : 'Motivo sin dato', actor: typeof original?.actorName === 'string' ? original.actorName : 'Usuario sin dato' };
+    }) : [];
+    V.unknownDateReturns = storedSales.flatMap(sale => Array.isArray(sale?.compensations) ? sale.compensations.filter(event => event && ['refund', 'void'].includes(event.kind) && recordedUtcInstant(event.occurredAt) === null).map(event => ({ kind: event.kind === 'void' ? 'Anulación' : 'Reembolso', folio: typeof sale.folio === 'string' ? sale.folio : 'Folio sin dato', label: typeof event.fecha === 'string' ? event.fecha : 'Sin fecha real', amount: Number.isSafeInteger(event.amountCents) && event.amountCents >= 0 ? this.fmt(centsToMoney(event.amountCents)) : 'Importe sin validar' })) : []);
     V.exportar = () => this.exportSales();
-    const sel = s.sales.find(x => x.folio === s.repSel);
+    const sel = storedSales.find(x => x && typeof x === 'object' && x.folio === s.repSel);
     V.hasRepSel = !!sel && this.can('viewReports');
     if (sel) {
-      V.dFolio = sel.folio; V.dStatusLabel = compensationLabel(sel); V.dStatusVariant = stTags[sel.status][1];
-      V.dMeta = sel.fecha + ' · ' + sel.tipo + ' — creó ' + sel.creo + ' · cobró ' + sel.cobro + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'sincronizada');
+      V.dFolio = sel.folio; V.dStatusLabel = compensationLabel(sel); V.dStatusVariant = (stTags[sel.status] || ['Estado no identificado', 'outline'])[1];
+      V.dMeta = branchDate(reportSaleInstant(sel)) + ' · ' + textField(sel.tipo) + ' — creó ' + textField(sel.creo) + ' · cobró ' + textField(sel.cobro) + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'estado local');
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
-      V.dItems = sel.items.map(i => ({ qty: i.qty, name: i.name, mods: i.mods, hasMods: !!i.mods, total: this.fmt(i.total) }));
+      V.dItems = (Array.isArray(sel.items) ? sel.items : []).filter(i => i && typeof i === 'object').map(i => ({ qty: Number.isFinite(i.qty) ? i.qty : '—', name: textField(i.name), mods: textField(i.mods), hasMods: !!i.mods, total: Number.isFinite(i.total) ? this.fmt(i.total) : '—' }));
       const isExternalPayment = payment => {
         const method = String(payment?.methodLabel || payment?.method || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
         return ['card', 'tarjeta', 'transfer', 'transferencia'].includes(method);
@@ -2495,22 +2603,26 @@ export default class PosApp extends React.Component {
         : externalPayments.length > 0
           ? 'Verificación externa sin dato registrado en este historial.'
           : '';
-      const salePaymentRows = Array.isArray(sel.tenders) ? sel.tenders : sel.payments;
-      V.dPays = salePaymentRows.map(p => ({
-        method: p.methodLabel || ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', credit: 'Crédito' })[p.method] || p.method,
-        amount: this.fmt(centsToMoney(paymentNetCents(p) ?? 0)),
-        hasCashChange: Number.isSafeInteger(p.tenderedCents ?? p.cashReceivedCents) && Number.isSafeInteger(p.changeCents) && p.changeCents > 0,
-        tendered: Number.isSafeInteger(p.tenderedCents ?? p.cashReceivedCents) ? this.fmt(centsToMoney(p.tenderedCents ?? p.cashReceivedCents)) : '',
-        change: Number.isSafeInteger(p.changeCents) ? this.fmt(centsToMoney(p.changeCents)) : '',
-      }));
-      V.dTip = this.fmt(sel.tip); V.dTotal = this.fmt(sel.total);
-      V.dCompensations = (Array.isArray(sel.compensations) ? sel.compensations : []).map(event => ({ id: event.commandId, kind: event.kind === 'void' ? 'Anulación manual' : 'Reembolso manual', amount: this.fmt(centsToMoney(event.amountCents)), actor: event.actorName, date: event.occurredAt, reason: event.reason, allocations: (Array.isArray(event.allocations) ? event.allocations : []).map(entry => ({ label: compensationMethodLabels.get(entry.method) || 'Pago', amount: this.fmt(centsToMoney(entry.amountCents)) })) }));
+      const salePaymentRows = Array.isArray(sel.tenders) ? sel.tenders : Array.isArray(sel.payments) ? sel.payments : [];
+      V.dPays = salePaymentRows.filter(p => p && typeof p === 'object').map(p => {
+        let netCents = null;
+        try { netCents = paymentNetCents(p); } catch { /* Show unknown historical amounts without making them chargeable. */ }
+        return {
+          method: typeof p.methodLabel === 'string' ? p.methodLabel : ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', credit: 'Crédito' })[p.method] || 'Forma sin dato',
+          amount: Number.isSafeInteger(netCents) && netCents >= 0 ? this.fmt(centsToMoney(netCents)) : 'Importe sin validar',
+          hasCashChange: Number.isSafeInteger(p.tenderedCents ?? p.cashReceivedCents) && Number.isSafeInteger(p.changeCents) && p.changeCents > 0,
+          tendered: Number.isSafeInteger(p.tenderedCents ?? p.cashReceivedCents) && (p.tenderedCents ?? p.cashReceivedCents) >= 0 ? this.fmt(centsToMoney(p.tenderedCents ?? p.cashReceivedCents)) : '',
+          change: Number.isSafeInteger(p.changeCents) && p.changeCents >= 0 ? this.fmt(centsToMoney(p.changeCents)) : '',
+        };
+      });
+      V.dTip = Number.isFinite(sel.tip) ? this.fmt(sel.tip) : '—'; V.dTotal = Number.isFinite(sel.total) ? this.fmt(sel.total) : '—';
+      V.dCompensations = (Array.isArray(sel.compensations) ? sel.compensations : []).filter(event => event && typeof event === 'object').map(event => ({ id: textField(event.commandId), kind: event.kind === 'void' ? 'Anulación manual' : 'Reembolso manual', amount: Number.isSafeInteger(event.amountCents) ? this.fmt(centsToMoney(event.amountCents)) : 'Importe sin validar', actor: textField(event.actorName), date: textField(event.occurredAt), reason: textField(event.reason), allocations: (Array.isArray(event.allocations) ? event.allocations : []).filter(entry => entry && typeof entry === 'object').map(entry => ({ label: compensationMethodLabels.get(entry.method) || 'Pago', amount: Number.isSafeInteger(entry.amountCents) ? this.fmt(centsToMoney(entry.amountCents)) : 'Importe sin validar' })) }));
       let availableRefund = false; let availableVoid = false;
       try { const refunded = compensationTotalCents(sel); availableRefund = refunded < saleTotalCents(sel); availableVoid = refunded === 0; } catch { /* Require reconciliation before any compensation. */ }
       V.canRefundSale = this.can('refundSaleWithReason') && sel.status === 'completada' && availableRefund;
       V.canVoidSale = V.canRefundSale && availableVoid;
       V.refundSale = () => this.openSaleCompensation(sel.folio, 'refund'); V.voidSale = () => this.openSaleCompensation(sel.folio, 'void');
-      V.dAudit = sel.audit.map(a => ({ t: a[0], e: a[1], u: a[2] }));
+      V.dAudit = (Array.isArray(sel.audit) ? sel.audit : []).filter(Array.isArray).map(a => ({ t: textField(a[0]), e: textField(a[1]), u: textField(a[2]) }));
       V.closeDetail = () => this.setState({ repSel: null });
     } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPaymentVerificationMessage: '', dPays: [], dTip: '', dTotal: '', dAudit: [], dCompensations: [], canRefundSale: false, canVoidSale: false, refundSale: () => {}, voidSale: () => {}, closeDetail: () => {} }); }
 
@@ -3120,26 +3232,42 @@ export default class PosApp extends React.Component {
 <div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
 {(V.ranges).map((r, rI) => (<Button key={rI} type="button" size="sm" variant={r.active ? 'default' : 'outline'} aria-pressed={r.active} onClick={r.pick}>{r.label}</Button>))}
 </div>
-<Button type="button" variant="outline" className="ml-auto" onClick={V.exportar}>Exportar CSV para Excel</Button>
+<Button type="button" variant="outline" className="ml-auto" disabled={!V.reportReady} onClick={V.exportar}>Exportar CSV para Excel</Button>
 </div>
+<Card className="gap-3 p-4">
+<div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)]">
+<div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor="report-time-zone">Zona horaria IANA del reporte</Label><Input id="report-time-zone" value={V.reportTimeZone} maxLength={100} onChange={V.setReportTimeZone} aria-describedby="report-period-help" /></div>
+{V.isCustomReportRange && <>
+<div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor="report-start-local">Desde (hora local)</Label><Input id="report-start-local" type="datetime-local" value={V.reportStartLocal} onChange={V.setReportStart} /></div>
+<div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor="report-end-local">Hasta (exclusiva, hora local)</Label><Input id="report-end-local" type="datetime-local" value={V.reportEndLocal} onChange={V.setReportEnd} /></div>
+<div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor="report-repeated-hour">Si una hora se repitió</Label><select id="report-repeated-hour" className="h-10 rounded-md border bg-background px-3 text-sm" value={V.reportRepeatedChoice} onChange={V.setReportRepeatedChoice}><option value="reject">Pedir una decisión si aparece</option><option value="earlier">Usar la primera ocurrencia</option><option value="later">Usar la segunda ocurrencia</option></select></div>
+</>}
+</div>
+<p id="report-period-help" className="m-0 text-xs text-muted-foreground">Las fechas y horas se interpretan en esta zona horaria. El límite final no se incluye. Una hora local inexistente se rechaza; una hora repetida requiere elegir su ocurrencia.</p>
+{V.reportPeriodLabel && <p className="m-0 break-words text-xs" role="status">Periodo: {V.reportPeriodLabel}</p>}
+{V.reportError && <p className="m-0 rounded-md border border-destructive/40 p-3 text-sm text-destructive" role="alert">{V.reportError}</p>}
+</Card>
+{V.reportReady && <>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px")}>
-<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Ventas</div><div style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;margin-top:8px")}>{V.repVentas}</div></Card>
+<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cobros originales (incluye propinas)</div><div style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;margin-top:8px")}>{V.repVentas}</div></Card>
 <Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Tickets</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repTickets}</div></Card>
-<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Propinas</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repProps}</div></Card>
+<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Propinas identificadas</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repProps}</div>{V.unknownTips > 0 && <span className="text-xs text-muted-foreground">{V.unknownTips} ventas con propina sin dato, excluidas de este total.</span>}</Card>
 <Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cancelaciones de cuentas</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repCanc}</div></Card>
 </div>
 <div className="grid gap-3 sm:grid-cols-3" aria-label="Devoluciones y neto">
-<Card className="gap-2 p-4"><div>Reembolsos y anulaciones</div><strong>{V.repRefunds}</strong><span className="text-xs text-muted-foreground">{V.repRefundCount} reembolsos · {V.repVoids} anulaciones</span></Card>
+<Card className="gap-2 p-4"><div>Reembolsos</div><strong>{V.repRefundOnly}</strong><span className="text-xs text-muted-foreground">{V.repRefundCount} movimientos por fecha de devolución</span></Card>
+<Card className="gap-2 p-4"><div>Anulaciones</div><strong>{V.repVoidOnly}</strong><span className="text-xs text-muted-foreground">{V.repVoids} movimientos por fecha de anulación</span></Card>
 <Card className="gap-2 p-4"><div>Neto tras devoluciones</div><strong>{V.repNet}</strong></Card>
-<Card className="gap-2 p-4"><div className="text-xs text-muted-foreground">Los pagos originales se conservan. Las devoluciones manuales no confirman liquidación bancaria ni compensación de inventario.</div></Card>
 </div>
+{(V.unknownPaymentCount || V.unknownRefundDateCount || V.unknownStatusCount) > 0 && <p className="m-0 rounded-md bg-muted p-3 text-xs" role="status">Hay importes o fechas heredadas sin evidencia suficiente: {V.unknownPaymentCount} pagos sin método/importe conciliable · {V.unknownRefundDateCount} devoluciones sin fecha · {V.unknownStatusCount} estados sin clasificar. No se asignan a otro periodo.</p>}
 <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px")}>
 <Card className="gap-3 p-4">
-<div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cobros originales por forma de pago</div>
+<div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Conciliación por forma de pago</div>
 {(V.methods).map((m, mI) => (<React.Fragment key={mI}>
 <div style={css("display:flex;flex-direction:column;gap:4px")}>
-<div style={css("display:flex;justify-content:space-between;font-size:13px")}><span>{m.label}</span><span style={css("font-weight:500")}>{m.amount}</span></div>
+                  <div style={css("display:flex;justify-content:space-between;font-size:13px")}><span>{m.label}</span><span style={css("font-weight:500")}>{m.amount} recibido</span></div>
 <div style={css("height:5px;background:#f0eee6;border-radius:999px")}><div style={m.barStyle}></div></div>
+<div className="flex flex-wrap justify-between gap-x-2 text-xs text-muted-foreground"><span>Devuelto: {m.returned}</span><strong>Neto: {m.net}</strong></div>
 </div>
 </React.Fragment>))}
 </Card>
@@ -3156,12 +3284,16 @@ export default class PosApp extends React.Component {
 </React.Fragment>))}
 </Card>
 </div>
+{V.periodReturns.length > 0 && <Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Devoluciones y anulaciones del periodo', tabIndex: 0 }} className="min-w-[900px]"><TableHeader><TableRow><TableHead>Movimiento</TableHead><TableHead>Folio de origen</TableHead><TableHead>Fecha del movimiento</TableHead><TableHead>Importe</TableHead><TableHead>Registró</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader><TableBody>{V.periodReturns.map((event, index) => <TableRow key={`${event.kind}-${event.folio}-${index}`}><TableCell>{event.kind}</TableCell><TableCell>{event.folio}</TableCell><TableCell>{event.date}</TableCell><TableCell>{event.amount}</TableCell><TableCell>{event.actor}</TableCell><TableCell>{event.reason}</TableCell></TableRow>)}</TableBody></Table></Card>}
 <div className="text-xs text-muted-foreground lg:hidden">Desliza para ver total, estado y sincronización →</div>
 <Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Ventas del reporte', tabIndex: 0 }} className="min-w-[1000px]">
 <TableHeader><TableRow><TableHead>Folio</TableHead><TableHead>Fecha</TableHead><TableHead>Tipo</TableHead><TableHead>Usuario</TableHead><TableHead>Total</TableHead><TableHead>Estado</TableHead><TableHead>Sincronización</TableHead></TableRow></TableHeader>
 <TableBody>{(V.repSales).map((s, sI) => (<TableRow key={sI}>
 <TableCell><Button type="button" variant="link" size="sm" className="h-11 justify-start px-0" aria-label={`Abrir detalle de venta ${s.folio}`} onClick={s.open}>{s.folio}</Button></TableCell><TableCell className="text-muted-foreground">{s.fecha}</TableCell><TableCell>{s.tipo}</TableCell><TableCell className="text-muted-foreground">{s.user}</TableCell><TableCell className="font-medium">{s.total}</TableCell><TableCell><Badge variant={s.statusVariant}>{s.statusLabel}</Badge></TableCell><TableCell><Badge variant={s.syncVariant}>{s.syncLabel}</Badge></TableCell>
 </TableRow>))}</TableBody></Table></Card>
+</>}
+{V.unknownDateReturns.length > 0 && <Card className="gap-2 p-4"><h2 className="m-0 text-sm font-medium">Devoluciones heredadas sin fecha real</h2><p className="m-0 text-xs text-muted-foreground">Se conservan para consulta y se excluyen de los totales por periodo.</p>{V.unknownDateReturns.map((event, index) => <div key={`${event.kind}-${event.folio}-${index}`} className="flex flex-wrap justify-between gap-2 border-t pt-2 text-xs"><span>{event.kind} · {event.folio} · {event.label}</span><span>{event.amount}</span></div>)}</Card>}
+{V.unknownDateSales.length > 0 && <Card className="gap-0 overflow-hidden p-0"><div className="p-4"><h2 className="m-0 text-sm font-medium">Historial heredado sin fecha real · {V.unknownDateSales.length}</h2><p className="m-0 mt-1 text-xs text-muted-foreground">Estas ventas se conservan para consulta; la etiqueta histórica no se convierte en fecha y no participa en los periodos ni en sus totales.</p></div><Table containerProps={{ 'aria-label': 'Ventas heredadas sin fecha real', tabIndex: 0 }} className="min-w-[650px]"><TableHeader><TableRow><TableHead>Folio</TableHead><TableHead>Etiqueta original (no es fecha)</TableHead><TableHead>Tipo</TableHead><TableHead>Estado capturado</TableHead></TableRow></TableHeader><TableBody>{V.unknownDateSales.map((sale, index) => <TableRow key={`${sale.folio}-${index}`}><TableCell><Button type="button" variant="link" size="sm" className="h-11 justify-start px-0" aria-label={`Abrir historial heredado ${sale.folio}`} onClick={sale.open}>{sale.folio}</Button></TableCell><TableCell>{sale.label}</TableCell><TableCell>{sale.type}</TableCell><TableCell>{sale.status}</TableCell></TableRow>)}</TableBody></Table></Card>}
 </div>
 </>)}
 

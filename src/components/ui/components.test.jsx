@@ -760,7 +760,7 @@ describe('manual checkout tips and offline tender capture', () => {
     const user = userEvent.setup();
     render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
     await user.click(await screen.findByRole('button', { name: 'Reportes' }));
-    await user.click(screen.getByRole('button', { name: 'Abrir detalle de venta A-LEGACY-CARD' }));
+    await user.click(screen.getByRole('button', { name: 'Abrir historial heredado A-LEGACY-CARD' }));
     await screen.findByRole('dialog', { name: /A-LEGACY-CARD/ });
     expect(screen.getByRole('status').textContent).toBe('Verificación externa sin dato registrado en este historial.');
     expect(screen.queryByText(/aprobada|autorizada/i)).toBeNull();

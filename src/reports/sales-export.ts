@@ -2,11 +2,17 @@ import {
   adaptPosStateToCompatibleSnapshot,
   type PosCompatibleSnapshotInput,
 } from "../offline-sync/pos-compatible-snapshot.ts";
+import {
+  recordedUtcInstant,
+  reportSaleInstant,
+  type ReportPeriod,
+} from "./report-period.ts";
 
 /** Local recorded evidence only. No upload receipt or historical date is inferred. */
 export interface SalesExportOptions extends PosCompatibleSnapshotInput {
   timeZone: string;
   selectionLabel: string;
+  period?: ReportPeriod;
 }
 
 const headers = [
@@ -51,8 +57,9 @@ export function csvCell(value: string | number | null): string {
 }
 
 /**
- * Export the exact selected records. Unknown legacy dates remain blank and
- * marked; this does not certify a real-time period, backup, or settlement.
+ * Export selected sales and period-dated compensations. In period mode,
+ * undated legacy sales stay in a clearly separate evidence group, while a
+ * refund from an older sale is included by the refund's own recorded time.
  */
 export function createSalesCsv(
   selectedSales: unknown[],
@@ -86,57 +93,73 @@ export function createSalesCsv(
     options,
   );
   const rows: Array<Array<string | number | null>> = [];
-  const realDate = (at: string | null): string | null => {
-    if (
-      at === null ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(at) ||
-      !Number.isFinite(Date.parse(at))
-    )
-      return null;
-    const iso = new Date(at).toISOString();
-    return iso.slice(0, 19) === at.slice(0, 19) ? iso : null;
-  };
+  const realDate = recordedUtcInstant;
+  const period = options.period;
+  if (
+    period &&
+    (period.timeZone !== options.timeZone ||
+      realDate(period.startUtc) === null ||
+      realDate(period.endUtcExclusive) === null ||
+      Date.parse(period.endUtcExclusive) <= Date.parse(period.startUtc))
+  )
+    throw new TypeError("Invalid report period");
+  const inPeriod = (at: string | null) =>
+    !!period &&
+    at !== null &&
+    Date.parse(at) >= Date.parse(period.startUtc) &&
+    Date.parse(at) < Date.parse(period.endUtcExclusive);
   const dateCells = (at: string | null) => {
     const iso = realDate(at);
     return [at, iso, iso === null ? null : dateFormat.format(new Date(iso))];
   };
   let unknownDateCount = 0;
+  let periodSaleCount = 0;
   for (const sale of snapshot.sales) {
-    if (realDate(sale.occurredAt) === null) unknownDateCount += 1;
+    const saleAt = reportSaleInstant(sale);
+    const unknownSaleDate = saleAt === null;
+    const includeSale =
+      !period || inPeriod(saleAt) || (period !== undefined && unknownSaleDate);
+    if (unknownSaleDate) unknownDateCount += 1;
+    else if (!period || inPeriod(saleAt)) periodSaleCount += 1;
     const base = [options.timeZone, "MXN"];
-    const tail = [
-      options.selectionLabel,
+    const tail = (legacy = false) => [
+      legacy && period
+        ? "Legado sin fecha real; separado del periodo"
+        : options.selectionLabel,
       "Registro local; acuse servidor no comprobado",
     ];
-    rows.push([
-      "venta",
-      sale.folio,
-      null,
-      ...dateCells(sale.occurredAt),
-      ...base,
-      money(sale.money.totalCents),
-      money(sale.money.tipCents),
-      null,
-      null,
-      null,
-      null,
-      null,
-      sale.paidBy.name,
-      sale.status,
-      realDate(sale.occurredAt) === null
-        ? "Fecha real sin dato; no asignar a periodo contable"
-        : "Importes capturados; autorización externa no comprobada",
-      null,
-      null,
-      null,
-      ...tail,
-    ]);
-    for (const payment of sale.payments) {
+    if (includeSale)
+      rows.push([
+        "venta",
+        sale.folio,
+        null,
+        ...dateCells(saleAt ?? sale.occurredAt),
+        ...base,
+        money(sale.money.totalCents),
+        money(sale.money.tipCents),
+        null,
+        null,
+        null,
+        null,
+        null,
+        sale.paidBy.name,
+        sale.status,
+        unknownSaleDate
+          ? period
+            ? "Fecha real sin dato; evidencia histórica separada y excluida del periodo"
+            : "Fecha real sin dato; no asignar a periodo contable"
+          : "Importes capturados; autorización externa no comprobada",
+        null,
+        null,
+        null,
+        ...tail(unknownSaleDate),
+      ]);
+    for (const payment of includeSale ? sale.payments : []) {
       rows.push([
         "pago",
         sale.folio,
         payment.paymentId,
-        ...dateCells(sale.occurredAt),
+        ...dateCells(saleAt ?? sale.occurredAt),
         ...base,
         null,
         null,
@@ -151,12 +174,42 @@ export function createSalesCsv(
         null,
         payment.paymentId,
         null,
-        ...tail,
+        ...tail(unknownSaleDate),
       ]);
     }
     for (const event of sale.compensations) {
-      if (realDate(event.occurredAt) === null)
+      const eventAt = realDate(event.occurredAt);
+      if (eventAt === null && !period)
         throw new TypeError("Invalid compensation date");
+      if (period && eventAt === null) {
+        rows.push([
+          `legado_${event.kind}_sin_fecha`,
+          sale.folio,
+          event.commandId,
+          ...dateCells(null),
+          ...base,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          money(event.amountCents),
+          event.actorName,
+          sale.status,
+          "Fecha real de devolución sin dato; evidencia histórica separada y excluida del periodo",
+          event.reason,
+          event.paymentId,
+          "Sin fecha verificable",
+          ...tail(true),
+        ]);
+        continue;
+      }
+      if (eventAt === null || (period && !inPeriod(eventAt))) continue;
+      if (sale.status === "cancelada")
+        throw new TypeError(
+          "Refund on an unpaid cancellation requires reconciliation",
+        );
       if (event.allocations.length === 0) {
         rows.push([
           event.kind,
@@ -177,7 +230,7 @@ export function createSalesCsv(
           event.reason,
           event.paymentId,
           "Incompleta",
-          ...tail,
+          ...tail(false),
         ]);
       } else {
         for (const allocation of event.allocations) {
@@ -202,7 +255,7 @@ export function createSalesCsv(
             event.allocationEvidence === "verified"
               ? "Completa con pagos capturados; no confirma proveedor"
               : "Incompleta",
-            ...tail,
+            ...tail(false),
           ]);
         }
       }
@@ -214,7 +267,7 @@ export function createSalesCsv(
       [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") +
       "\r\n",
     unknownDateCount,
-    saleCount: snapshot.sales.length,
+    saleCount: period ? periodSaleCount : snapshot.sales.length,
     rowCount: rows.length,
   };
 }

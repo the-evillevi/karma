@@ -1,0 +1,16 @@
+# EVL-130 real periods — root review with fixes
+
+Root reviewed27dc6d6/f1b13ce and the final follow-up against the issue's actual period/export intent. Inspected calendar conversion, strict recorded UTC dates, calendar-day presets, exclusive boundaries, DST gaps/folds, safe integer financial arithmetic, event-dated returns, current report authority, legacy evidence separation, CSV quoting/formula escaping, and the rendered dashboard/download flows.
+
+Fixed reproduced findings:
+
+- Cancellations already recorded a UTC cancelledAt but the period lookup read only occurredAt/legacy fecha. A shared reportSaleInstant now uses actual cancellation evidence for both report filtering and CSV; it never invents dates from display labels. Domain and mounted-screen cases prove cancellation counts without receipts and unchanged historical records.
+- Normalized refund dates ended in .000Z, while valid original UTC strings could end in Z; raw equality lost the displayed reason/actor. Compare normalized recorded instants. The old-sale return screen/browser case uses the short original form and retains its reason.
+- Financial report replay and timezone sampling ran on every order-entry render. Calculate that projection only on the authorized Reports view; a mounted POS typing regression proves it is not called.
+- A refund attached to an unpaid cancelled account could reduce period receipts. Fail closed for this contradictory source instead of inventing received funds; domain regression proves the denial.
+
+Final123 domain/123 component cases pass (two screen workers), including15 focused report/compensation screen cases, formatting/diff checks, lint/types, production/PWA builds and client credential scan. The full suite's existing compensation assertions now open Reports before reading its computed values. Final scoped reports/PosApp scans each returned zero medium+ findings; adjacent JSON retains the returned results. The functional report rewrite uses Map aggregation rather than the old object accumulators.
+
+An actual Chromium run against the final production build downloaded `/tmp/karma-130-period-browser.csv` without page errors. Independent Python CSV parsing verified23 aligned columns, period receipt50 minus return10 equals net40, the older sale has no receipt/payment rows, return reason remains present, and legacy evidence has no fabricated UTC date and a separate selection group. Root inspected the rendered dashboard image; receipt/return/net values agree. Native Excel rendering was not witnessed.
+
+Acceptance is partial: real branch-local presets/custom ranges, explicit zone, DST decision/error, event-dated refund/void reconciliation and truthful local CSV are delivered. Unknown-date sales and returns remain separate read-only evidence and are excluded from period totals; consumers must use CSV record/selection groups, not sum unlike row types. Presets reject a nonexistent calendar midnight instead of guessing one; custom times support years100–9999. Local received records are not provider settlement, trusted server financial truth, upload acknowledgement or a historical backup. Authoritative server/catalog/tax/retention and native Excel/operator acceptance remain gates; no production-ready claim.

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSalesCsv, csvCell } from "./sales-export.ts";
+import { customReportPeriod } from "./report-period.ts";
 const options = {
   snapshotId: "report:1",
   branchId: "branch",
@@ -80,6 +81,60 @@ test("preserves unknown historical dates and refund dates without inventing peri
     report.csv,
     /"Error corregido","cash-1","Completa con pagos capturados; no confirma proveedor"/,
   );
+});
+test("period export omits an older receipt but includes its period-dated refund and separates unknown-date records", () => {
+  const older = {
+    ...sale(),
+    folio: "A-OLD",
+    occurredAt: "2026-09-29T12:00:00.000Z",
+    payments: [{ ...sale().payments[0], paymentId: "cash-old" }],
+    compensations: [
+      {
+        commandId: "refund-old",
+        kind: "refund",
+        amountCents: 1000,
+        actorId: "manager",
+        actorName: "Encargado",
+        reason: "Devolución posterior",
+        occurredAt: "2026-09-30T18:30:00.000Z",
+        allocations: [
+          { paymentId: "cash-old", method: "cash", amountCents: 1000 },
+        ],
+      },
+    ],
+  };
+  const current = {
+    ...sale(),
+    folio: "A-CURRENT",
+    occurredAt: "2026-09-30T18:00:00.000Z",
+  };
+  const legacy = {
+    ...sale(),
+    folio: "A-LEGACY",
+    occurredAt: undefined,
+    fecha: "Hoy · 09:00",
+  };
+  const period = customReportPeriod(
+    "2026-09-30T12:00",
+    "2026-09-30T14:00",
+    "America/Mexico_City",
+  );
+  const report = createSalesCsv([older, current, legacy], {
+    ...options,
+    period,
+    selectionLabel: period.label,
+  });
+  assert.equal(report.saleCount, 1);
+  assert.equal(report.unknownDateCount, 1);
+  assert.match(report.csv, /"A-CURRENT"/);
+  assert.doesNotMatch(report.csv, /"venta","A-OLD"/);
+  assert.doesNotMatch(report.csv, /"pago","A-OLD"/);
+  assert.match(
+    report.csv,
+    /"refund","A-OLD","refund-old","2026-09-30T18:30:00.000Z"/,
+  );
+  assert.match(report.csv, /"A-LEGACY"/);
+  assert.match(report.csv, /Legado sin fecha real; separado del periodo/);
 });
 test("fails closed on inconsistent amounts and invalid time zone; neutralizes formula and CSV injection", () => {
   assert.throws(() =>
