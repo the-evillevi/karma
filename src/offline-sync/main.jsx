@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { safeDiagnostic } from "./sync-diagnostic.js";
 import { PwaUpdateControl } from "../pwa/PwaUpdateControl.tsx";
@@ -43,7 +43,7 @@ function isNetworkUnavailable(error) {
   return error instanceof TypeError || error?.name === "FetchError";
 }
 
-function OfflineSyncDemo() {
+export function OfflineSyncDemo() {
   const databasePromise = useMemo(() => openOfflineDatabase(databaseName), []);
   const supabasePromise = useMemo(() => createSupabaseClient(), []);
   const [database, setDatabase] = useState(null);
@@ -53,6 +53,7 @@ function OfflineSyncDemo() {
   const [session, setSession] = useState(null);
   const [deviceContext, setDeviceContext] = useState(null);
   const [offlineRoster, setOfflineRoster] = useState(readIdentityRoster);
+  const offlineRosterRef = useRef(offlineRoster);
   const [activeGrant, setActiveGrant] = useState(null);
   const [selectedOfflineUser, setSelectedOfflineUser] = useState("");
   const [identityPin, setIdentityPin] = useState("");
@@ -73,13 +74,13 @@ function OfflineSyncDemo() {
   }, [deviceContext, selectedOfflineUser]);
 
   useEffect(() => {
-    const blocked = busy || password.length > 0;
+    const blocked = busy || password.length > 0 || identityPin.length > 0 || identityPinConfirm.length > 0;
     reportUpdateSafety(blocked
-      ? { status: "blocked", reason: busy ? "Hay una operación de sincronización activa." : "Hay datos del formulario de acceso sin revisar." }
+      ? { status: "blocked", reason: busy ? "Hay una operación de sincronización activa." : "Hay datos de acceso o un PIN sin guardar." }
       : database && supabase
         ? { status: "safe", reason: "" }
         : { status: "unknown", reason: "La base local todavía está abriendo." });
-  }, [busy, password, database, supabase]);
+  }, [busy, password, identityPin, identityPinConfirm, database, supabase]);
 
   const refreshLocal = useCallback(async () => {
     if (!database) return;
@@ -94,22 +95,24 @@ function OfflineSyncDemo() {
   }, [database]);
 
   const saveOfflineRoster = useCallback((nextRoster) => {
+    offlineRosterRef.current = nextRoster;
     window.localStorage.setItem(identityRosterKey, JSON.stringify(nextRoster));
     setOfflineRoster(nextRoster);
   }, []);
 
   const clearCachedIdentity = useCallback((userId) => {
-    saveOfflineRoster(offlineRoster.filter((grant) => grant.userId !== userId));
+    saveOfflineRoster(offlineRosterRef.current.filter((grant) => grant.userId !== userId));
     setActiveGrant((current) => current?.userId === userId ? null : current);
-  }, [offlineRoster, saveOfflineRoster]);
+  }, [saveOfflineRoster]);
 
   const refreshOfflineGrantContext = useCallback((verified) => {
-    const existing = offlineRoster.find((grant) => grant.userId === verified.userId);
+    const currentRoster = offlineRosterRef.current;
+    const existing = currentRoster.find((grant) => grant.userId === verified.userId);
     if (!existing) return;
     const refreshed = { ...existing, ...verified };
-    saveOfflineRoster(offlineRoster.map((grant) => grant.userId === refreshed.userId ? refreshed : grant));
+    saveOfflineRoster(currentRoster.map((grant) => grant.userId === refreshed.userId ? refreshed : grant));
     setActiveGrant((current) => current?.userId === refreshed.userId ? refreshed : current);
-  }, [offlineRoster, saveOfflineRoster]);
+  }, [saveOfflineRoster]);
 
   const resolveDeviceContext = useCallback(async (client, user) => {
     const cached = window.localStorage.getItem(cachedContextKey);
@@ -287,6 +290,7 @@ function OfflineSyncDemo() {
       return;
     }
     setSession(result.data.session);
+    setPassword("");
     try {
       const context = await resolveDeviceContext(supabase, result.data.session.user);
       setDeviceContext(context);
@@ -549,4 +553,5 @@ const styles = {
   note: { background: "#f3f5f7", borderRadius: 8, padding: 14, color: "#46505b", fontSize: 14, lineHeight: 1.5 },
 };
 
-createRoot(document.getElementById("root")).render(<OfflineSyncDemo />);
+const rootElement = document.getElementById("root");
+if (rootElement) createRoot(rootElement).render(<OfflineSyncDemo />);
