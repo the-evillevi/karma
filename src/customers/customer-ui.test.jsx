@@ -359,3 +359,28 @@ it('does not render customer balances for a cashier even if local UI state names
   expect(screen.queryByRole('heading', { name: 'Clientes y cuentas' })).toBeNull();
   expect(screen.queryByRole('table', { name: 'Perfiles y saldos de clientes' })).toBeNull();
 });
+
+it('removes customer profile dialogs on identity changes and rejects their captured commands', async () => {
+  const key = posAccessStorageKey('secure', 'branch-customers', 'register-customers');
+  const storage = memoryStorage(null);
+  storage.setItem(key, JSON.stringify({ customerLedger: accountLedgerWithDebt() }));
+  const user = userEvent.setup();
+  const owner = mountSecure('duena');
+  await user.click(await screen.findByRole('button', { name: 'Clientes y cuentas' }));
+  await user.click(within(await screen.findByRole('row', { name: /Ana García/ })).getByRole('button', { name: 'Editar perfil' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Editar perfil de cliente' });
+  expect(within(dialog).getByRole('textbox', { name: 'Teléfono (opcional)' }).value).toBe('555-0100');
+  const captured = { ...owner.appRef.current.state.dlg, reason: 'Intento bajo otra identidad' };
+  const before = JSON.parse(storage.getItem(key)).customerLedger;
+  owner.rerender(<PosApp ref={owner.appRef} {...secureProps('duena', { accessContext: verifiedContext('duena', { userId: 'other-owner' }) })} />);
+  expect(screen.queryByRole('dialog', { name: 'Editar perfil de cliente' })).toBeNull();
+  act(() => expect(captured.onConfirm(captured)).toBe('keep'));
+  expect(JSON.parse(storage.getItem(key)).customerLedger).toEqual(before);
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Entendido' }));
+  await user.click(within(screen.getByRole('row', { name: /Ana García/ })).getByRole('button', { name: 'Editar perfil' }));
+  await screen.findByRole('dialog', { name: 'Editar perfil de cliente' });
+  owner.rerender(<PosApp ref={owner.appRef} {...secureProps('barra')} />);
+  expect(screen.queryByRole('dialog', { name: 'Editar perfil de cliente' })).toBeNull();
+  expect(screen.queryByDisplayValue('555-0100')).toBeNull();
+  expect(JSON.parse(storage.getItem(key)).customerLedger).toEqual(before);
+});

@@ -369,6 +369,10 @@ export default class PosApp extends React.Component {
   }
   componentDidUpdate() {
     this.reportPwaUpdateSafety();
+    const customerDialog = this.state.dlg;
+    if (customerDialog?.customerCommandKind && (!this.can(this.customerPermissionFor(customerDialog.customerCommandKind)) || customerDialog.customerActorId !== this.user()?.id)) {
+      this.setState({ dlg: null, customerSelectedId: null, customerSearch: '' });
+    }
     if (this.state.createdCredential) {
       const context = this.accessContext();
       if (!context || context.role !== 'duena' || context.userId !== this.state.createdCredential.ownerUserId) this.setState({ createdCredential: null });
@@ -1440,7 +1444,7 @@ export default class PosApp extends React.Component {
       title: titles[kind], body: bodies[kind], needReason: true, danger: kind === 'profile.archive',
       confirmLabel: kind === 'profile.create' ? 'Crear perfil' : kind === 'profile.update' ? 'Guardar cambios' : kind === 'profile.archive' ? 'Archivar perfil' : kind === 'credit.limit' ? 'Guardar límite' : 'Registrar pago',
       commandId: this.customerCommandId(), commandOccurredAt: new Date().toISOString(),
-      customerCommandKind: kind, customerId: account?.customerId || this.customerRecordId(),
+      customerActorId: this.user().id, customerCommandKind: kind, customerId: account?.customerId || this.customerRecordId(),
       expectedCustomerRevision: account?.revision || 0,
       fields,
       onConfirm: dialog => this.confirmCustomerCommand(dialog),
@@ -1453,6 +1457,7 @@ export default class PosApp extends React.Component {
     const permission = this.customerPermissionFor(kind);
     if (!permission || !this.requireAction(permission, reason)) return 'keep';
     const actor = this.user();
+    if (actor?.id !== dialog.customerActorId) { this.notAllowed('confirmar una captura de clientes de otra identidad'); return 'keep'; }
     const role = actor && (this.isSecureMode() ? actor.role : seededRoleToAccessRole(actor.role));
     if (!actor || !role) { this.toast('La sesión actual no permite registrar cambios de clientes.', 'warn'); return 'keep'; }
     try {
@@ -2362,7 +2367,8 @@ export default class PosApp extends React.Component {
     ];
 
     // ---- dialog
-    const dg = s.dlg;
+    const customerDialogAllowed = !s.dlg?.customerCommandKind || (s.dlg.customerActorId === me?.id && this.can(this.customerPermissionFor(s.dlg.customerCommandKind)));
+    const dg = customerDialogAllowed ? s.dlg : null;
     V.dlg = !!dg;
     if (dg) {
       V.dlgTitle = dg.title; V.dlgBody = dg.body; V.dlgSplitPreview = dg.splitPreview || null;
