@@ -54,6 +54,7 @@ export default class PosApp extends React.Component {
   }
   blank() { return { folio: null, type: 'local', mesa: '', name: '', items: [], discount: 0, discountReason: '' }; }
   componentDidMount() {
+    this.reportPwaUpdateSafety();
     this._t = setTimeout(() => this.setState({ loading: false }), 650);
     this._sl = e => {
       if (e.key === 'karma-pos-v1' && e.newValue) {
@@ -61,6 +62,20 @@ export default class PosApp extends React.Component {
       }
     };
     window.addEventListener('storage', this._sl);
+  }
+  componentDidUpdate() { this.reportPwaUpdateSafety(); }
+  reportPwaUpdateSafety() {
+    const report = this.props.onUpdateSafetyChange;
+    if (typeof report !== 'function') return;
+    const s = this.state;
+    if (s.loading) return report({ status: 'unknown', reason: 'La estación todavía está cargando.' });
+    if (s.module === 'checkout' && s.ck) return report({ status: 'blocked', reason: 'Hay un cobro abierto. Termina el cobro o vuelve a la orden antes de actualizar.' });
+    if (s.dlg || s.ed) return report({ status: 'blocked', reason: 'Hay un diálogo o edición abierta. Ciérrala y revisa los cambios antes de actualizar.' });
+    if (s.admSel || s.admForm || s.selUser || s.suForm || s.repSel || s.pin) return report({ status: 'blocked', reason: 'Hay una edición, detalle o captura abierta. Ciérrala y revisa los cambios antes de actualizar.' });
+    const order = s.order || this.blank();
+    const dirty = !!(order.folio || order.items?.length || order.name?.trim() || order.mesa?.trim() || order.discount || order.type !== 'local');
+    if (dirty) return report({ status: 'blocked', reason: 'Hay una orden en captura. Guárdala como cuenta abierta o termina la venta; deja la estación limpia y revisada para actualizar.' });
+    return report({ status: 'safe', reason: '' });
   }
   componentWillUnmount() { clearTimeout(this._t); window.removeEventListener('storage', this._sl); }
   persist() {
