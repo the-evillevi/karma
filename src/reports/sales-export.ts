@@ -28,6 +28,9 @@ const headers = [
   "Usuario",
   "Estado",
   "Evidencia",
+  "Motivo registrado",
+  "Pago de origen",
+  "Asignación a pagos capturados",
   "Selección",
   "Sincronización",
 ];
@@ -123,6 +126,9 @@ export function createSalesCsv(
       realDate(sale.occurredAt) === null
         ? "Fecha real sin dato; no asignar a periodo contable"
         : "Importes capturados; autorización externa no comprobada",
+      null,
+      null,
+      null,
       ...tail,
     ]);
     for (const payment of sale.payments) {
@@ -142,6 +148,9 @@ export function createSalesCsv(
         sale.paidBy.name,
         sale.status,
         payment.verificationStatus ?? "Verificación sin dato registrado",
+        null,
+        payment.paymentId,
+        null,
         ...tail,
       ]);
     }
@@ -165,6 +174,9 @@ export function createSalesCsv(
           event.actorName,
           sale.status,
           "Asignación a pago incompleta",
+          event.reason,
+          event.paymentId,
+          "Incompleta",
           ...tail,
         ]);
       } else {
@@ -185,6 +197,11 @@ export function createSalesCsv(
             event.actorName,
             sale.status,
             allocation.externalVerification ?? "Verificación externa sin dato",
+            event.reason,
+            allocation.paymentId,
+            event.allocationEvidence === "verified"
+              ? "Completa con pagos capturados; no confirma proveedor"
+              : "Incompleta",
             ...tail,
           ]);
         }

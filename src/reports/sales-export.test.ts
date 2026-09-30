@@ -76,6 +76,10 @@ test("preserves unknown historical dates and refund dates without inventing peri
   assert.match(report.csv, /Fecha real sin dato/);
   assert.match(report.csv, /"refund","A-1","r1","2026-09-30T12:00:00.000Z"/);
   assert.match(report.csv, /"Hoy · 09:00","",""/);
+  assert.match(
+    report.csv,
+    /"Error corregido","cash-1","Completa con pagos capturados; no confirma proveedor"/,
+  );
 });
 test("fails closed on inconsistent amounts and invalid time zone; neutralizes formula and CSV injection", () => {
   assert.throws(() =>
