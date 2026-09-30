@@ -3,5 +3,6 @@ dist
 *.local
 .offline-test.local
 .playwright-output
+.pwa-playwright-output
 test-results
 .DS_Store

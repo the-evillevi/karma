@@ -12,7 +12,17 @@
     "offline:local:up": "node scripts/offline-sync/setup-local.mjs",
     "offline:cloud:fixtures": "node scripts/offline-sync/setup-cloud-proof.mjs",
     "test:offline:e2e": "playwright test --config scripts/offline-sync/playwright.config.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:pwa": "vite build --config vite.config.pwa.js",
+    "preview:pwa": "vite preview --config vite.config.pwa.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/domain/contracts.ts src/offline-sync/sync-diagnostic.d.ts",
+    "format:check": "prettier --check vite.config.pwa.js eslint.config.js tsconfig.json src/domain/contracts.ts src/offline-sync/sync-diagnostic.js src/offline-sync/sync-diagnostic.d.ts src/offline-sync/sync-diagnostic.test.js scripts/ci/check-client-bundle.mjs scripts/offline-sync/pwa.playwright.config.js scripts/offline-sync/pwa-shell.spec.js docs/execution/EVL-116.md",
+    "test:domain": "node scripts/ci/run-unit-tests.mjs",
+    "test:pwa:e2e": "playwright test --config scripts/offline-sync/pwa.playwright.config.js",
+    "check:client-bundle": "node scripts/ci/check-client-bundle.mjs",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:domain && pnpm test:components && pnpm build && pnpm check:client-bundle && pnpm build:pwa && pnpm test:pwa:e2e && pnpm check:client-bundle",
+    "test:components": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
@@ -34,6 +44,12 @@
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
     "jsdom": "^25.0.1",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.9",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "vite-plugin-pwa": "^1.3.0"
   }
 }

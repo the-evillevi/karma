@@ -1,0 +1,39 @@
+name: Quality checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:domain
+      - run: pnpm test:components
+      - run: pnpm build
+        env:
+          KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
+      - run: pnpm check:client-bundle
+        env:
+          KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
+      - run: pnpm build:pwa
+        env:
+          KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:pwa:e2e
+      - run: pnpm check:client-bundle
+        env:
+          KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
