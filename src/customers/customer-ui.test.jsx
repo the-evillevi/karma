@@ -286,7 +286,7 @@ it('keeps a failed create retryable with one command and preserves the latest un
   latest.open = [{ folio: 'A-9002', items: [], name: 'Otra pestaña' }];
   latest.kitchenTickets = [];
   latest.pending = [];
-  latest.order = { ...latest.order, name: 'Borrador externo' };
+  latest.order = { ...view.appRef.current.state.order, name: 'Borrador externo' };
   latest.orderSettings = { tableCount: 4 };
   storage.setItem('karma-pos-v1', JSON.stringify(latest));
   storage.failNextWrites(1);
