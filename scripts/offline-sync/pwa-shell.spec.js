@@ -33,15 +33,18 @@ test("production service worker boots the cached POS, Comanda and offline demo a
     });
     await context.setOffline(true);
     for (const [route, marker] of [
-      ["/", "Karma"],
+      ["/", "¿Quién abre la estación?"],
       ["/comanda.html", "Comanda"],
       ["/offline-demo.html", "Sincronización offline"],
     ]) {
       const offlinePage = await context.newPage();
+      const pageErrors = [];
+      offlinePage.on("pageerror", (error) => pageErrors.push(error.name));
       await offlinePage.goto(`http://127.0.0.1:4189${route}`, {
         waitUntil: "domcontentloaded",
       });
       await expect(offlinePage.locator("body")).toContainText(marker);
+      expect(pageErrors).toEqual([]);
       await offlinePage.close();
     }
   } finally {
