@@ -1,6 +1,12 @@
 # EVL-126 forward server support proposal
 
-Read-only design note; no repository changes, migration, deployment, or remote writes.
+## Candidate implementation checkpoint
+
+The candidate forward migration `20260930000100_evl126_pos_operations_v1.sql` and gated synthetic hosted proof are in this branch for review. The candidate supports only opening and editing open orders (`order.opened`, line add/change/remove, and details change), plus a session-bound cash-register read view. It derives projections on the server, checks current session/device/lease/membership before retry lookup, and rejects all unimplemented action families and catalog-versioned claims. The migration is not applied or deployed, and the POS UI is not wired to it. This is not evidence of production durability or successful remote synchronization.
+
+The hosted lane is `pnpm test:pos-operations-server:e2e` and stays skipped unless `SUPABASE_V126_TESTS_ENABLED=1` is explicitly set. It reads only the approved private fixture's URL, anon key, and synthetic user credentials; it never uses the service-role key. Root will run that lane only after reviewing and applying the exact migration candidate to the isolated project.
+
+The sections below describe the applied baseline, candidate boundary, and remaining contract gates. No remote writes or deployment were performed for this checkpoint.
 
 ## Current boundary
 
