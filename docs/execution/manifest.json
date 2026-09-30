@@ -666,19 +666,26 @@
       "id": "EVL-187",
       "chain": "payments",
       "branch": "codex/payments/evl-187",
-      "baseBranch": "codex/payments/evl-123",
+      "baseBranch": "codex/payments/cancellation-base",
       "requires": [
         "EVL-123",
         "EVL-118"
       ],
-      "stage": "implementing",
+      "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending_resumed_work",
-      "blockers": [],
-      "nextAction": "Root unifies cancellation history, reason/actor/stale-source checks and retry protection; no third agent thread available."
+      "commits": [
+        "4d441e7"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/18",
+      "checks": [
+        "8 actual POS cancellation cases passed; 39 predecessor combined component regressions passed; 4-entry build and credential scan passed"
+      ],
+      "review": "fixed_and_rereviewed_cancellation_history",
+      "blockers": [
+        "Verified access118, durable command transaction126 and exactly-once inventory compensation129 remain acceptance gates."
+      ],
+      "nextAction": "Integrate and test with access/order slices; complete durable cancellation and compensation when126/129 are available.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-125",
