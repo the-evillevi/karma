@@ -249,7 +249,9 @@
         "b70f49b",
         "e92e846",
         "d308c65",
-        "bda187b"
+        "bda187b",
+        "65e0d64",
+        "a07728c"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/16",
       "checks": [
@@ -274,14 +276,16 @@
       "requires": [
         "EVL-118"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "foundation_xhigh",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "blockers": [
+        "Forward versioned server write/read contract and operational integration remain pending; applied114/118 immutable."
+      ],
+      "nextAction": "Implement resumable typed local RxDB/IndexedDB journal and restart replay; root review before remote versioned contract integration."
     },
     {
       "id": "EVL-154",
@@ -529,7 +533,7 @@
       ],
       "review": "fixed_and_rereviewed_actual_app",
       "blockers": [
-        "Trusted authorization118 and production durability126 remain open."
+        "Production durability126 and preparation-device access integration remain open."
       ],
       "nextAction": "Draft actual paid-kitchen fix; durable storage and browser acceptance remain open.",
       "artifactsReady": true
@@ -560,7 +564,7 @@
       ],
       "review": "fixed_and_rereviewed_captured_prices_and_storage_key_guard",
       "blockers": [
-        "Trusted authorization118 and durable persistence126 are open. Formal version/tax113 catalog contract is not yet wired to this prototype history."
+        "Durable persistence126 remains open. Formal version/tax113 catalog contract is not yet wired to prototype history."
       ],
       "nextAction": "Resume orders122 after foundation gates; preserve captured facts and never infer missing historical prices.",
       "artifactsReady": true
@@ -588,7 +592,7 @@
       ],
       "review": "fixed_and_rereviewed_order_details_cents_conflicts",
       "blockers": [
-        "Combined verified118 runtime and durable cross-device126 reconciliation remain acceptance gates."
+        "Durable cross-device126 reconciliation remains an acceptance gate; combined verified118 runtime passed."
       ],
       "nextAction": "Continue189 finance split; integrate and independently test118/122/187 together.",
       "artifactsReady": true
@@ -601,7 +605,7 @@
       "requires": [
         "EVL-122"
       ],
-      "stage": "root_review_fixes",
+      "stage": "implementing",
       "agent": "orders_xhigh",
       "commits": [
         "55ee685"
@@ -648,7 +652,7 @@
       ],
       "review": "fixed_and_rereviewed_net_payment_actual_app",
       "blockers": [
-        "Real Excel export130 and trusted118/durable126 remain open."
+        "Real Excel export130 and durable126 remain open."
       ],
       "nextAction": "Draft bounded cash net fix; export and production foundation acceptance remain open.",
       "artifactsReady": true
@@ -676,7 +680,7 @@
       ],
       "review": "fixed_and_rereviewed_manual_payment_history",
       "blockers": [
-        "Trusted role checks and durable checkout remain EVL-118/126. Corrections, exports and terminal authorization remain EVL-125/130/133."
+        "Durable checkout126, corrections125, exports130 and terminal authorization133 remain open. Verified POS role boundaries118 passed."
       ],
       "nextAction": "Continue payment corrections after prerequisites; manual capture checkpoint is reviewed, not full production acceptance.",
       "artifactsReady": true
@@ -1059,10 +1063,10 @@
   "sessionCheckpoint": {
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
-    "runningAgents": 1,
-    "integration": "bda187b",
+    "runningAgents": 2,
+    "integration": "65e0d64",
     "mainMerged": false,
-    "nextIssue": "EVL-189 review fixes, EVL-126 local durable layer, then EVL-155",
+    "nextIssue": "EVL-126 local durable journal and EVL-189 root fixes, then EVL-155",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed"
   }
