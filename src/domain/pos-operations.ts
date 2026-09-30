@@ -10,15 +10,16 @@ import {
   type AccessAction,
   type AccessRole,
 } from "../access/role-policy.ts";
+import { allocateDiscount, canTransitionPreparation } from "./order-domain.ts";
 
 export const POS_OPERATION_SCHEMA_VERSION = 1 as const;
+export const MAX_POS_OPERATION_BYTES = 1_000_000;
 
 export type OperationAggregateKind = "order" | "preparation" | "sale";
-export type OperationCapability =
-  AccessAction | "splitAccount" | "refundSaleWithReason";
+export type OperationCapability = AccessAction | "refundSaleWithReason";
 export type PosOrderStatus = "open" | "closed" | "cancelled";
 export type PosOrderType =
-  "local" | "mesa" | "llevar" | "recoger" | "DOMICILIO";
+  "local" | "mesa" | "llevar" | "recoger" | "domicilio";
 export type PosPreparationStatus =
   "queued" | "preparing" | "ready" | "served" | "cancelled";
 
@@ -178,6 +179,13 @@ export interface PosOperationOrder {
   discounts: PosDiscountEntry[];
   preparationId: string | null;
   splitFrom: { orderId: string; commandId: string } | null;
+  splitOperations: Array<{
+    commandId: string;
+    childOrderId: string;
+    actorId: string;
+    occurredAt: string;
+    transfers: Array<{ lineId: string; childLineId: string; quantity: number }>;
+  }>;
   history: Array<{
     commandId: string;
     action: PosOperationAction;
@@ -213,6 +221,10 @@ export interface PosOperationSale {
   saleId: string;
   revision: number;
   orderId: string;
+  creatorActorId: string;
+  orderType: PosOrderType;
+  tableId: string | null;
+  customer: PosCustomerContact | null;
   status: "closed";
   occurredAt: string;
   closedByActorId: string;
@@ -299,7 +311,6 @@ const operationCapabilities: readonly OperationCapability[] = [
   "manageUsers",
   "prepareOrder",
   "configureTables",
-  "splitAccount",
   "refundSaleWithReason",
 ];
 
@@ -321,7 +332,7 @@ const capabilityForAction: Record<PosOperationAction, OperationCapability> = {
   "preparation.transitioned": "prepareOrder",
   "preparation.cancelled": "cancelPreparationWithReason",
   "order.cancelled": "cancelWithReason",
-  "order.split": "splitAccount",
+  "order.split": "openOrder",
   "order.checked-out": "checkout",
   "sale.refunded": "refundSaleWithReason",
 };
@@ -384,13 +395,18 @@ export function validatePosOperationCommand(
     throw new TypeError(`${input.action} does not accept an envelope reason.`);
   validateExpectedRevisions(input.expectedRevisions);
   validateOperationPayload(input.action, input.payload);
+  if (
+    new TextEncoder().encode(stableJson(value)).byteLength >
+    MAX_POS_OPERATION_BYTES
+  )
+    throw new PosOperationError(
+      "OPERATION_TOO_LARGE",
+      "POS operation exceeds the maximum serialized size.",
+    );
   return structuredClone(value) as PosOperationCommand;
 }
 
-/**
- * First supported reducer slice: opening an account and appending a line.
- * Further operations are added in bounded checkpoints; unknown transitions fail.
- */
+/** Apply one command under the caller's current verified authority. */
 export function applyPosOperation(
   current: PosOperationsState,
   candidate: unknown,
@@ -454,62 +470,725 @@ function applyValidatedOperation(
     if (actualRevision !== expected.revision)
       throw new PosOperationRevisionConflict(expected, actualRevision);
   }
-  if (
-    command.action !== "order.opened" &&
-    command.action !== "order.line-added"
-  )
-    throw new PosOperationError(
-      "OPERATION_NOT_IMPLEMENTED",
-      `The ${command.action} transition is defined but not implemented in this checkpoint.`,
-    );
-
   const next = structuredClone(current);
-  if (command.action === "order.opened") {
-    const { orderId, orderType, tableId, customer, lines } = command.payload;
-    if (findById(next.orders, orderId, "orderId"))
-      throw new PosOperationError(
-        "ORDER_ALREADY_EXISTS",
-        "An order with this ID already exists.",
-      );
-    const order: PosOperationOrder = {
-      orderId,
-      revision: 1,
-      status: "open",
-      orderType,
-      tableId,
-      customer: customer ? structuredClone(customer) : null,
-      createdByActorId: command.actorId,
-      openedAt: command.occurredAt,
-      lines: structuredClone(lines),
-      discounts: [],
-      preparationId: null,
-      splitFrom: null,
-      history: [historyEvent(command)],
-      closedAt: null,
-      cancellationReason: null,
-      cancelledByActorId: null,
-    };
-    validateOrderMoney(order);
-    next.orders = sortedById([...next.orders, order], "orderId");
-  } else {
-    const order = requiredOrder(next, command.payload.orderId);
-    requireOpenOrder(order);
-    if (order.lines.some((line) => line.lineId === command.payload.line.lineId))
+  reduceOperationTransition(next, command);
+  next.commands = [...next.commands, structuredClone(command)];
+  return { state: next, duplicate: false };
+}
+
+function reduceOperationTransition(
+  state: PosOperationsState,
+  command: PosOperationCommand,
+): void {
+  switch (command.action) {
+    case "order.opened":
+      reduceOrderOpened(state, command);
+      return;
+    case "order.line-added":
+    case "order.line-changed":
+    case "order.line-removed":
+      reduceOrderLineChange(state, command);
+      return;
+    case "order.details-changed":
+      reduceOrderDetails(state, command);
+      return;
+    case "order.discounted":
+      reduceDiscount(state, command);
+      return;
+    case "preparation.sent":
+      reducePreparationSent(state, command);
+      return;
+    case "preparation.transitioned":
+    case "preparation.cancelled":
+      reducePreparationChange(state, command);
+      return;
+    case "order.cancelled":
+      reduceOrderCancellation(state, command);
+      return;
+    case "order.split":
+      reduceOrderSplit(state, command);
+      return;
+    case "order.checked-out":
+      reduceCheckout(state, command);
+      return;
+    case "sale.refunded":
+      reduceSaleRefund(state, command);
+      return;
+    default:
+      return assertNever(command);
+  }
+}
+
+function reduceOrderOpened(
+  state: PosOperationsState,
+  command: Extract<PosOperationCommand, { action: "order.opened" }>,
+): void {
+  const { orderId, orderType, tableId, customer, lines } = command.payload;
+  if (findById(state.orders, orderId, "orderId"))
+    throw new PosOperationError(
+      "ORDER_ALREADY_EXISTS",
+      "An order with this ID already exists.",
+    );
+  const order: PosOperationOrder = {
+    orderId,
+    revision: 1,
+    status: "open",
+    orderType,
+    tableId,
+    customer: customer ? structuredClone(customer) : null,
+    createdByActorId: command.actorId,
+    openedAt: command.occurredAt,
+    lines: structuredClone(lines),
+    discounts: [],
+    preparationId: null,
+    splitFrom: null,
+    splitOperations: [],
+    history: [historyEvent(command)],
+    closedAt: null,
+    cancellationReason: null,
+    cancelledByActorId: null,
+  };
+  validateOrderMoney(order);
+  state.orders = sortedById([...state.orders, order], "orderId");
+}
+
+function reduceOrderLineChange(
+  state: PosOperationsState,
+  command: Extract<
+    PosOperationCommand,
+    {
+      action: "order.line-added" | "order.line-changed" | "order.line-removed";
+    }
+  >,
+): void {
+  const order = requiredOrder(state, command.payload.orderId);
+  requireOpenOrder(order);
+  let lines = [...order.lines];
+  if (command.action === "order.line-added") {
+    if (lines.some((line) => line.lineId === command.payload.line.lineId))
       throw new PosOperationError(
         "ORDER_LINE_ALREADY_EXISTS",
         "An order line with this ID already exists.",
       );
-    const updated = {
-      ...order,
-      revision: order.revision + 1,
-      lines: [...order.lines, structuredClone(command.payload.line)],
-      history: [...order.history, historyEvent(command)],
-    };
-    validateOrderMoney(updated);
-    next.orders = replaceById(next.orders, updated, "orderId");
+    lines.push(structuredClone(command.payload.line));
+  } else if (command.action === "order.line-changed") {
+    const index = lines.findIndex(
+      (line) => line.lineId === command.payload.lineId,
+    );
+    if (index < 0)
+      throw new PosOperationError(
+        "ORDER_LINE_NOT_FOUND",
+        "Order line does not exist.",
+      );
+    lines[index] = structuredClone(command.payload.line);
+  } else {
+    const originalLength = lines.length;
+    lines = lines.filter((line) => line.lineId !== command.payload.lineId);
+    if (lines.length === originalLength)
+      throw new PosOperationError(
+        "ORDER_LINE_NOT_FOUND",
+        "Order line does not exist.",
+      );
   }
-  next.commands = [...next.commands, structuredClone(command)];
-  return { state: next, duplicate: false };
+  if (lines.length === 0)
+    throw new PosOperationError(
+      "ORDER_MUST_RETAIN_LINE",
+      "An open account must retain at least one line or be cancelled.",
+    );
+  const updated = {
+    ...order,
+    revision: order.revision + 1,
+    lines,
+    history: [...order.history, historyEvent(command)],
+  };
+  validateOrderMoney(updated);
+  synchronizeActivePreparation(state, order, lines);
+  state.orders = replaceById(state.orders, updated, "orderId");
+}
+
+function synchronizeActivePreparation(
+  state: PosOperationsState,
+  order: PosOperationOrder,
+  lines: PosOperationLine[],
+): void {
+  if (!order.preparationId) return;
+  const preparation = requiredPreparation(state, order.preparationId);
+  if (
+    preparation.linkedOrderIds.length !== 1 ||
+    !preparation.linkedOrderIds.includes(order.orderId)
+  )
+    throw new PosOperationError(
+      "SHARED_PREPARATION_LINE_EDIT_UNSUPPORTED",
+      "A shared preparation ticket cannot be changed through one account.",
+    );
+  if (preparation.status === "served" || preparation.status === "cancelled")
+    throw new PosOperationError(
+      "PREPARATION_TERMINAL",
+      "A terminal preparation ticket cannot receive line edits.",
+    );
+  const updated = {
+    ...preparation,
+    revision: preparation.revision + 1,
+    lines: structuredClone(lines),
+  };
+  state.preparations = replaceById(
+    state.preparations,
+    updated,
+    "preparationId",
+  );
+}
+
+function reduceOrderDetails(
+  state: PosOperationsState,
+  command: Extract<PosOperationCommand, { action: "order.details-changed" }>,
+): void {
+  const order = requiredOrder(state, command.payload.orderId);
+  requireOpenOrder(order);
+  const customer = Object.hasOwn(command.payload, "customer")
+    ? command.payload.customer!
+    : order.customer;
+  validateOrderContact(order.orderType, customer);
+  const updated = {
+    ...order,
+    revision: order.revision + 1,
+    tableId: Object.hasOwn(command.payload, "tableId")
+      ? command.payload.tableId!
+      : order.tableId,
+    customer: customer ? structuredClone(customer) : null,
+    history: [...order.history, historyEvent(command)],
+  };
+  state.orders = replaceById(state.orders, updated, "orderId");
+}
+
+function reduceDiscount(
+  state: PosOperationsState,
+  command: Extract<PosOperationCommand, { action: "order.discounted" }>,
+): void {
+  const order = requiredOrder(state, command.payload.orderId);
+  requireOpenOrder(order);
+  const subtotal = lineSubtotal(order.lines);
+  if (subtotal === null)
+    throw new PosOperationError(
+      "ORDER_PRICE_INCOMPLETE",
+      "A discount requires captured line totals.",
+    );
+  const currentDiscount = discountTotal(order.discounts);
+  if (currentDiscount + command.payload.amountCents > subtotal)
+    throw new RangeError("order discount exceeds its captured subtotal.");
+  const entry: PosDiscountEntry = {
+    commandId: command.commandId,
+    authorizedCents: command.payload.amountCents,
+    allocatedCents: command.payload.amountCents,
+    reason: command.reason!,
+    actorId: command.actorId,
+    occurredAt: command.occurredAt,
+  };
+  const updated = {
+    ...order,
+    revision: order.revision + 1,
+    discounts: [...order.discounts, entry],
+    history: [...order.history, historyEvent(command)],
+  };
+  validateOrderMoney(updated);
+  state.orders = replaceById(state.orders, updated, "orderId");
+}
+
+function reducePreparationSent(
+  state: PosOperationsState,
+  command: Extract<PosOperationCommand, { action: "preparation.sent" }>,
+): void {
+  const order = requiredOrder(state, command.payload.orderId);
+  requireOpenOrder(order);
+  if (order.preparationId)
+    throw new PosOperationError(
+      "PREPARATION_ALREADY_SENT",
+      "This account already has a preparation ticket.",
+    );
+  if (
+    findById(state.preparations, command.payload.preparationId, "preparationId")
+  )
+    throw new PosOperationError(
+      "PREPARATION_ALREADY_EXISTS",
+      "A preparation ticket with this ID already exists.",
+    );
+  const preparation: PosOperationPreparation = {
+    preparationId: command.payload.preparationId,
+    revision: 1,
+    originOrderId: order.orderId,
+    linkedOrderIds: [order.orderId],
+    status: "queued",
+    lines: structuredClone(order.lines),
+    createdByActorId: command.actorId,
+    createdAt: command.occurredAt,
+    history: [
+      {
+        commandId: command.commandId,
+        actorId: command.actorId,
+        occurredAt: command.occurredAt,
+        from: null,
+        to: "queued",
+        reason: null,
+      },
+    ],
+  };
+  const updatedOrder = {
+    ...order,
+    revision: order.revision + 1,
+    preparationId: preparation.preparationId,
+    history: [...order.history, historyEvent(command)],
+  };
+  state.orders = replaceById(state.orders, updatedOrder, "orderId");
+  state.preparations = sortedById(
+    [...state.preparations, preparation],
+    "preparationId",
+  );
+}
+
+function reducePreparationChange(
+  state: PosOperationsState,
+  command: Extract<
+    PosOperationCommand,
+    { action: "preparation.transitioned" | "preparation.cancelled" }
+  >,
+): void {
+  const order = requiredOrder(state, command.payload.orderId);
+  const preparation = requiredPreparation(state, command.payload.preparationId);
+  requireOrderPreparationLink(order, preparation);
+  const nextStatus: PosPreparationStatus =
+    command.action === "preparation.cancelled"
+      ? "cancelled"
+      : command.payload.nextStatus;
+  if (order.status === "cancelled" && nextStatus !== "cancelled")
+    throw new PosOperationError(
+      "CANCELLED_ORDER_PREPARATION",
+      "A cancelled account's preparation cannot advance.",
+    );
+  if (!canTransitionPreparation(preparation.status, nextStatus))
+    throw new PosOperationError(
+      "PREPARATION_TRANSITION_DENIED",
+      `Preparation cannot transition from ${preparation.status} to ${nextStatus}.`,
+    );
+  const updated = {
+    ...preparation,
+    revision: preparation.revision + 1,
+    status: nextStatus,
+    history: [
+      ...preparation.history,
+      {
+        commandId: command.commandId,
+        actorId: command.actorId,
+        occurredAt: command.occurredAt,
+        from: preparation.status,
+        to: nextStatus,
+        reason: command.reason,
+      },
+    ],
+  };
+  state.preparations = replaceById(
+    state.preparations,
+    updated,
+    "preparationId",
+  );
+}
+
+function reduceOrderCancellation(
+  state: PosOperationsState,
+  command: Extract<PosOperationCommand, { action: "order.cancelled" }>,
+): void {
+  const order = requiredOrder(state, command.payload.orderId);
+  requireOpenOrder(order);
+  const updated: PosOperationOrder = {
+    ...order,
+    revision: order.revision + 1,
+    status: "cancelled",
+    closedAt: command.occurredAt,
+    cancellationReason: command.reason,
+    cancelledByActorId: command.actorId,
+    history: [...order.history, historyEvent(command)],
+  };
+  state.orders = replaceById(state.orders, updated, "orderId");
+}
+
+function reduceOrderSplit(
+  state: PosOperationsState,
+  command: Extract<PosOperationCommand, { action: "order.split" }>,
+): void {
+  const source = requiredOrder(state, command.payload.sourceOrderId);
+  requireOpenOrder(source);
+  if (source.orderId === command.payload.childOrderId)
+    throw new PosOperationError(
+      "SPLIT_ORDER_ID_COLLISION",
+      "Source and child order IDs must differ.",
+    );
+  if (findById(state.orders, command.payload.childOrderId, "orderId"))
+    throw new PosOperationError(
+      "ORDER_ALREADY_EXISTS",
+      "The split child order ID already exists.",
+    );
+  if (source.lines.some((line) => line.lineTotalCents === null))
+    throw new PosOperationError(
+      "SPLIT_PRICE_INCOMPLETE",
+      "Split requires captured line totals for exact value conservation.",
+    );
+
+  const allLineIds = new Set(source.lines.map((line) => line.lineId));
+  const transfers = command.payload.transfers;
+  for (const transfer of transfers) {
+    if (allLineIds.has(transfer.childLineId))
+      throw new PosOperationError(
+        "SPLIT_CHILD_LINE_ID_COLLISION",
+        "Split child line IDs must be new and unique.",
+      );
+    allLineIds.add(transfer.childLineId);
+  }
+
+  const transferByLine = new Map(
+    transfers.map((transfer) => [transfer.lineId, transfer] as const),
+  );
+  const childLines: PosOperationLine[] = [];
+  const remainingLines: PosOperationLine[] = [];
+  for (const line of source.lines) {
+    const transfer = transferByLine.get(line.lineId);
+    if (!transfer) {
+      remainingLines.push(structuredClone(line));
+      continue;
+    }
+    if (transfer.quantity > line.quantity)
+      throw new RangeError("split quantity exceeds the source line quantity.");
+    const remainingQuantity = line.quantity - transfer.quantity;
+    if (remainingQuantity > 0 && line.unitPriceCents === null)
+      throw new PosOperationError(
+        "SPLIT_UNIT_PRICE_UNKNOWN",
+        "A partial line split requires a captured unit price.",
+      );
+    const childTotal =
+      transfer.quantity === line.quantity
+        ? line.lineTotalCents!
+        : (line.unitPriceCents as number) * transfer.quantity;
+    const sourceTotal =
+      remainingQuantity === 0
+        ? 0
+        : (line.unitPriceCents as number) * remainingQuantity;
+    if (!Number.isSafeInteger(childTotal) || !Number.isSafeInteger(sourceTotal))
+      throw new RangeError("split line value exceeds safe integer cents.");
+    childLines.push({
+      ...structuredClone(line),
+      lineId: transfer.childLineId,
+      quantity: transfer.quantity,
+      lineTotalCents: childTotal,
+    });
+    if (remainingQuantity > 0) {
+      remainingLines.push({
+        ...structuredClone(line),
+        quantity: remainingQuantity,
+        lineTotalCents: sourceTotal,
+      });
+    }
+  }
+  for (const transfer of transfers)
+    if (!source.lines.some((line) => line.lineId === transfer.lineId))
+      throw new PosOperationError(
+        "ORDER_LINE_NOT_FOUND",
+        "Split source line does not exist.",
+      );
+  if (remainingLines.length === 0)
+    throw new PosOperationError(
+      "SPLIT_MUST_RETAIN_SOURCE_LINE",
+      "A split must leave at least one line on its source account.",
+    );
+
+  const movedDiscountByCommand = new Map<string, number>();
+  for (const discount of source.discounts) {
+    const distributed = allocateDiscount(
+      discount.allocatedCents,
+      source.lines.map((line) => ({
+        lineId: line.lineId,
+        subtotalCents: line.lineTotalCents as number,
+      })),
+    );
+    const byLine = new Map(
+      distributed.map((entry) => [entry.lineId, entry.cents]),
+    );
+    let moved = 0;
+    for (const transfer of transfers) {
+      const line = source.lines.find(
+        (item) => item.lineId === transfer.lineId,
+      )!;
+      const lineDiscount = byLine.get(line.lineId) ?? 0;
+      let childPart: number;
+      if (transfer.quantity === line.quantity) {
+        childPart = lineDiscount;
+      } else {
+        const childLine = childLines.find(
+          (item) => item.lineId === transfer.childLineId,
+        )!;
+        const sourceLine = remainingLines.find(
+          (item) => item.lineId === line.lineId,
+        )!;
+        const parts = allocateDiscount(lineDiscount, [
+          {
+            lineId: sourceLine.lineId,
+            subtotalCents: sourceLine.lineTotalCents as number,
+          },
+          {
+            lineId: childLine.lineId,
+            subtotalCents: childLine.lineTotalCents as number,
+          },
+        ]);
+        childPart = parts.find(
+          (part) => part.lineId === childLine.lineId,
+        )!.cents;
+      }
+      moved += childPart;
+    }
+    if (!Number.isSafeInteger(moved) || moved > discount.allocatedCents)
+      throw new RangeError("split discount allocation is invalid.");
+    movedDiscountByCommand.set(discount.commandId, moved);
+  }
+
+  const sourceDiscounts = source.discounts.map((discount) => ({
+    ...discount,
+    allocatedCents:
+      discount.allocatedCents -
+      (movedDiscountByCommand.get(discount.commandId) ?? 0),
+  }));
+  const childDiscounts = source.discounts.map((discount) => ({
+    ...discount,
+    allocatedCents: movedDiscountByCommand.get(discount.commandId) ?? 0,
+  }));
+  const splitOperation = {
+    commandId: command.commandId,
+    childOrderId: command.payload.childOrderId,
+    actorId: command.actorId,
+    occurredAt: command.occurredAt,
+    transfers: structuredClone(transfers),
+  };
+  const updatedSource: PosOperationOrder = {
+    ...source,
+    revision: source.revision + 1,
+    lines: remainingLines,
+    discounts: sourceDiscounts,
+    splitOperations: [...source.splitOperations, splitOperation],
+    history: [...source.history, historyEvent(command)],
+  };
+  const child: PosOperationOrder = {
+    orderId: command.payload.childOrderId,
+    revision: 1,
+    status: "open",
+    orderType: source.orderType,
+    tableId: source.tableId,
+    customer: source.customer ? structuredClone(source.customer) : null,
+    createdByActorId: command.actorId,
+    openedAt: command.occurredAt,
+    lines: childLines,
+    discounts: childDiscounts,
+    preparationId: source.preparationId,
+    splitFrom: { orderId: source.orderId, commandId: command.commandId },
+    splitOperations: [],
+    history: [historyEvent(command)],
+    closedAt: null,
+    cancellationReason: null,
+    cancelledByActorId: null,
+  };
+  validateOrderMoney(updatedSource);
+  validateOrderMoney(child);
+  const beforeSubtotal = lineSubtotal(source.lines)!;
+  const afterSubtotal =
+    lineSubtotal(updatedSource.lines)! + lineSubtotal(child.lines)!;
+  const beforeDiscount = discountTotal(source.discounts);
+  const afterDiscount =
+    discountTotal(updatedSource.discounts) + discountTotal(child.discounts);
+  if (
+    beforeSubtotal !== afterSubtotal ||
+    beforeDiscount !== afterDiscount ||
+    beforeSubtotal - beforeDiscount !== afterSubtotal - afterDiscount
+  )
+    throw new RangeError(
+      "split does not conserve subtotal, discount, and due.",
+    );
+
+  state.orders = sortedById(
+    [
+      ...state.orders.filter((item) => item.orderId !== source.orderId),
+      updatedSource,
+      child,
+    ],
+    "orderId",
+  );
+  if (source.preparationId) {
+    const preparation = requiredPreparation(state, source.preparationId);
+    if (!preparation.linkedOrderIds.includes(source.orderId))
+      throw new PosOperationError(
+        "PREPARATION_LINK_MISMATCH",
+        "Shared preparation is missing its source account link.",
+      );
+    const linkedOrderIds = [...preparation.linkedOrderIds, child.orderId].sort(
+      compareId,
+    );
+    state.preparations = replaceById(
+      state.preparations,
+      { ...preparation, revision: preparation.revision + 1, linkedOrderIds },
+      "preparationId",
+    );
+  }
+}
+
+function reduceCheckout(
+  state: PosOperationsState,
+  command: Extract<PosOperationCommand, { action: "order.checked-out" }>,
+): void {
+  const order = requiredOrder(state, command.payload.orderId);
+  requireOpenOrder(order);
+  if (findById(state.sales, command.payload.saleId, "saleId"))
+    throw new PosOperationError(
+      "SALE_ALREADY_EXISTS",
+      "A sale with this ID already exists.",
+    );
+  if (
+    order.lines.some(
+      (line) =>
+        line.lineTotalCents === null || line.priceEvidence === "unknown",
+    )
+  )
+    throw new PosOperationError(
+      "ORDER_PRICE_INCOMPLETE",
+      "Checkout requires captured line totals and price provenance.",
+    );
+  if (order.preparationId)
+    requireOrderPreparationLink(
+      order,
+      requiredPreparation(state, order.preparationId),
+    );
+  const subtotalCents = lineSubtotal(order.lines)!;
+  const discountCents = discountTotal(order.discounts);
+  const netTotalCents = subtotalCents - discountCents;
+  if (!Number.isSafeInteger(netTotalCents) || netTotalCents < 0)
+    throw new RangeError("sale total must be a non-negative safe cent amount.");
+  const paymentNet = sumSafe(
+    command.payload.payments.map((payment) => payment.netAmountCents),
+    "payment net",
+  );
+  const tipCents = sumSafe(
+    command.payload.payments.map((payment) => payment.tipCents),
+    "payment tips",
+  );
+  if (paymentNet !== netTotalCents)
+    throw new RangeError("payment net does not equal the captured order due.");
+  if ((netTotalCents === 0) !== (command.payload.payments.length === 0))
+    throw new RangeError(
+      "zero-value sales have no payment rows; positive sales require payments.",
+    );
+  const recordedPayments = command.payload.payments.map((payment) => ({
+    ...structuredClone(payment),
+    recordedByActorId: command.actorId,
+    recordedAt: command.occurredAt,
+    commandId: command.commandId,
+  }));
+  const sale: PosOperationSale = {
+    saleId: command.payload.saleId,
+    revision: 1,
+    orderId: order.orderId,
+    creatorActorId: order.createdByActorId,
+    orderType: order.orderType,
+    tableId: order.tableId,
+    customer: order.customer ? structuredClone(order.customer) : null,
+    status: "closed",
+    occurredAt: command.occurredAt,
+    closedByActorId: command.actorId,
+    preparationId: order.preparationId,
+    currency: "MXN",
+    subtotalCents,
+    discountCents,
+    netTotalCents,
+    tipCents,
+    lines: structuredClone(order.lines),
+    discounts: structuredClone(order.discounts),
+    payments: recordedPayments,
+    refunds: [],
+  };
+  const closedOrder: PosOperationOrder = {
+    ...order,
+    revision: order.revision + 1,
+    status: "closed",
+    closedAt: command.occurredAt,
+    history: [...order.history, historyEvent(command)],
+  };
+  state.orders = replaceById(state.orders, closedOrder, "orderId");
+  state.sales = sortedById([...state.sales, sale], "saleId");
+}
+
+function reduceSaleRefund(
+  state: PosOperationsState,
+  command: Extract<PosOperationCommand, { action: "sale.refunded" }>,
+): void {
+  const sale = requiredSale(state, command.payload.saleId);
+  if (sale.status !== "closed")
+    throw new PosOperationError(
+      "SALE_NOT_CLOSED",
+      "Only a closed sale can receive a refund.",
+    );
+  if (
+    sale.refunds.some((refund) => refund.refundId === command.payload.refundId)
+  )
+    throw new PosOperationError(
+      "REFUND_ALREADY_EXISTS",
+      "A refund with this ID already exists.",
+    );
+  const allocationTotal = sumSafe(
+    command.payload.allocations.map((allocation) => allocation.amountCents),
+    "refund allocations",
+  );
+  const alreadyRefunded = sumSafe(
+    sale.refunds.map((refund) => refund.amountCents),
+    "prior refunds",
+  );
+  if (alreadyRefunded + allocationTotal > sale.netTotalCents)
+    throw new RangeError("refund exceeds the captured sale payment net.");
+  for (const allocation of command.payload.allocations) {
+    const payment = sale.payments.find(
+      (entry) => entry.paymentId === allocation.paymentId,
+    );
+    if (!payment)
+      throw new PosOperationError(
+        "REFUND_PAYMENT_NOT_FOUND",
+        "Refund allocation references an unknown payment.",
+      );
+    if (payment.method !== allocation.method)
+      throw new PosOperationError(
+        "REFUND_PAYMENT_METHOD_MISMATCH",
+        "Refund allocation method differs from its captured payment.",
+      );
+    const priorForPayment = sumSafe(
+      sale.refunds.flatMap((refund) =>
+        refund.allocations
+          .filter((entry) => entry.paymentId === payment.paymentId)
+          .map((entry) => entry.amountCents),
+      ),
+      "prior payment refunds",
+    );
+    if (priorForPayment + allocation.amountCents > payment.netAmountCents)
+      throw new RangeError(
+        "refund allocation exceeds original payment net, excluding tender and change.",
+      );
+  }
+  const refund = {
+    refundId: command.payload.refundId,
+    amountCents: allocationTotal,
+    allocations: structuredClone(command.payload.allocations),
+    reason: command.reason!,
+    actorId: command.actorId,
+    occurredAt: command.occurredAt,
+    commandId: command.commandId,
+  };
+  state.sales = replaceById(
+    state.sales,
+    {
+      ...sale,
+      revision: sale.revision + 1,
+      refunds: [...sale.refunds, refund],
+    },
+    "saleId",
+  );
 }
 
 function validateAuthority(
@@ -556,7 +1235,7 @@ function authorize(
       "OPERATION_CAPABILITY_DENIED",
       "Current authority does not grant this POS operation.",
     );
-  if (capability === "splitAccount" || capability === "refundSaleWithReason") {
+  if (capability === "refundSaleWithReason") {
     if (authority.role !== "duena" && authority.role !== "encargado")
       throw new PosOperationError(
         "OPERATION_ROLE_DENIED",
@@ -590,15 +1269,17 @@ function validateOperationPayload(
       );
       requireId(payload.orderId, "orderId");
       if (
-        !["local", "mesa", "llevar", "recoger", "DOMICILIO"].includes(
+        !["local", "mesa", "llevar", "recoger", "domicilio"].includes(
           payload.orderType as string,
         )
       )
         throw new TypeError("orderType is unsupported.");
       assertNullableText(payload.tableId, "tableId", 80);
       validateCustomer(payload.customer);
-      if (payload.orderType === "DOMICILIO")
-        validateDeliveryContact(payload.customer);
+      validateOrderContact(
+        payload.orderType as PosOrderType,
+        payload.customer as PosCustomerContact | null,
+      );
       if (
         !Array.isArray(payload.lines) ||
         payload.lines.length === 0 ||
@@ -861,6 +1542,31 @@ function validateLine(value: unknown): asserts value is PosOperationLine {
     assertNullableText(modifier.unit, "modifier.unit", 40);
     assertNullableMoney(modifier.priceEffectCents, "modifier.priceEffectCents");
   });
+  if (
+    modifierTotalCents !== null &&
+    line.modifiers.every(
+      (modifier) =>
+        (modifier as Record<string, unknown>).priceEffectCents !== null,
+    )
+  ) {
+    const capturedModifierTotal = (
+      line.modifiers as Array<{
+        quantity: number;
+        priceEffectCents: number;
+      }>
+    ).reduce((sum, modifier) => {
+      const next = sum + modifier.priceEffectCents * modifier.quantity;
+      if (!Number.isSafeInteger(next))
+        throw new RangeError(
+          "captured modifier total exceeds safe integer cents.",
+        );
+      return next;
+    }, 0);
+    if (capturedModifierTotal !== modifierTotalCents)
+      throw new RangeError(
+        "captured modifier effects do not equal modifierTotalCents.",
+      );
+  }
   const tax = object(line.tax, "line.tax");
   assertOnlyKeys(
     tax,
@@ -899,6 +1605,21 @@ function validateCustomer(value: unknown): void {
   assertNullableText(customer.name, "customer.name", 160);
   assertNullableText(customer.phone, "customer.phone", 80);
   assertNullableText(customer.address, "customer.address", 250);
+}
+
+function validateOrderContact(
+  orderType: PosOrderType,
+  value: PosCustomerContact | null,
+): void {
+  if (orderType === "domicilio") {
+    validateDeliveryContact(value);
+  } else if (orderType === "llevar" || orderType === "recoger") {
+    if (value === null)
+      throw new TypeError(`${orderType} requires customer contact.`);
+    const customer = object(value, `${orderType} customer`);
+    assertText(customer.name, `${orderType} customer.name`, 160);
+    assertText(customer.phone, `${orderType} customer.phone`, 80);
+  }
 }
 
 function validateDeliveryContact(
@@ -1134,15 +1855,98 @@ function expectedTouchedAggregates(
   switch (command.action) {
     case "order.opened":
       return [{ kind: "order", id: command.payload.orderId, revision: 0 }];
-    case "order.line-added": {
+    case "order.line-added":
+    case "order.line-changed":
+    case "order.line-removed": {
+      const order = requiredOrder(current, command.payload.orderId);
+      if (order.preparationId) {
+        const refs: ExpectedAggregateRevision[] = [
+          { kind: "order", id: order.orderId, revision: order.revision },
+          {
+            kind: "preparation",
+            id: order.preparationId,
+            revision: requiredPreparation(current, order.preparationId)
+              .revision,
+          },
+        ];
+        return refs.sort(compareRevisionRef);
+      }
+      return [{ kind: "order", id: order.orderId, revision: order.revision }];
+    }
+    case "order.details-changed":
+    case "order.discounted":
+    case "order.cancelled": {
       const order = requiredOrder(current, command.payload.orderId);
       return [{ kind: "order", id: order.orderId, revision: order.revision }];
     }
-    default:
-      throw new PosOperationError(
-        "OPERATION_NOT_IMPLEMENTED",
-        `The ${command.action} aggregate set is not implemented in this checkpoint.`,
+    case "preparation.sent": {
+      const order = requiredOrder(current, command.payload.orderId);
+      const refs: ExpectedAggregateRevision[] = [
+        { kind: "order", id: order.orderId, revision: order.revision },
+        { kind: "preparation", id: command.payload.preparationId, revision: 0 },
+      ];
+      return refs.sort(compareRevisionRef);
+    }
+    case "preparation.transitioned":
+    case "preparation.cancelled": {
+      const order = requiredOrder(current, command.payload.orderId);
+      const preparation = requiredPreparation(
+        current,
+        command.payload.preparationId,
       );
+      if (order.preparationId !== preparation.preparationId)
+        throw new PosOperationError(
+          "PREPARATION_LINK_MISMATCH",
+          "Preparation is not linked to the selected order.",
+        );
+      const refs: ExpectedAggregateRevision[] = [
+        { kind: "order", id: order.orderId, revision: order.revision },
+        {
+          kind: "preparation",
+          id: preparation.preparationId,
+          revision: preparation.revision,
+        },
+      ];
+      return refs.sort(compareRevisionRef);
+    }
+    case "order.split": {
+      const source = requiredOrder(current, command.payload.sourceOrderId);
+      const refs: ExpectedAggregateRevision[] = [
+        { kind: "order", id: source.orderId, revision: source.revision },
+        { kind: "order", id: command.payload.childOrderId, revision: 0 },
+      ];
+      if (source.preparationId) {
+        const preparation = requiredPreparation(current, source.preparationId);
+        refs.push({
+          kind: "preparation",
+          id: preparation.preparationId,
+          revision: preparation.revision,
+        });
+      }
+      return refs.sort(compareRevisionRef);
+    }
+    case "order.checked-out": {
+      const order = requiredOrder(current, command.payload.orderId);
+      const refs: ExpectedAggregateRevision[] = [
+        { kind: "order", id: order.orderId, revision: order.revision },
+        { kind: "sale", id: command.payload.saleId, revision: 0 },
+      ];
+      if (order.preparationId) {
+        const preparation = requiredPreparation(current, order.preparationId);
+        refs.push({
+          kind: "preparation",
+          id: preparation.preparationId,
+          revision: preparation.revision,
+        });
+      }
+      return refs.sort(compareRevisionRef);
+    }
+    case "sale.refunded": {
+      const sale = requiredSale(current, command.payload.saleId);
+      return [{ kind: "sale", id: sale.saleId, revision: sale.revision }];
+    }
+    default:
+      return assertNever(command);
   }
 }
 
@@ -1185,6 +1989,40 @@ function requiredOrder(
   return found;
 }
 
+function requiredPreparation(
+  state: PosOperationsState,
+  id: string,
+): PosOperationPreparation {
+  const found = findById(state.preparations, id, "preparationId");
+  if (!found)
+    throw new PosOperationError(
+      "PREPARATION_NOT_FOUND",
+      "Preparation ticket does not exist.",
+    );
+  return found;
+}
+
+function requiredSale(state: PosOperationsState, id: string): PosOperationSale {
+  const found = findById(state.sales, id, "saleId");
+  if (!found)
+    throw new PosOperationError("SALE_NOT_FOUND", "Sale does not exist.");
+  return found;
+}
+
+function requireOrderPreparationLink(
+  order: PosOperationOrder,
+  preparation: PosOperationPreparation,
+): void {
+  if (
+    order.preparationId !== preparation.preparationId ||
+    !preparation.linkedOrderIds.includes(order.orderId)
+  )
+    throw new PosOperationError(
+      "PREPARATION_LINK_MISMATCH",
+      "Preparation is not linked to the selected order.",
+    );
+}
+
 function requireOpenOrder(order: PosOperationOrder): void {
   if (order.status !== "open")
     throw new PosOperationError(
@@ -1195,13 +2033,7 @@ function requireOpenOrder(order: PosOperationOrder): void {
 
 function validateOrderMoney(order: PosOperationOrder): void {
   const subtotal = lineSubtotal(order.lines);
-  if (
-    subtotal !== null &&
-    order.discounts.reduce(
-      (sum, discount) => sum + discount.allocatedCents,
-      0,
-    ) > subtotal
-  )
+  if (subtotal !== null && discountTotal(order.discounts) > subtotal)
     throw new RangeError(
       "order discount cannot exceed its captured line subtotal.",
     );
@@ -1215,6 +2047,20 @@ function lineSubtotal(lines: readonly PosOperationLine[]): number | null {
   );
   if (!Number.isSafeInteger(total))
     throw new RangeError("order subtotal exceeds safe integer cents.");
+  return total;
+}
+
+function discountTotal(discounts: readonly PosDiscountEntry[]): number {
+  return sumSafe(
+    discounts.map((discount) => discount.allocatedCents),
+    "order discount",
+  );
+}
+
+function sumSafe(values: readonly number[], label: string): number {
+  const total = values.reduce((sum, value) => sum + value, 0);
+  if (!Number.isSafeInteger(total))
+    throw new RangeError(`${label} exceeds safe integer cents.`);
   return total;
 }
 

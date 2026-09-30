@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   applyPosOperation,
   createPosOperationsState,
+  MAX_POS_OPERATION_BYTES,
   PosOperationError,
   PosOperationRevisionConflict,
   replayPosOperations,
@@ -10,6 +11,8 @@ import {
   type PosOperationAuthority,
   type PosOperationCommand,
   type PosOperationLine,
+  type PosOperationAction,
+  type PosOperationPayloads,
   type PosOperationsScope,
 } from "./pos-operations.ts";
 
@@ -29,10 +32,66 @@ const owner: PosOperationAuthority = {
     "cancelPreparationWithReason",
     "discountWithReason",
     "prepareOrder",
-    "splitAccount",
     "refundSaleWithReason",
   ],
 };
+
+let generatedCommandNumber = 1;
+
+function operation<TAction extends PosOperationAction>(
+  action: TAction,
+  payload: PosOperationPayloads[TAction],
+  expectedRevisions: PosOperationCommand["expectedRevisions"],
+  options: {
+    actorId?: string;
+    commandId?: string;
+    occurredAt?: string;
+    reason?: string | null;
+  } = {},
+): Extract<PosOperationCommand, { action: TAction }> {
+  return {
+    schemaVersion: 1,
+    commandId: options.commandId ?? `operation-${generatedCommandNumber++}`,
+    branchId: scope.branchId,
+    actorId: options.actorId ?? owner.actorId,
+    deviceId: scope.deviceId,
+    occurredAt: options.occurredAt ?? "2026-09-30T12:10:00.000Z",
+    expectedRevisions: canonicalRevisions(expectedRevisions),
+    action,
+    reason: options.reason ?? null,
+    payload,
+  } as Extract<PosOperationCommand, { action: TAction }>;
+}
+
+function revision(
+  kind: "order" | "preparation" | "sale",
+  id: string,
+  value: number,
+) {
+  return { kind, id, revision: value } as const;
+}
+
+function canonicalRevisions(refs: PosOperationCommand["expectedRevisions"]) {
+  return [...refs].sort((left, right) =>
+    left.kind === right.kind
+      ? left.id < right.id
+        ? -1
+        : left.id > right.id
+          ? 1
+          : 0
+      : left.kind < right.kind
+        ? -1
+        : 1,
+  );
+}
+
+function authority(
+  actorId: string,
+  role: PosOperationAuthority["role"],
+  capabilities: PosOperationAuthority["capabilities"],
+): PosOperationAuthority {
+  return { ...scope, actorId, role, capabilities };
+}
 
 const capturedLine = (
   lineId = "line-1",
@@ -136,6 +195,7 @@ test("opens a scoped account with captured table, actor and explicitly unknown t
     discounts: [],
     preparationId: null,
     splitFrom: null,
+    splitOperations: [],
     history: [
       {
         commandId: "open-command-1",
@@ -151,8 +211,8 @@ test("opens a scoped account with captured table, actor and explicitly unknown t
   });
 });
 
-test("delivery orders preserve the original five POS types and require contact facts", () => {
-  for (const orderType of ["local", "mesa", "llevar", "recoger"] as const) {
+test("serialized order types preserve their table and contact requirements", () => {
+  for (const orderType of ["local", "mesa"] as const) {
     const command = openCommand({
       commandId: `open-${orderType}`,
       payload: {
@@ -168,10 +228,33 @@ test("delivery orders preserve the original five POS types and require contact f
     });
     assert.equal(validatePosOperationCommand(command).action, "order.opened");
   }
+  for (const orderType of ["llevar", "recoger"] as const) {
+    const command = openCommand({
+      payload: {
+        orderId: `order-${orderType}`,
+        orderType,
+        tableId: null,
+        customer: { name: "Ana", phone: "5551234", address: null },
+        lines: [capturedLine()],
+      },
+      expectedRevisions: [
+        { kind: "order", id: `order-${orderType}`, revision: 0 },
+      ],
+    });
+    assert.equal(validatePosOperationCommand(command).action, "order.opened");
+    assert.throws(
+      () =>
+        validatePosOperationCommand({
+          ...command,
+          payload: { ...command.payload, customer: null },
+        }),
+      new RegExp(`${orderType} requires customer contact`),
+    );
+  }
   const delivery = openCommand({
     payload: {
       orderId: "delivery-1",
-      orderType: "DOMICILIO",
+      orderType: "domicilio",
       tableId: null,
       customer: { name: "Ana", phone: "5551234", address: "Centro 1" },
       lines: [capturedLine()],
@@ -183,7 +266,7 @@ test("delivery orders preserve the original five POS types and require contact f
     delivery,
     owner,
   ).state.orders[0]!;
-  assert.equal(opened.orderType, "DOMICILIO");
+  assert.equal(opened.orderType, "domicilio");
   assert.deepEqual(opened.customer, {
     name: "Ana",
     phone: "5551234",
@@ -243,6 +326,78 @@ test("strict field allowlists reject price, discount, credentials and session da
   );
 });
 
+test("captured modifier effects reconcile when their amount facts are complete", () => {
+  const command = openCommand();
+  const validLine = capturedLine("line-1", {
+    modifierTotalCents: 100,
+    unitPriceCents: 6100,
+    lineTotalCents: 6100,
+    modifiers: [
+      {
+        groupId: "milk",
+        optionId: "oat",
+        nameSnapshot: "Avena",
+        quantity: 1,
+        unit: null,
+        priceEffectCents: 100,
+      },
+    ],
+  });
+  assert.equal(
+    validatePosOperationCommand({
+      ...command,
+      payload: { ...command.payload, lines: [validLine] },
+    }).action,
+    "order.opened",
+  );
+  const inconsistent = capturedLine("line-1", {
+    baseUnitPriceCents: null,
+    modifierTotalCents: 0,
+    modifiers: [
+      {
+        groupId: "milk",
+        optionId: "oat",
+        nameSnapshot: "Avena",
+        quantity: 1,
+        unit: null,
+        priceEffectCents: 100,
+      },
+    ],
+  });
+  assert.throws(
+    () =>
+      validatePosOperationCommand({
+        ...command,
+        payload: { ...command.payload, lines: [inconsistent] },
+      }),
+    /modifier effects do not equal modifierTotalCents/,
+  );
+});
+
+test("operation payloads have a total serialized size limit in addition to field bounds", () => {
+  const command = openCommand();
+  const modifiers = Array.from({ length: 100 }, (_, index) => ({
+    groupId: `group-${index}`,
+    optionId: `option-${index}`,
+    nameSnapshot: "A".repeat(160),
+    quantity: 1,
+    unit: null,
+    priceEffectCents: null,
+  }));
+  const lines = Array.from({ length: 200 }, (_, index) =>
+    capturedLine(`line-${index}`, { modifiers }),
+  );
+  assert.throws(
+    () =>
+      validatePosOperationCommand({
+        ...command,
+        payload: { ...command.payload, lines },
+      }),
+    { code: "OPERATION_TOO_LARGE" },
+  );
+  assert.ok(MAX_POS_OPERATION_BYTES <= 1_000_000);
+});
+
 test("line appends use guarded revisions, preserve creator, and retain original actor", () => {
   const opened = applyPosOperation(
     createPosOperationsState(scope),
@@ -289,6 +444,15 @@ test("full command identity conflicts on retry and current authority is checked 
   assert.throws(() => applyPosOperation(opened, changed, owner), {
     code: "OPERATION_COMMAND_ID_CONFLICT",
   });
+  assert.throws(
+    () =>
+      applyPosOperation(
+        opened,
+        openCommand({ occurredAt: "2026-09-30T12:00:01.000Z" }),
+        owner,
+      ),
+    { code: "OPERATION_COMMAND_ID_CONFLICT" },
+  );
 
   const revoked = { ...owner, capabilities: [] };
   assert.throws(() => applyPosOperation(opened, openCommand(), revoked), {
@@ -320,4 +484,626 @@ test("history replays after role revocation while new writes remain denied", () 
       }),
     PosOperationError,
   );
+});
+
+test("order line/detail changes are revision guarded and cannot leave an empty draft", () => {
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    openCommand({
+      payload: {
+        orderId: "order-1",
+        orderType: "llevar",
+        tableId: null,
+        customer: { name: "Ana", phone: "5551234", address: null },
+        lines: [capturedLine()],
+      },
+    }),
+    owner,
+  ).state;
+  const changedLine = capturedLine("line-1", {
+    quantity: 2,
+    lineTotalCents: 12000,
+    notes: "Sin azúcar",
+  });
+  const changed = applyPosOperation(
+    opened,
+    operation(
+      "order.line-changed",
+      { orderId: "order-1", lineId: "line-1", line: changedLine },
+      [revision("order", "order-1", 1)],
+      { actorId: "cashier-1" },
+    ),
+    authority("cashier-1", "barra", ["openOrder"]),
+  ).state;
+  assert.equal(changed.orders[0]?.lines[0]?.quantity, 2);
+  assert.equal(changed.orders[0]?.history.at(-1)?.actorId, "cashier-1");
+
+  const details = applyPosOperation(
+    changed,
+    operation(
+      "order.details-changed",
+      {
+        orderId: "order-1",
+        customer: {
+          name: "Ana María",
+          phone: "5559999",
+          address: "Nueva dirección",
+        },
+      },
+      [revision("order", "order-1", 2)],
+    ),
+    owner,
+  ).state;
+  assert.deepEqual(details.orders[0]?.customer, {
+    name: "Ana María",
+    phone: "5559999",
+    address: "Nueva dirección",
+  });
+  assert.throws(
+    () =>
+      applyPosOperation(
+        details,
+        operation(
+          "order.line-removed",
+          { orderId: "order-1", lineId: "line-1" },
+          [revision("order", "order-1", 3)],
+        ),
+        owner,
+      ),
+    { code: "ORDER_MUST_RETAIN_LINE" },
+  );
+  assert.equal(details.orders[0]?.revision, 3);
+  assert.equal(details.orders[0]?.lines.length, 1);
+});
+
+test("discounts and cancellation preserve reason and actor without mutating the input", () => {
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    openCommand(),
+    owner,
+  ).state;
+  const discounted = applyPosOperation(
+    opened,
+    operation(
+      "order.discounted",
+      { orderId: "order-1", amountCents: 1000 },
+      [revision("order", "order-1", 1)],
+      { reason: "Cortesía autorizada" },
+    ),
+    owner,
+  ).state;
+  assert.equal(discounted.orders[0]?.discounts[0]?.allocatedCents, 1000);
+  assert.equal(discounted.orders[0]?.discounts[0]?.actorId, owner.actorId);
+  assert.equal(
+    discounted.orders[0]?.discounts[0]?.reason,
+    "Cortesía autorizada",
+  );
+
+  const sent = applyPosOperation(
+    discounted,
+    operation(
+      "preparation.sent",
+      { orderId: "order-1", preparationId: "prep-1" },
+      [revision("order", "order-1", 2), revision("preparation", "prep-1", 0)],
+    ),
+    owner,
+  ).state;
+  const activePreparation = structuredClone(sent.preparations[0]);
+  const cancelled = applyPosOperation(
+    sent,
+    operation(
+      "order.cancelled",
+      { orderId: "order-1" },
+      [revision("order", "order-1", 3)],
+      { actorId: "manager-1", reason: "Cliente se retiró" },
+    ),
+    authority("manager-1", "encargado", ["cancelWithReason"]),
+  ).state;
+  assert.equal(cancelled.orders[0]?.status, "cancelled");
+  assert.equal(cancelled.orders[0]?.cancellationReason, "Cliente se retiró");
+  assert.equal(cancelled.orders[0]?.cancelledByActorId, "manager-1");
+  assert.deepEqual(cancelled.preparations[0], activePreparation);
+  assert.equal(opened.orders[0]?.status, "open");
+  assert.throws(
+    () =>
+      applyPosOperation(
+        cancelled,
+        operation(
+          "order.discounted",
+          { orderId: "order-1", amountCents: 1 },
+          [revision("order", "order-1", 4)],
+          { reason: "Error" },
+        ),
+        owner,
+      ),
+    { code: "ORDER_NOT_OPEN" },
+  );
+});
+
+test("prep send, progress, split lineage, and checkout preserve unfinished kitchen work", () => {
+  const twoLines = [
+    capturedLine("line-1", { quantity: 2, lineTotalCents: 12000 }),
+    capturedLine("line-2", {
+      productId: "product-2",
+      nameSnapshot: "Latte",
+      baseUnitPriceCents: 5000,
+      unitPriceCents: 5000,
+      lineTotalCents: 5000,
+    }),
+  ];
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    openCommand({ payload: { ...openCommand().payload, lines: twoLines } }),
+    owner,
+  ).state;
+  const discounted = applyPosOperation(
+    opened,
+    operation(
+      "order.discounted",
+      { orderId: "order-1", amountCents: 5001 },
+      [revision("order", "order-1", 1)],
+      { reason: "Descuento de gerente" },
+    ),
+    owner,
+  ).state;
+  const sent = applyPosOperation(
+    discounted,
+    operation(
+      "preparation.sent",
+      { orderId: "order-1", preparationId: "prep-1" },
+      [revision("order", "order-1", 2), revision("preparation", "prep-1", 0)],
+      { actorId: "waiter-1" },
+    ),
+    authority("waiter-1", "mesero", ["openOrder"]),
+  ).state;
+  assert.equal(sent.preparations[0]?.status, "queued");
+  assert.equal(sent.preparations[0]?.createdByActorId, "waiter-1");
+
+  const splitAuthority = authority("waiter-1", "mesero", ["openOrder"]);
+  const beforeSplitOrder = sent.orders[0]!;
+  const beforeSplitSubtotal = beforeSplitOrder.lines.reduce(
+    (sum, line) => sum + (line.lineTotalCents ?? 0),
+    0,
+  );
+  const beforeSplitDiscount = beforeSplitOrder.discounts.reduce(
+    (sum, item) => sum + item.allocatedCents,
+    0,
+  );
+  const splitCommand = operation(
+    "order.split",
+    {
+      sourceOrderId: "order-1",
+      childOrderId: "order-2",
+      transfers: [
+        { lineId: "line-1", childLineId: "line-1-child", quantity: 1 },
+      ],
+    },
+    [
+      revision("order", "order-1", 3),
+      revision("order", "order-2", 0),
+      revision("preparation", "prep-1", 1),
+    ],
+    { actorId: "waiter-1" },
+  );
+  const staleSplit = {
+    ...splitCommand,
+    expectedRevisions: splitCommand.expectedRevisions.map((ref) =>
+      ref.kind === "preparation" ? { ...ref, revision: 0 } : ref,
+    ),
+  };
+  const sentBeforeStaleSplit = structuredClone(sent);
+  assert.throws(
+    () => applyPosOperation(sent, staleSplit, splitAuthority),
+    PosOperationRevisionConflict,
+  );
+  assert.deepEqual(sent, sentBeforeStaleSplit);
+  const split = applyPosOperation(sent, splitCommand, splitAuthority).state;
+  const source = split.orders.find((order) => order.orderId === "order-1")!;
+  const child = split.orders.find((order) => order.orderId === "order-2")!;
+  const ticket = split.preparations[0]!;
+  const afterSplitSubtotal = [source, child].reduce(
+    (sum, order) =>
+      sum +
+      order.lines.reduce(
+        (lineSum, line) => lineSum + (line.lineTotalCents ?? 0),
+        0,
+      ),
+    0,
+  );
+  const afterSplitDiscount = [source, child].reduce(
+    (sum, order) =>
+      sum +
+      order.discounts.reduce(
+        (discountSum, item) => discountSum + item.allocatedCents,
+        0,
+      ),
+    0,
+  );
+  assert.equal(afterSplitSubtotal, beforeSplitSubtotal);
+  assert.equal(afterSplitDiscount, beforeSplitDiscount);
+  assert.equal(
+    afterSplitSubtotal - afterSplitDiscount,
+    beforeSplitSubtotal - beforeSplitDiscount,
+  );
+  assert.equal(split.preparations.length, 1);
+  assert.equal(source.orderType, "mesa");
+  assert.equal(source.tableId, "table-4");
+  assert.deepEqual(ticket.linkedOrderIds, ["order-1", "order-2"]);
+  assert.equal(ticket.lines.length, 2);
+  assert.equal(source.splitOperations[0]?.actorId, "waiter-1");
+  assert.deepEqual(child.splitFrom, {
+    orderId: "order-1",
+    commandId: splitCommand.commandId,
+  });
+
+  const progressing = applyPosOperation(
+    split,
+    operation(
+      "preparation.transitioned",
+      { orderId: "order-1", preparationId: "prep-1", nextStatus: "preparing" },
+      [revision("order", "order-1", 4), revision("preparation", "prep-1", 2)],
+      { actorId: "barista-1" },
+    ),
+    authority("barista-1", "barra", ["prepareOrder"]),
+  ).state;
+  const preparationBeforeCheckout = structuredClone(
+    progressing.preparations[0],
+  );
+  const orderRevision = progressing.orders.find(
+    (order) => order.orderId === "order-1",
+  )!.revision;
+  const subtotal = progressing.orders
+    .find((order) => order.orderId === "order-1")!
+    .lines.reduce((sum, line) => sum + (line.lineTotalCents ?? 0), 0);
+  const discount = progressing.orders
+    .find((order) => order.orderId === "order-1")!
+    .discounts.reduce((sum, item) => sum + item.allocatedCents, 0);
+  const due = subtotal - discount;
+  const checkout = applyPosOperation(
+    progressing,
+    operation(
+      "order.checked-out",
+      {
+        orderId: "order-1",
+        saleId: "sale-1",
+        payments: [
+          {
+            paymentId: "payment-cash",
+            method: "cash",
+            netAmountCents: due,
+            tipCents: 0,
+            tenderedCents: due,
+            changeCents: 0,
+            recordMode: "manual",
+            verification: "not-applicable",
+          },
+        ],
+      },
+      [
+        revision("order", "order-1", orderRevision),
+        revision("preparation", "prep-1", preparationBeforeCheckout!.revision),
+        revision("sale", "sale-1", 0),
+      ],
+      { actorId: "cashier-1" },
+    ),
+    authority("cashier-1", "barra", ["checkout"]),
+  ).state;
+  assert.equal(
+    checkout.orders.find((order) => order.orderId === "order-1")?.status,
+    "closed",
+  );
+  assert.deepEqual(checkout.preparations[0], preparationBeforeCheckout);
+  assert.equal(checkout.sales[0]?.closedByActorId, "cashier-1");
+  assert.equal(checkout.sales[0]?.preparationId, "prep-1");
+});
+
+test("openOrder role matrix can split for every authorized position", () => {
+  const roles: PosOperationAuthority["role"][] = [
+    "duena",
+    "encargado",
+    "barra",
+    "mesero",
+  ];
+  for (const [index, role] of roles.entries()) {
+    const orderId = `split-${role}`;
+    const initial = applyPosOperation(
+      createPosOperationsState(scope),
+      openCommand({
+        commandId: `open-${role}`,
+        payload: {
+          orderId,
+          orderType: "mesa",
+          tableId: "table-4",
+          customer: null,
+          lines: [
+            capturedLine(`line-${role}`, {
+              quantity: 2,
+              lineTotalCents: 12000,
+            }),
+          ],
+        },
+        expectedRevisions: [revision("order", orderId, 0)],
+      }),
+      owner,
+    ).state;
+    const actorId = `split-actor-${index}`;
+    const permissions = authority(actorId, role, ["openOrder"]);
+    const split = applyPosOperation(
+      initial,
+      operation(
+        "order.split",
+        {
+          sourceOrderId: orderId,
+          childOrderId: `${orderId}-child`,
+          transfers: [
+            {
+              lineId: `line-${role}`,
+              childLineId: `line-${role}-child`,
+              quantity: 1,
+            },
+          ],
+        },
+        [
+          revision("order", orderId, 1),
+          revision("order", `${orderId}-child`, 0),
+        ],
+        { actorId },
+      ),
+      permissions,
+    ).state;
+    assert.equal(split.orders.length, 2);
+  }
+});
+
+test("checkout and refunds append immutable money facts without reopening a paid account", () => {
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    openCommand(),
+    owner,
+  ).state;
+  const discounted = applyPosOperation(
+    opened,
+    operation(
+      "order.discounted",
+      { orderId: "order-1", amountCents: 500 },
+      [revision("order", "order-1", 1)],
+      { reason: "Ajuste autorizado" },
+    ),
+    owner,
+  ).state;
+  const checkoutCommand = operation(
+    "order.checked-out",
+    {
+      orderId: "order-1",
+      saleId: "sale-1",
+      payments: [
+        {
+          paymentId: "payment-cash",
+          method: "cash",
+          netAmountCents: 3000,
+          tipCents: 100,
+          tenderedCents: 3300,
+          changeCents: 200,
+          recordMode: "manual",
+          verification: "not-applicable",
+        },
+        {
+          paymentId: "payment-card",
+          method: "card",
+          netAmountCents: 2500,
+          tipCents: 50,
+          tenderedCents: null,
+          changeCents: null,
+          recordMode: "manual",
+          verification: "manual-unverified",
+        },
+      ],
+    },
+    [revision("order", "order-1", 2), revision("sale", "sale-1", 0)],
+    { actorId: "cashier-1" },
+  );
+  const invalidNetCheckout = {
+    ...checkoutCommand,
+    payload: {
+      ...checkoutCommand.payload,
+      payments: checkoutCommand.payload.payments.map((payment) =>
+        payment.paymentId === "payment-card"
+          ? { ...payment, netAmountCents: payment.netAmountCents - 100 }
+          : payment,
+      ),
+    },
+  };
+  assert.throws(
+    () =>
+      applyPosOperation(
+        discounted,
+        invalidNetCheckout,
+        authority("cashier-1", "barra", ["checkout"]),
+      ),
+    /payment net does not equal/,
+  );
+  assert.equal(discounted.orders[0]?.status, "open");
+  assert.equal(discounted.sales.length, 0);
+  const checkedOut = applyPosOperation(
+    discounted,
+    checkoutCommand,
+    authority("cashier-1", "barra", ["checkout"]),
+  ).state;
+  const sale = checkedOut.sales[0]!;
+  const capturedPayments = structuredClone(sale.payments);
+  assert.equal(sale.netTotalCents, 5500);
+  assert.equal(sale.tipCents, 150);
+  assert.equal(sale.payments[0]?.changeCents, 200);
+  assert.equal(sale.payments[0]?.recordedByActorId, "cashier-1");
+  assert.equal(sale.payments[1]?.verification, "manual-unverified");
+  assert.equal(checkedOut.orders[0]?.status, "closed");
+
+  const refundCommand = operation(
+    "sale.refunded",
+    {
+      saleId: "sale-1",
+      refundId: "refund-1",
+      allocations: [
+        { paymentId: "payment-cash", method: "cash", amountCents: 2000 },
+        { paymentId: "payment-card", method: "card", amountCents: 500 },
+      ],
+    },
+    [revision("sale", "sale-1", 1)],
+    { actorId: "manager-1", reason: "Devolución autorizada" },
+  );
+  const refunded = applyPosOperation(
+    checkedOut,
+    refundCommand,
+    authority("manager-1", "encargado", ["refundSaleWithReason"]),
+  ).state;
+  assert.equal(refunded.sales[0]?.refunds[0]?.amountCents, 2500);
+  assert.equal(refunded.sales[0]?.refunds[0]?.actorId, "manager-1");
+  assert.equal(refunded.sales[0]?.status, "closed");
+  assert.deepEqual(refunded.sales[0]?.payments, capturedPayments);
+  assert.equal(refunded.orders[0]?.status, "closed");
+
+  assert.throws(
+    () =>
+      applyPosOperation(
+        refunded,
+        operation(
+          "sale.refunded",
+          {
+            saleId: "sale-1",
+            refundId: "refund-too-large",
+            allocations: [
+              { paymentId: "payment-cash", method: "cash", amountCents: 1001 },
+            ],
+          },
+          [revision("sale", "sale-1", 2)],
+          { actorId: "manager-1", reason: "Excede saldo" },
+        ),
+        authority("manager-1", "encargado", ["refundSaleWithReason"]),
+      ),
+    RangeError,
+  );
+  assert.throws(
+    () =>
+      applyPosOperation(
+        refunded,
+        operation(
+          "sale.refunded",
+          {
+            saleId: "sale-1",
+            refundId: "refund-denied",
+            allocations: [
+              { paymentId: "payment-cash", method: "cash", amountCents: 1 },
+            ],
+          },
+          [revision("sale", "sale-1", 2)],
+          { actorId: "waiter-1", reason: "Devolución" },
+        ),
+        authority("waiter-1", "mesero", ["refundSaleWithReason"]),
+      ),
+    { code: "OPERATION_ROLE_DENIED" },
+  );
+  const replayed = replayPosOperations(scope, refunded.commands);
+  assert.deepEqual(replayed, refunded);
+  assert.equal(replayed.orders[0]?.status, "closed");
+  assert.equal(
+    replayed.sales[0]?.refunds[0]?.commandId,
+    refundCommand.commandId,
+  );
+  assert.throws(
+    () =>
+      applyPosOperation(
+        refunded,
+        operation(
+          "order.line-added",
+          { orderId: "order-1", line: capturedLine("line-2") },
+          [revision("order", "order-1", 3)],
+          { actorId: "cashier-1" },
+        ),
+        authority("cashier-1", "barra", ["openOrder"]),
+      ),
+    { code: "ORDER_NOT_OPEN" },
+  );
+});
+
+test("checkout fails closed while catalog price provenance or amount is unknown", () => {
+  const unknownLine = capturedLine("line-1", {
+    baseUnitPriceCents: null,
+    modifierTotalCents: null,
+    unitPriceCents: null,
+    lineTotalCents: null,
+    priceEvidence: "unknown",
+  });
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    openCommand({
+      payload: { ...openCommand().payload, lines: [unknownLine] },
+    }),
+    owner,
+  ).state;
+  const checkout = operation(
+    "order.checked-out",
+    { orderId: "order-1", saleId: "sale-unknown", payments: [] },
+    [revision("order", "order-1", 1), revision("sale", "sale-unknown", 0)],
+    { actorId: "cashier-1" },
+  );
+  assert.throws(
+    () =>
+      applyPosOperation(
+        opened,
+        checkout,
+        authority("cashier-1", "barra", ["checkout"]),
+      ),
+    { code: "ORDER_PRICE_INCOMPLETE" },
+  );
+  assert.equal(opened.orders[0]?.status, "open");
+  assert.equal(opened.sales.length, 0);
+});
+
+test("active preparation line edits touch both revisions and cancellation keeps its audit", () => {
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    openCommand(),
+    owner,
+  ).state;
+  const sent = applyPosOperation(
+    opened,
+    operation(
+      "preparation.sent",
+      { orderId: "order-1", preparationId: "prep-1" },
+      [revision("order", "order-1", 1), revision("preparation", "prep-1", 0)],
+    ),
+    owner,
+  ).state;
+  const changed = applyPosOperation(
+    sent,
+    operation(
+      "order.line-added",
+      { orderId: "order-1", line: capturedLine("line-2") },
+      [revision("order", "order-1", 2), revision("preparation", "prep-1", 1)],
+      { actorId: "waiter-1" },
+    ),
+    authority("waiter-1", "mesero", ["openOrder"]),
+  ).state;
+  assert.equal(changed.orders[0]?.revision, 3);
+  assert.equal(changed.preparations[0]?.revision, 2);
+  assert.equal(changed.preparations[0]?.lines.length, 2);
+  assert.equal(changed.commands.at(-1)?.actorId, "waiter-1");
+
+  const cancelled = applyPosOperation(
+    changed,
+    operation(
+      "preparation.cancelled",
+      { orderId: "order-1", preparationId: "prep-1" },
+      [revision("order", "order-1", 3), revision("preparation", "prep-1", 2)],
+      { actorId: "manager-1", reason: "Duplicado en cocina" },
+    ),
+    authority("manager-1", "encargado", ["cancelPreparationWithReason"]),
+  ).state;
+  assert.equal(cancelled.preparations[0]?.status, "cancelled");
+  assert.equal(
+    cancelled.preparations[0]?.history.at(-1)?.reason,
+    "Duplicado en cocina",
+  );
+  assert.equal(cancelled.preparations[0]?.history.at(-1)?.actorId, "manager-1");
+  assert.equal(cancelled.orders[0]?.status, "open");
 });
