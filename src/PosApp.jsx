@@ -60,6 +60,20 @@ function tableFromReference(reference) {
   return match && match[1] !== '—' ? match[1].slice(0, 32) : '';
 }
 
+function restoreStoredOrder(savedOrder) {
+  return {
+    ...savedOrder,
+    mesa: textField(savedOrder.mesa, 32),
+    name: textField(savedOrder.name, 100),
+    phone: textField(savedOrder.phone, 40),
+    address: textField(savedOrder.address, 240),
+    items: (savedOrder.items || []).map((item, index) => ({
+      ...item,
+      lineId: item.lineId || `restored-${item.prodId || 'item'}-${index}`,
+    })),
+  };
+}
+
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
 // it (keypad key, product card, sales row). Merges base + hover style on hover.
 function Hover({ tag = 'button', base, hover, children, ...rest }) {
@@ -129,20 +143,7 @@ export default class PosApp extends React.Component {
     const orderSettings = { tableCount: validTableCount(sv.orderSettings?.tableCount) };
     this._folio = sv.folioSeq || 1051;
     const savedOrder = sv.order || this.blank();
-    const restoredOrder = {
-      ...savedOrder,
-      mesa: textField(savedOrder.mesa, 32),
-      name: textField(savedOrder.name, 100),
-      phone: textField(savedOrder.phone, 40),
-      address: textField(savedOrder.address, 240),
-      items: (savedOrder.items || []).map((item, index) => ({
-        ...item,
-        // Older saved drafts and seeded accounts predate line identifiers.
-        // Give those rows deterministic identities so cart controls target one
-        // line and React can preserve its row across quantity changes.
-        lineId: item.lineId || `restored-${item.prodId || 'item'}-${index}`,
-      })),
-    };
+    const restoredOrder = restoreStoredOrder(savedOrder);
     this.state = {
       loading: true,
       session: sv.session || null,
@@ -452,7 +453,7 @@ export default class PosApp extends React.Component {
     });
   }
   checkoutSourceSnapshot(checkout, state) {
-    if (checkout.fromStation) return JSON.stringify({ kind: 'station', record: state.order || null });
+    if (checkout.fromStation) return JSON.stringify({ kind: 'station', record: state.order ? restoreStoredOrder(state.order) : null });
     if (checkout.folio) return JSON.stringify({ kind: 'open', record: state.open.find(o => o.folio === checkout.folio) || null });
     return JSON.stringify({ kind: 'new', record: null });
   }
