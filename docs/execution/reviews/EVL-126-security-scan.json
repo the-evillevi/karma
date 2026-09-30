@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-30",
+  "result": {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"success\":true,\"issueCount\":0,\"issues\":null}"
+        }
+      ]
+    }
+  },
+  "scope": "src/offline-sync/pos-journal.ts",
+  "claim": "Zero medium+ findings in the new journal. Not a whole-project scan or a server authorization proof."
+}

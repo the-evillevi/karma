@@ -4,6 +4,7 @@ dist
 .offline-test.local
 .playwright-output
 .pwa-playwright-output
+.pos-journal-playwright-output
 test-results
 .DS_Store
 .preview-playwright-output

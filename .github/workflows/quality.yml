@@ -23,6 +23,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:domain
       - run: pnpm test:components
+      - run: pnpm test:edge-access
       - run: pnpm build
         env:
           KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
@@ -34,6 +35,7 @@ jobs:
           KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:pwa:e2e
+      - run: pnpm test:pos-journal:e2e
       - run: pnpm check:client-bundle
         env:
           KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
