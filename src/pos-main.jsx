@@ -2,9 +2,9 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import './karma-data.js'; // side effect: sets window.KARMA (read by PosApp logic)
 import './styles.css';
-import PosApp from './PosApp.jsx';
+import { PosRoot } from './pwa/PosRoot.tsx';
 
 // Defaults from the design's data-props (vistaCatalogo / mostrarAgotados / propinaInicial).
 createRoot(document.getElementById('root')).render(
-  <PosApp vistaCatalogo="cuadricula" mostrarAgotados={true} propinaInicial="0" />
+  <PosRoot vistaCatalogo="cuadricula" mostrarAgotados={true} propinaInicial="0" />
 );

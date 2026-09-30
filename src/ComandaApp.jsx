@@ -26,10 +26,19 @@ export default class ComandaApp extends React.Component {
     } catch (e) {}
   }
   componentDidMount() {
+    this.reportPwaUpdateSafety();
     this._l = e => { if (e.key === 'karma-pos-v1') this.setState({ open: this.load(), online: this._online }); };
     window.addEventListener('storage', this._l);
     this._p = setInterval(() => this.setState({ open: this.load(), online: this._online }), 4000);
     this.setState({ online: this._online });
+  }
+  componentDidUpdate() { this.reportPwaUpdateSafety(); }
+  reportPwaUpdateSafety() {
+    const report = this.props.onUpdateSafetyChange;
+    if (typeof report !== 'function') return;
+    const active = this.state.open.some(order => order.prep !== 'entregado');
+    if (active) return report({ status: 'blocked', reason: 'Hay comandas en preparación o entrega. Termínalas o revísalas antes de actualizar la pantalla de cocina.' });
+    return report({ status: 'safe', reason: '' });
   }
   componentWillUnmount() { window.removeEventListener('storage', this._l); clearInterval(this._p); }
   renderVals() {
@@ -123,7 +132,7 @@ export default class ComandaApp extends React.Component {
           </div>
           <div style={css('background:#faf9f5;border-top:1px solid #e2e0d6;padding:12px 18px;display:flex;align-items:center;gap:10px')}>
             <span style={css('font-size:12px;color:#6b6a63;flex:1')}>{V.footNote}</span>
-            <a href="/" style={css('font-size:12.5px;font-weight:500')}>Ir a la caja →</a>
+            <a href={import.meta.env.BASE_URL} style={css('font-size:12.5px;font-weight:500')}>Ir a la caja →</a>
           </div>
         </div>
       </div>
