@@ -647,16 +647,18 @@
       "branch": "codex/inventory/evl-153",
       "baseBranch": "codex/inventory/audit-base",
       "requires": ["EVL-129"],
-      "stage": "reviewing",
-      "agent": "orders_xhigh",
-      "commits": ["5c4494a"],
-      "pr": null,
+      "stage": "reviewed_slice",
+      "agent": null,
+      "commits": ["5c4494a", "da069af", "a062876", "6bb32ea"],
+      "pr": "https://github.com/the-evillevi/karma/pull/33",
       "checks": [
-        "Agent28domain/15screens plus builds/types/lint/format/client scan passed."
+        "Root5auditdomain/4actualUI, related29domain/16UI; integrated11report+audit and8compensation screens plus build pass; newreports and integratedPosApp0medium+."
       ],
-      "review": "root_review_with_fixes_in_progress",
-      "blockers": [],
-      "nextAction": "Fix root unrecoverable filter-error UI and formatter performance findings, then independent root review/security scan before draft publication."
+      "review": "fixed_and_rereviewed",
+      "blockers": [
+        "EVL-126/157 durable server versions/acknowledgements/conflict decisions remain open; no recipe deletion operation."
+      ],
+      "nextAction": "Local history draft published/integrated; server conflict history waits for real event contract."
     },
     {
       "id": "EVL-157",
@@ -699,16 +701,16 @@
       "id": "EVL-127",
       "chain": "reports",
       "branch": "codex/reports/evl-127",
-      "baseBranch": "codex/reports/evl-130",
+      "baseBranch": "codex/reports/recovery-base",
       "requires": ["EVL-130", "EVL-126"],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "orders_xhigh",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Truthful recovery/sync status and protected CSV with explicit restore limits; no unsafe whole-state import or invented acknowledgements."
     },
     {
       "id": "EVL-135",
@@ -921,12 +923,12 @@
     "runningAgents": 2,
     "integration": "15044a6",
     "mainMerged": false,
-    "nextIssue": "126server;153audit;127backup",
+    "nextIssue": "126server;127truthful-recovery",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed_after_user_reset",
     "usage": {
-      "primaryUsedPercent": 94,
-      "weeklyUsedPercent": 15,
+      "primaryUsedPercent": 0,
+      "weeklyUsedPercent": 16,
       "ordinaryUsageAllowed": true,
       "resetCreditsRemaining": 3
     },
