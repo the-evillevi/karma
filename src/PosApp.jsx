@@ -15,6 +15,7 @@ import { captureProductLine } from './catalog/catalog-domain.mjs';
 import { normalizeCatalog } from '../scripts/catalog/catalog-normalizer.mjs';
 import { saveMenuProduct } from './catalog/menu-products.mjs';
 import { toggleModifierSelection } from './catalog/sales-selection.mjs';
+import { sameCapturedModifiers } from './catalog/captured-modifiers.mjs';
 import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue.js';
 
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
@@ -499,11 +500,7 @@ export default class PosApp extends React.Component {
         if (e2.lineId) {
           const original = st.order.items.find(x => x.lineId === e2.lineId);
           const oldMods = original?.mods || {};
-          const sameMods = Object.keys({ ...oldMods, ...e2.mods }).every(groupId => {
-            const before = [...(oldMods[groupId] || [])].sort();
-            const after = [...(e2.mods[groupId] || [])].sort();
-            return before.length === after.length && before.every((id, index) => id === after[index]);
-          });
+          const sameMods = sameCapturedModifiers(oldMods, e2.mods);
           if (!sameMods) {
             this.toast('Para cambiar modificadores, elimina el producto y agrégalo de nuevo. Así se confirma cualquier precio vigente.', 'warn');
             return;
