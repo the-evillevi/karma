@@ -13,6 +13,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         comanda: resolve(__dirname, 'comanda.html'),
+        offlineDemo: resolve(__dirname, 'offline-demo.html'),
       },
     },
   },

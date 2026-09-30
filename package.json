@@ -8,13 +8,18 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "offline:local:up": "node scripts/offline-sync/setup-local.mjs",
+    "test:offline:e2e": "playwright test --config scripts/offline-sync/playwright.config.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "rxdb": "^17.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^5.4.11"
   }

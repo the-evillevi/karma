@@ -21,6 +21,8 @@ export interface ModifierSnapshot {
   modifierId: Id;
   nameSnapshot: string;
   priceDeltaCents: Cents;
+  taxRateBasisPoints: number;
+  priceIncludesTax: true;
 }
 
 export interface OrderLineSnapshot {
@@ -29,6 +31,9 @@ export interface OrderLineSnapshot {
   productNameSnapshot: string;
   unitPriceCents: Cents;
   quantity: number;
+  taxRateBasisPoints: number;
+  priceIncludesTax: true;
+  catalogPriceVersionId: Id;
   modifierSnapshots: readonly ModifierSnapshot[];
   notesSnapshot?: string;
 }
@@ -124,6 +129,7 @@ export type EventType =
   | "PreparationSent"
   | "PreparationStarted"
   | "PreparationReady"
+  | "PreparationCancelled"
   | "OrderServed"
   | "PaymentRecorded"
   | "PaymentReversed"
