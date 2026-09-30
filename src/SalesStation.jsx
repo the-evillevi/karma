@@ -15,7 +15,10 @@ export default function SalesStation({ V }) {
       const typing = target instanceof HTMLElement && (
         target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
       );
-      if ((event.key === '/' && !typing) || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k')) {
+      // Other dialogs own their keyboard handling. While the product editor is
+      // open, let only Escape through so shortcuts cannot focus controls behind it.
+      if (V.dlg || (V.ed && event.key !== 'Escape')) return;
+      if (((event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k')) && !typing)) {
         event.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
@@ -38,7 +41,7 @@ export default function SalesStation({ V }) {
         visibleProducts[0].open();
         return;
       }
-      if (event.altKey && event.key === 'ArrowDown') {
+      if (event.altKey && event.key === 'ArrowDown' && !typing) {
         event.preventDefault();
         setMobileCartOpen(true);
         cartRef.current?.querySelector('button, input')?.focus();

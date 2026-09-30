@@ -3,6 +3,8 @@ import { css } from './css.js';
 import SalesStation from './SalesStation.jsx';
 import { captureProductLine } from './catalog/catalog-domain.mjs';
 import { normalizeCatalog } from '../scripts/catalog/catalog-normalizer.mjs';
+import { saveMenuProduct } from './catalog/menu-products.mjs';
+import { toggleModifierSelection } from './catalog/sales-selection.mjs';
 
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
 // it (keypad key, product card, sales row). Merges base + hover style on hover.
@@ -253,9 +255,6 @@ export default class PosApp extends React.Component {
   renderVals() {
     const D = window.KARMA;
     const s = this.state;
-    // The shared capture validator checks real-time POS selections against the
-    // current prototype-backed product state without treating it as approved data.
-    const currentCatalog = normalizeCatalog({ ...D, products: s.prods });
     const acc = '#836953', tint = '#f6e5df', paper = '#faf9f5', ink = '#141413', mut = '#6b6a63', line = '#e2e0d6', bg = '#f0eee6';
     const chip = on => ({ padding: '7px 13px', borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '1px solid ' + (on ? acc : line), background: on ? acc : paper, color: on ? paper : ink, whiteSpace: 'nowrap' });
     const chipSm = on => ({ padding: '6px 10px', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '1px solid ' + (on ? acc : line), background: on ? acc : paper, color: on ? paper : ink, whiteSpace: 'nowrap' });
@@ -405,11 +404,8 @@ export default class PosApp extends React.Component {
               text: op.label + (op.price ? ' +$' + op.price : ''), style: chipSm(on),
               disabled: on && G.max !== 1 && sel.length <= G.min,
               toggle: () => {
-                let ns = sel.slice();
-                if (G.max === 1) ns = [op.id];
-                else if (on && ns.length <= G.min) { this.toast('Elige al menos ' + G.min + ' opción(es) para ' + G.label, 'warn'); return; }
-                else if (on) ns = ns.filter(x => x !== op.id);
-                else if (ns.length < G.max) ns = [...ns, op.id];
+                const ns = toggleModifierSelection(sel, op.id, { min: G.min, max: G.max });
+                if (on && ns.length === sel.length) { this.toast('Elige al menos ' + G.min + ' opción(es) para ' + G.label, 'warn'); return; }
                 this.setState({ ed: { ...this.state.ed, mods: { ...this.state.ed.mods, [gid]: ns } } });
               }
             };
@@ -422,6 +418,15 @@ export default class PosApp extends React.Component {
       V.edConfirm = () => {
         const st = this.state; const e2 = st.ed;
         let normalizedMods;
+        let currentCatalog;
+        try {
+          // Reconcile only at capture time, so a malformed legacy localStorage
+          // price cannot break rendering or prevent the menu editor from fixing it.
+          currentCatalog = normalizeCatalog({ ...window.KARMA, products: st.prods });
+        } catch (error) {
+          this.toast('No se puede agregar hasta corregir el catálogo. Revisa los precios en Menú y guarda las correcciones.', 'warn');
+          return;
+        }
         try {
           const product = st.prods.find(x => x.id === e2.prodId);
           const selections = Object.fromEntries((product?.mods || []).flatMap(gid => {
@@ -561,10 +566,13 @@ export default class PosApp extends React.Component {
       V.admClose = () => this.setState({ admSel: null, admForm: null });
       V.admSave = () => {
         const st = this.state; const f = st.admForm;
-        if (!f.name) { this.toast('El producto necesita nombre', 'warn'); return; }
         let prods;
-        if (st.admSel === 'new') prods = [{ id: 'x' + Date.now(), name: f.name, cat: f.cat, price: parseFloat(f.price) || 0, mods: [], available: f.available }, ...st.prods];
-        else prods = st.prods.map(p => p.id === st.admSel ? { ...p, name: f.name, cat: f.cat, price: parseFloat(f.price) || 0, available: f.available } : p);
+        try {
+          prods = saveMenuProduct(st.prods, st.admSel, f, 'x' + Date.now());
+        } catch (error) {
+          this.toast(error.message || 'Revisa nombre, categoría y precio del producto', 'warn');
+          return;
+        }
         this.up({ prods, admSel: null, admForm: null }, () => this.toast('«' + f.name + '» guardado en el menú'));
       };
     } else { Object.assign(V, { fName: '', setFName: () => {}, fPrice: '', setFPrice: () => {}, fCat: '', setFCat: () => {}, fAvailLabel: '', fAvailStyle: {}, fToggleAvail: () => {}, fMods: [], fInv: [], pvName: '', pvPrice: '', admClose: () => {}, admSave: () => {} }); }
