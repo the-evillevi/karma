@@ -518,7 +518,7 @@ describe('manual checkout tips and offline tender capture', () => {
     };
     storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [ticket], kitchenTickets: [ticket] }));
     const user = userEvent.setup();
-    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    const pos = render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
 
     await screen.findByRole('button', { name: 'Punto de venta' });
     await user.click(screen.getByRole('button', { name: 'Simular pérdida de conexión' }));
@@ -564,5 +564,28 @@ describe('manual checkout tips and offline tender capture', () => {
     expect(sale.payments.reduce((sum, payment) => sum + payment.tipCents, 0)).toBe(1200);
     expect(saved.kitchenTickets).toMatchObject([{ folio: ticket.folio, prep: 'en-cola', ref: 'Mesa 12', items: [{ notes: 'Leche aparte' }] }]);
     expect(saved.open).toEqual([]);
+
+    pos.unmount();
+    cleanup();
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: 'Reportes' }));
+    await user.click(screen.getByRole('button', { name: `Abrir detalle de venta ${ticket.folio}` }));
+    await screen.findByRole('dialog', { name: new RegExp(ticket.folio) });
+    expect(screen.getByRole('status').textContent).toBe('Registro manual · autorización externa no verificada.');
+  });
+
+  it('shows legacy card verification as unknown instead of implying approval', async () => {
+    const storage = installMemoryStorage();
+    storage.setItem('karma-pos-v1', JSON.stringify({
+      session: 'u1',
+      sales: [{ folio: 'A-LEGACY-CARD', fecha: 'Hoy', tipo: 'mesa', creo: 'Sofía', cobro: 'Sofía', total: 50, tip: 0, status: 'completada', sync: 'sincronizada', items: [], payments: [{ method: 'Tarjeta', amount: 50 }], audit: [] }],
+    }));
+    const user = userEvent.setup();
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: 'Reportes' }));
+    await user.click(screen.getByRole('button', { name: 'Abrir detalle de venta A-LEGACY-CARD' }));
+    await screen.findByRole('dialog', { name: /A-LEGACY-CARD/ });
+    expect(screen.getByRole('status').textContent).toBe('Verificación externa sin dato registrado en este historial.');
+    expect(screen.queryByText(/aprobada|autorizada/i)).toBeNull();
   });
 });

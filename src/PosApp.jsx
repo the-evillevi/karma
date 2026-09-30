@@ -822,6 +822,18 @@ export default class PosApp extends React.Component {
       V.dMeta = sel.fecha + ' · ' + sel.tipo + ' — creó ' + sel.creo + ' · cobró ' + sel.cobro + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'sincronizada');
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
       V.dItems = sel.items.map(i => ({ qty: i.qty, name: i.name, mods: i.mods, hasMods: !!i.mods, total: this.fmt(i.total) }));
+      const isExternalPayment = payment => {
+        const method = String(payment?.methodLabel || payment?.method || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        return ['card', 'tarjeta', 'transfer', 'transferencia'].includes(method);
+      };
+      const externalPayments = (Array.isArray(sel.payments) ? sel.payments : []).filter(isExternalPayment);
+      const externallyUnverified = sel.externalPaymentVerification === 'manual_unverified'
+        || externalPayments.some(payment => payment.verificationStatus === 'manual_unverified');
+      V.dPaymentVerificationMessage = externallyUnverified
+        ? 'Registro manual · autorización externa no verificada.'
+        : externalPayments.length > 0
+          ? 'Verificación externa sin dato registrado en este historial.'
+          : '';
       const salePaymentRows = Array.isArray(sel.tenders) ? sel.tenders : sel.payments;
       V.dPays = salePaymentRows.map(p => ({
         method: p.methodLabel || ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', credit: 'Crédito' })[p.method] || p.method,
@@ -833,7 +845,7 @@ export default class PosApp extends React.Component {
       V.dTip = this.fmt(sel.tip); V.dTotal = this.fmt(sel.total);
       V.dAudit = sel.audit.map(a => ({ t: a[0], e: a[1], u: a[2] }));
       V.closeDetail = () => this.setState({ repSel: null });
-    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
+    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPaymentVerificationMessage: '', dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
 
     // ---- users & config
     V.cfgTabs = [['usuarios', 'Usuarios'], ['config', 'Configuración']].map(([id, label]) => ({ label, active: s.cfgTab === id, pick: () => this.setState({ cfgTab: id }) }));
@@ -888,7 +900,7 @@ export default class PosApp extends React.Component {
     V.cfgCards = [
       { title: 'Datos del negocio', rows: [row('Nombre', 'Abboth'), row('Sucursal', 'Centro · única'), row('Moneda', 'MXN — pesos mexicanos'), row('Redes', '@Abboth.mx')], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Impresión', rows: [row('Tickets', 'EPSON TM-T20 · Caja'), row('Comandas', 'Estrella SP700 · Cocina'), { label: 'Imprimir comanda automáticamente', ...togg('autoprint') }], hasAction: false, action: () => {}, actionLabel: '' },
-      { title: 'Formas de pago', rows: [{ label: 'Efectivo', ...togg('fpEfectivo') }, { label: 'Tarjeta (terminal)', ...togg('fpTarjeta') }, { label: 'Transferencia', ...togg('fpTransfer') }], hasAction: false, action: () => {}, actionLabel: '' },
+      { title: 'Formas de pago', rows: [{ label: 'Efectivo', ...togg('fpEfectivo') }, { label: 'Tarjeta (registro manual)', ...togg('fpTarjeta') }, { label: 'Transferencia', ...togg('fpTransfer') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Propinas', rows: [row('Sugerencias', '5% · 10% · 15% · 20%'), { label: 'Permitir propina personalizada', ...togg('propCustom') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Reglas de cancelación', rows: [{ label: 'Requerir motivo', ...togg('cancelMotivo') }, { label: 'Autorización de encargado', ...togg('cancelAut') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Respaldo y recuperación', rows: [row('Último respaldo', 'Hoy · 03:00'), row('Copias locales', '7 días retenidos')], hasAction: true, actionLabel: 'Respaldar ahora', action: () => this.toast('Respaldo local creado — Hoy · ' + this.now()) },
@@ -1480,6 +1492,7 @@ export default class PosApp extends React.Component {
 <DialogDescription className="leading-relaxed">{V.dMeta}</DialogDescription>
 </DialogHeader>
 {(V.dHasMotivo) && (<><div style={css("font-size:12.5px;color:#836953;background:#f6e5df;border-radius:8px;padding:8px 12px")}>Motivo: {V.dMotivo}</div></>)}
+{(V.dPaymentVerificationMessage) && (<div role="status" className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{V.dPaymentVerificationMessage}</div>)}
 <div style={css("display:flex;flex-direction:column")}>
 {(V.dItems).map((i, iI) => (<React.Fragment key={iI}>
 <div style={css("display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #e2e0d6;font-size:13px")}>
