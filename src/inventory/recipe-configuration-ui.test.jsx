@@ -148,7 +148,8 @@ it('keeps the same recipe command on a failed local write and succeeds on explic
   storage.failNextWrites(1);
   await user.click(screen.getByRole('button', { name: 'Publicar revisión' }));
   expect((await screen.findByRole('alert')).textContent).toContain('No se pudo guardar la receta');
-  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog.revision).toBe(0);
+  // Viewing the editor is read-only; its first failed publication must not create history.
+  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog).toBeUndefined();
   expect(app.ref.current.state.recipeCatalog.revision).toBe(0);
 
   await user.click(screen.getByRole('button', { name: 'Publicar revisión' }));
@@ -208,13 +209,13 @@ it('rejects a stale persisted inventory revision and rechecks current authorizat
   storage.setItem(storageKey, JSON.stringify({ ...persisted, inventoryState: changed }));
   await user.click(screen.getByRole('button', { name: 'Publicar revisión' }));
   expect((await screen.findByRole('alert')).textContent).toContain('Cambió el catálogo o el inventario');
-  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog.revision).toBe(0);
+  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog).toBeUndefined();
 
   await act(async () => {
     const fresh = JSON.parse(storage.getItem(storageKey));
     const result = await app.ref.current.confirmRecipePublication({ commandId: 'stale-authority', reason: 'prueba' });
     expect(result.ok).toBe(false);
-    expect(fresh.recipeCatalog.revision).toBe(0);
+    expect(fresh.recipeCatalog).toBeUndefined();
   });
   app.rerender(<PosApp ref={app.ref}
     vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0"
@@ -225,7 +226,7 @@ it('rejects a stale persisted inventory revision and rechecks current authorizat
     const result = await app.ref.current.confirmRecipePublication({ commandId: 'barista-authority', reason: 'prueba' });
     expect(result.ok).toBe(false);
   });
-  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog.revision).toBe(0);
+  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog).toBeUndefined();
 });
 
 it('fails closed on corrupt saved recipe history and leaves recipe controls read-only for Barra', async () => {
@@ -263,7 +264,7 @@ it('allows Encargado to review a recipe but disables the open form and rejects i
     const result = await app.ref.current.confirmRecipePublication({ commandId: 'reassigned', reason: 'prueba' });
     expect(result.ok).toBe(false);
   });
-  expect(JSON.parse(window.localStorage.getItem(storageKey)).recipeCatalog.revision).toBe(0);
+  expect(JSON.parse(window.localStorage.getItem(storageKey)).recipeCatalog).toBeUndefined();
 });
 
 
@@ -285,7 +286,7 @@ it('does not reassign an in-flight recipe publication to another authorized mana
       accessScreen={<main>Inicio seguro</main>} accessContext={context('encargado', 'other-manager')} />));
     expect((await pending).ok).toBe(false);
   });
-  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog.events).toHaveLength(0);
+  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog).toBeUndefined();
 });
 
 
