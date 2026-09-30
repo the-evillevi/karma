@@ -212,3 +212,31 @@ it('preserves the order creator when a different verified identity saves and sta
   act(() => ref.current.startCheckout(saved.folio));
   expect(ref.current.state.ck).toMatchObject({ originalActorId: 'auth-owner-1', originalActorName: 'Dueña verificada', actorId: 'auth-barra', actorName: 'Barra' });
 });
+
+  it('records inventory under the current verified actor and refuses a revoked or changed role at confirmation', async () => {
+    const ref = React.createRef();
+    const initialProps = props();
+    const view = render(<PosApp ref={ref} {...initialProps} />);
+    await waitFor(() => expect(ref.current.state.inventoryState?.items.length).toBe(12));
+    act(() => ref.current.openInventoryDialog('entry', 'i1'));
+    const first = { ...ref.current.state.dlg, reason: 'Recepción autorizada', fields: ref.current.state.dlg.fields.map(field => field.key === 'quantityText' ? { ...field, value: '0.25' } : field) };
+    const before = JSON.parse(storage.getItem(initialProps.accessStorageKey)).inventoryState;
+
+    view.rerender(<PosApp ref={ref} {...initialProps} accessContext={context({ role: 'mesero', userId: 'auth-waiter-2' })} />);
+    act(() => expect(ref.current.confirmInventoryCommand(first)).toBe('keep'));
+    expect(JSON.parse(storage.getItem(initialProps.accessStorageKey)).inventoryState).toEqual(before);
+    view.rerender(<PosApp ref={ref} {...initialProps} accessContext={null} />);
+    act(() => expect(ref.current.confirmInventoryCommand(first)).toBe('keep'));
+    expect(JSON.parse(storage.getItem(initialProps.accessStorageKey)).inventoryState).toEqual(before);
+
+    view.rerender(<PosApp ref={ref} {...initialProps} accessContext={context({ role: 'encargado', userId: 'auth-manager-2', displayName: 'Encargado verificado' })} />);
+    act(() => ref.current.openInventoryDialog('entry', 'i1'));
+    const authorized = { ...ref.current.state.dlg, reason: 'Recepción autorizada', fields: ref.current.state.dlg.fields.map(field => field.key === 'quantityText' ? { ...field, value: '0.25' } : field) };
+    act(() => expect(ref.current.confirmInventoryCommand(authorized)).toBeUndefined());
+    const saved = JSON.parse(storage.getItem(initialProps.accessStorageKey));
+    expect(saved.inventoryState.entries.at(-1)).toMatchObject({ actorId: 'auth-manager-2', actorName: 'Encargado verificado', quantityBaseUnits: 250, reason: 'Recepción autorizada' });
+    expect(saved.session).toBeUndefined();
+    expect(saved.usersX ?? []).toEqual([]);
+    expect(ref.current.state.usersX).toEqual([]);
+    expect(storage.getItem('karma-pos-v1')).toBeNull();
+  });
