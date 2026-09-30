@@ -1,0 +1,3248 @@
+{
+  "schema": "karma.catalog/v1",
+  "catalogId": "karma-cafe",
+  "revision": 1,
+  "currency": null,
+  "sourceStatus": "prototype-seed-only",
+  "importGate": {
+    "readyForValidatedBusinessUse": false,
+    "blockers": [
+      "Source workbooks and product photos have not been reconciled against the prototype seed.",
+      "Carlos has not validated menu names, prices, availability, options, or stock control."
+    ]
+  },
+  "sources": [
+    {
+      "id": "prototype-seed",
+      "path": "src/karma-data.js",
+      "status": "available-unverified"
+    },
+    {
+      "id": "stock-workbook",
+      "name": "ReporteDeStock_52000822_2026-8-6-1813618144.xlsx",
+      "status": "unavailable-expired-linear-link"
+    },
+    {
+      "id": "products-workbook",
+      "name": "products-Today.xlsx",
+      "status": "unavailable-expired-linear-link"
+    },
+    {
+      "id": "product-photos",
+      "count": 3,
+      "status": "unavailable-expired-linear-links"
+    },
+    {
+      "id": "carlos-review",
+      "status": "pending"
+    }
+  ],
+  "categories": [
+    {
+      "id": "concafe",
+      "name": "Con café",
+      "sortOrder": 0,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    },
+    {
+      "id": "lattes",
+      "name": "Lattes",
+      "sortOrder": 1,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    },
+    {
+      "id": "frappes",
+      "name": "Frappés",
+      "sortOrder": 2,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    },
+    {
+      "id": "sodas",
+      "name": "Sodas",
+      "sortOrder": 3,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    },
+    {
+      "id": "magnolias",
+      "name": "Magnolias",
+      "sortOrder": 4,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    },
+    {
+      "id": "te",
+      "name": "Té / Tisanas",
+      "sortOrder": 5,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    },
+    {
+      "id": "salados",
+      "name": "Salados",
+      "sortOrder": 6,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    },
+    {
+      "id": "crepas",
+      "name": "Crepas",
+      "sortOrder": 7,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    },
+    {
+      "id": "postres",
+      "name": "Postres",
+      "sortOrder": 8,
+      "active": true,
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#categories"
+      }
+    }
+  ],
+  "modifierGroups": [
+    {
+      "id": "leche",
+      "name": "Tipo de leche",
+      "sortOrder": 0,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "entera",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "entera",
+          "name": "Entera",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.leche"
+          }
+        },
+        {
+          "id": "deslactosada",
+          "name": "Deslactosada",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.leche"
+          }
+        },
+        {
+          "id": "coco",
+          "name": "Coco",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.leche"
+          }
+        },
+        {
+          "id": "almendras",
+          "name": "Almendras",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.leche"
+          }
+        },
+        {
+          "id": "avena",
+          "name": "Avena",
+          "sortOrder": 4,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.leche"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.leche"
+      }
+    },
+    {
+      "id": "shot",
+      "name": "Shot de sabor",
+      "sortOrder": 1,
+      "selection": {
+        "required": false,
+        "multiple": true,
+        "min": 0,
+        "max": 8,
+        "defaultOptionId": null,
+        "defaultProvenance": "none"
+      },
+      "options": [
+        {
+          "id": "amareto",
+          "name": "Amareto",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.shot"
+          }
+        },
+        {
+          "id": "avellana",
+          "name": "Avellana",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.shot"
+          }
+        },
+        {
+          "id": "caramelo",
+          "name": "Caramelo",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.shot"
+          }
+        },
+        {
+          "id": "vainilla",
+          "name": "Vainilla",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.shot"
+          }
+        },
+        {
+          "id": "chai",
+          "name": "Chai",
+          "sortOrder": 4,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.shot"
+          }
+        },
+        {
+          "id": "chocolate",
+          "name": "Chocolate",
+          "sortOrder": 5,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.shot"
+          }
+        },
+        {
+          "id": "crema-irlandesa",
+          "name": "Crema irlandesa",
+          "sortOrder": 6,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.shot"
+          }
+        },
+        {
+          "id": "vainilla-francesa",
+          "name": "Vainilla francesa",
+          "sortOrder": 7,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.shot"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.shot"
+      }
+    },
+    {
+      "id": "teVar",
+      "name": "Variedad",
+      "sortOrder": 2,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "t-negro",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "t-negro",
+          "name": "Té negro",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.teVar"
+          }
+        },
+        {
+          "id": "t-verde",
+          "name": "Té verde",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.teVar"
+          }
+        },
+        {
+          "id": "t-rojo",
+          "name": "Té rojo",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.teVar"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.teVar"
+      }
+    },
+    {
+      "id": "tisanaVar",
+      "name": "Variedad",
+      "sortOrder": 3,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "cosecha-primaveral",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "cosecha-primaveral",
+          "name": "Cosecha primaveral",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.tisanaVar"
+          }
+        },
+        {
+          "id": "la-vie-en-rose",
+          "name": "La vie en rose",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.tisanaVar"
+          }
+        },
+        {
+          "id": "para-so-azul",
+          "name": "Paraíso azul",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.tisanaVar"
+          }
+        },
+        {
+          "id": "notas-doradas",
+          "name": "Notas doradas",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.tisanaVar"
+          }
+        },
+        {
+          "id": "verde-amanecer",
+          "name": "Verde amanecer",
+          "sortOrder": 4,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.tisanaVar"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.tisanaVar"
+      }
+    },
+    {
+      "id": "aderezo",
+      "name": "Aderezos",
+      "sortOrder": 4,
+      "selection": {
+        "required": false,
+        "multiple": true,
+        "min": 0,
+        "max": 6,
+        "defaultOptionId": null,
+        "defaultProvenance": "none"
+      },
+      "options": [
+        {
+          "id": "ketchup",
+          "name": "Ketchup",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.aderezo"
+          }
+        },
+        {
+          "id": "mostaza-miel",
+          "name": "Mostaza miel",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.aderezo"
+          }
+        },
+        {
+          "id": "miel",
+          "name": "Miel",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.aderezo"
+          }
+        },
+        {
+          "id": "ranch",
+          "name": "Ranch",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.aderezo"
+          }
+        },
+        {
+          "id": "mil-islas",
+          "name": "Mil islas",
+          "sortOrder": 4,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.aderezo"
+          }
+        },
+        {
+          "id": "chipotle",
+          "name": "Chipotle",
+          "sortOrder": 5,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.aderezo"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.aderezo"
+      }
+    },
+    {
+      "id": "topBowl",
+      "name": "Topping incluido",
+      "sortOrder": 5,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "almendra-fileteada",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "almendra-fileteada",
+          "name": "Almendra fileteada",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.topBowl"
+          }
+        },
+        {
+          "id": "ajonjol-tostado",
+          "name": "Ajonjolí tostado",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.topBowl"
+          }
+        },
+        {
+          "id": "granola",
+          "name": "Granola",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.topBowl"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.topBowl"
+      }
+    },
+    {
+      "id": "proteina",
+      "name": "Proteína",
+      "sortOrder": 6,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "pollo",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "pollo",
+          "name": "Pollo",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.proteina"
+          }
+        },
+        {
+          "id": "queso-panela",
+          "name": "Queso panela",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.proteina"
+          }
+        },
+        {
+          "id": "jam-n-de-pavo",
+          "name": "Jamón de pavo",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.proteina"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.proteina"
+      }
+    },
+    {
+      "id": "dulceExtra",
+      "name": "Extras",
+      "sortOrder": 7,
+      "selection": {
+        "required": false,
+        "multiple": true,
+        "min": 0,
+        "max": 4,
+        "defaultOptionId": null,
+        "defaultProvenance": "none"
+      },
+      "options": [
+        {
+          "id": "bola-helado",
+          "name": "Bola de helado",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 13,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.dulceExtra"
+          }
+        },
+        {
+          "id": "philadelphia",
+          "name": "Queso Philadelphia",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 13,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.dulceExtra"
+          }
+        },
+        {
+          "id": "crema-batida",
+          "name": "Crema batida",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 13,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.dulceExtra"
+          }
+        },
+        {
+          "id": "fruta-extra",
+          "name": "Fruta",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.dulceExtra"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.dulceExtra"
+      }
+    },
+    {
+      "id": "affVar",
+      "name": "Variedad",
+      "sortOrder": 8,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "tradicional",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "tradicional",
+          "name": "Tradicional",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.affVar"
+          }
+        },
+        {
+          "id": "moka",
+          "name": "Moka",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.affVar"
+          }
+        },
+        {
+          "id": "matcha",
+          "name": "Matcha",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.affVar"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.affVar"
+      }
+    },
+    {
+      "id": "crepaSabor",
+      "name": "Sabor",
+      "sortOrder": 9,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "biscoff",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "biscoff",
+          "name": "Biscoff",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "cajeta",
+          "name": "Cajeta",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "crema-de-cacahuate",
+          "name": "Crema de cacahuate",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "durazno-con-philadelphia",
+          "name": "Durazno con Philadelphia",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "lechera",
+          "name": "Lechera",
+          "sortOrder": 4,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "mermelada-de-fresa",
+          "name": "Mermelada de fresa",
+          "sortOrder": 5,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "mermelada-de-frutos-rojos",
+          "name": "Mermelada de frutos rojos",
+          "sortOrder": 6,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "zarzamora-con-queso",
+          "name": "Zarzamora con queso",
+          "sortOrder": 7,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "nutella",
+          "name": "Nutella",
+          "sortOrder": 8,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        },
+        {
+          "id": "pb-j",
+          "name": "PB&J",
+          "sortOrder": 9,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.crepaSabor"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.crepaSabor"
+      }
+    },
+    {
+      "id": "croiSabor",
+      "name": "Sabor",
+      "sortOrder": 10,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "biscoff",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "biscoff",
+          "name": "Biscoff",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.croiSabor"
+          }
+        },
+        {
+          "id": "crema-de-cacahuate",
+          "name": "Crema de cacahuate",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.croiSabor"
+          }
+        },
+        {
+          "id": "mermelada-de-fresa",
+          "name": "Mermelada de fresa",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.croiSabor"
+          }
+        },
+        {
+          "id": "mermelada-de-frutos-rojos",
+          "name": "Mermelada de frutos rojos",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.croiSabor"
+          }
+        },
+        {
+          "id": "zarzamora-con-queso",
+          "name": "Zarzamora con queso",
+          "sortOrder": 4,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.croiSabor"
+          }
+        },
+        {
+          "id": "nutella",
+          "name": "Nutella",
+          "sortOrder": 5,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.croiSabor"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.croiSabor"
+      }
+    },
+    {
+      "id": "frutaAcomp",
+      "name": "Fruta que acompaña",
+      "sortOrder": 11,
+      "selection": {
+        "required": true,
+        "multiple": false,
+        "min": 1,
+        "max": 1,
+        "defaultOptionId": "durazno",
+        "defaultProvenance": "existing-runtime-first-option"
+      },
+      "options": [
+        {
+          "id": "durazno",
+          "name": "Durazno",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.frutaAcomp"
+          }
+        },
+        {
+          "id": "fresa",
+          "name": "Fresa",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.frutaAcomp"
+          }
+        },
+        {
+          "id": "pl-tano",
+          "name": "Plátano",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.frutaAcomp"
+          }
+        },
+        {
+          "id": "manzana",
+          "name": "Manzana",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "none",
+            "amount": 0,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.frutaAcomp"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.frutaAcomp"
+      }
+    },
+    {
+      "id": "extraTop",
+      "name": "Toppings extra",
+      "sortOrder": 12,
+      "selection": {
+        "required": false,
+        "multiple": true,
+        "min": 0,
+        "max": 6,
+        "defaultOptionId": null,
+        "defaultProvenance": "none"
+      },
+      "options": [
+        {
+          "id": "almendras-fileteadas",
+          "name": "Almendras fileteadas",
+          "sortOrder": 0,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.extraTop"
+          }
+        },
+        {
+          "id": "amaranto",
+          "name": "Amaranto",
+          "sortOrder": 1,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.extraTop"
+          }
+        },
+        {
+          "id": "chocolate",
+          "name": "Chocolate",
+          "sortOrder": 2,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.extraTop"
+          }
+        },
+        {
+          "id": "granola",
+          "name": "Granola",
+          "sortOrder": 3,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.extraTop"
+          }
+        },
+        {
+          "id": "lotus",
+          "name": "Lotus",
+          "sortOrder": 4,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.extraTop"
+          }
+        },
+        {
+          "id": "oreo",
+          "name": "Oreo",
+          "sortOrder": 5,
+          "priceEffect": {
+            "kind": "fixed-addition",
+            "amount": 10,
+            "currency": null
+          },
+          "active": true,
+          "source": {
+            "kind": "prototype-seed",
+            "path": "src/karma-data.js#modGroups.extraTop"
+          }
+        }
+      ],
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#modGroups.extraTop"
+      }
+    }
+  ],
+  "products": [
+    {
+      "id": "concafe-americano",
+      "name": "Americano",
+      "categoryId": "concafe",
+      "sortOrder": 0,
+      "price": {
+        "amount": 50,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "concafe-americano-honey",
+      "name": "Americano honey",
+      "categoryId": "concafe",
+      "sortOrder": 1,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "concafe-capuchino",
+      "name": "Capuchino",
+      "categoryId": "concafe",
+      "sortOrder": 2,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "recipe",
+        "evidence": "Prototype recipe is present; quantities and applicability need source validation.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "concafe-espresso",
+      "name": "Espresso",
+      "categoryId": "concafe",
+      "sortOrder": 3,
+      "price": {
+        "amount": 30,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "concafe-espresso-tonic",
+      "name": "Espresso tonic",
+      "categoryId": "concafe",
+      "sortOrder": 4,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "concafe-cold-brew",
+      "name": "Cold brew",
+      "categoryId": "concafe",
+      "sortOrder": 5,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-caf-",
+      "name": "Latte café",
+      "categoryId": "lattes",
+      "sortOrder": 6,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "recipe",
+        "evidence": "Prototype recipe is present; quantities and applicability need source validation.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-cajeta",
+      "name": "Latte cajeta",
+      "categoryId": "lattes",
+      "sortOrder": 7,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-chai",
+      "name": "Latte chai",
+      "categoryId": "lattes",
+      "sortOrder": 8,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-chocolate",
+      "name": "Latte chocolate",
+      "categoryId": "lattes",
+      "sortOrder": 9,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-chocolate-blanco",
+      "name": "Latte chocolate blanco",
+      "categoryId": "lattes",
+      "sortOrder": 10,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-chocomenta",
+      "name": "Latte chocomenta",
+      "categoryId": "lattes",
+      "sortOrder": 11,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-fresas-con-crema",
+      "name": "Latte fresas con crema",
+      "categoryId": "lattes",
+      "sortOrder": 12,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-matcha",
+      "name": "Latte matcha",
+      "categoryId": "lattes",
+      "sortOrder": 13,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "recipe",
+        "evidence": "Prototype recipe is present; quantities and applicability need source validation.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-moka",
+      "name": "Latte moka",
+      "categoryId": "lattes",
+      "sortOrder": 14,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-nutella",
+      "name": "Latte nutella",
+      "categoryId": "lattes",
+      "sortOrder": 15,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-oreo",
+      "name": "Latte oreo",
+      "categoryId": "lattes",
+      "sortOrder": 16,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-ube",
+      "name": "Latte ube",
+      "categoryId": "lattes",
+      "sortOrder": 17,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": false,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "lattes-latte-taro",
+      "name": "Latte taro",
+      "categoryId": "lattes",
+      "sortOrder": 18,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-biscoff",
+      "name": "Frappé biscoff",
+      "categoryId": "frappes",
+      "sortOrder": 19,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-caf-",
+      "name": "Frappé café",
+      "categoryId": "frappes",
+      "sortOrder": 20,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-cajeta",
+      "name": "Frappé cajeta",
+      "categoryId": "frappes",
+      "sortOrder": 21,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-caramel-macchiato",
+      "name": "Frappé caramel macchiato",
+      "categoryId": "frappes",
+      "sortOrder": 22,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-chai",
+      "name": "Frappé chai",
+      "categoryId": "frappes",
+      "sortOrder": 23,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-chocolate",
+      "name": "Frappé chocolate",
+      "categoryId": "frappes",
+      "sortOrder": 24,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-chocolate-blanco",
+      "name": "Frappé chocolate blanco",
+      "categoryId": "frappes",
+      "sortOrder": 25,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-chocomenta",
+      "name": "Frappé chocomenta",
+      "categoryId": "frappes",
+      "sortOrder": 26,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-fresas-con-crema",
+      "name": "Frappé fresas con crema",
+      "categoryId": "frappes",
+      "sortOrder": 27,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-frutos-rojos",
+      "name": "Frappé frutos rojos",
+      "categoryId": "frappes",
+      "sortOrder": 28,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-mango",
+      "name": "Frappé mango",
+      "categoryId": "frappes",
+      "sortOrder": 29,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-matcha",
+      "name": "Frappé matcha",
+      "categoryId": "frappes",
+      "sortOrder": 30,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-moka",
+      "name": "Frappé moka",
+      "categoryId": "frappes",
+      "sortOrder": 31,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-nutella",
+      "name": "Frappé nutella",
+      "categoryId": "frappes",
+      "sortOrder": 32,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-oreo",
+      "name": "Frappé oreo",
+      "categoryId": "frappes",
+      "sortOrder": 33,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-ube",
+      "name": "Frappé ube",
+      "categoryId": "frappes",
+      "sortOrder": 34,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-taro",
+      "name": "Frappé taro",
+      "categoryId": "frappes",
+      "sortOrder": 35,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "frappes-frapp-vainilla-francesa",
+      "name": "Frappé vainilla francesa",
+      "categoryId": "frappes",
+      "sortOrder": 36,
+      "price": {
+        "amount": 75,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-soda-frutos-rojos",
+      "name": "Soda frutos rojos",
+      "categoryId": "sodas",
+      "sortOrder": 37,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-soda-granada",
+      "name": "Soda granada",
+      "categoryId": "sodas",
+      "sortOrder": 38,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-soda-kiwi",
+      "name": "Soda kiwi",
+      "categoryId": "sodas",
+      "sortOrder": 39,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-soda-lavander-bloom",
+      "name": "Soda lavander bloom",
+      "categoryId": "sodas",
+      "sortOrder": 40,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-soda-mango",
+      "name": "Soda mango",
+      "categoryId": "sodas",
+      "sortOrder": 41,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-soda-moras",
+      "name": "Soda moras",
+      "categoryId": "sodas",
+      "sortOrder": 42,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-soda-para-so",
+      "name": "Soda paraíso",
+      "categoryId": "sodas",
+      "sortOrder": 43,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-limonada",
+      "name": "Limonada",
+      "categoryId": "sodas",
+      "sortOrder": 44,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-limonada-escarlata",
+      "name": "Limonada escarlata",
+      "categoryId": "sodas",
+      "sortOrder": 45,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "sodas-naranjada",
+      "name": "Naranjada",
+      "categoryId": "sodas",
+      "sortOrder": 46,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "magnolias-magnolia-frutos-rojos",
+      "name": "Magnolia frutos rojos",
+      "categoryId": "magnolias",
+      "sortOrder": 47,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "magnolias-magnolia-mango",
+      "name": "Magnolia mango",
+      "categoryId": "magnolias",
+      "sortOrder": 48,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "magnolias-magnolia-lavander-green",
+      "name": "Magnolia lavander green",
+      "categoryId": "magnolias",
+      "sortOrder": 49,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "magnolias-magnolia-naranja",
+      "name": "Magnolia naranja",
+      "categoryId": "magnolias",
+      "sortOrder": 50,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": false,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "te-t-",
+      "name": "Té",
+      "categoryId": "te",
+      "sortOrder": 51,
+      "price": {
+        "amount": 45,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "teVar"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "te-tisana",
+      "name": "Tisana",
+      "categoryId": "te",
+      "sortOrder": 52,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "tisanaVar"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-croissant-arrachera",
+      "name": "Croissant arrachera",
+      "categoryId": "salados",
+      "sortOrder": 53,
+      "price": {
+        "amount": 80,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-croissant-jam-n-con-queso",
+      "name": "Croissant jamón con queso",
+      "categoryId": "salados",
+      "sortOrder": 54,
+      "price": {
+        "amount": 70,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "recipe",
+        "evidence": "Prototype recipe is present; quantities and applicability need source validation.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-croissant-pollo",
+      "name": "Croissant pollo",
+      "categoryId": "salados",
+      "sortOrder": 55,
+      "price": {
+        "amount": 70,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-croissant-quesos",
+      "name": "Croissant quesos",
+      "categoryId": "salados",
+      "sortOrder": 56,
+      "price": {
+        "amount": 70,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-croissant-italiano",
+      "name": "Croissant italiano",
+      "categoryId": "salados",
+      "sortOrder": 57,
+      "price": {
+        "amount": 70,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-croissant-club",
+      "name": "Croissant club",
+      "categoryId": "salados",
+      "sortOrder": 58,
+      "price": {
+        "amount": 70,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-emparedado-huevo-con-tocino",
+      "name": "Emparedado huevo con tocino",
+      "categoryId": "salados",
+      "sortOrder": 59,
+      "price": {
+        "amount": 70,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-bowl-de-frutas",
+      "name": "Bowl de frutas",
+      "categoryId": "salados",
+      "sortOrder": 60,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "topBowl"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "salados-ensalada",
+      "name": "Ensalada",
+      "categoryId": "salados",
+      "sortOrder": 61,
+      "price": {
+        "amount": 55,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "proteina",
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "crepas-crepa-arrachera",
+      "name": "Crepa arrachera",
+      "categoryId": "crepas",
+      "sortOrder": 62,
+      "price": {
+        "amount": 70,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "crepas-crepa-jam-n-con-queso",
+      "name": "Crepa jamón con queso",
+      "categoryId": "crepas",
+      "sortOrder": 63,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "crepas-crepa-pollo",
+      "name": "Crepa pollo",
+      "categoryId": "crepas",
+      "sortOrder": 64,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "crepas-crepa-quesos",
+      "name": "Crepa quesos",
+      "categoryId": "crepas",
+      "sortOrder": 65,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "crepas-crepa-italiana",
+      "name": "Crepa italiana",
+      "categoryId": "crepas",
+      "sortOrder": 66,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "crepas-crepa-hawaiana",
+      "name": "Crepa hawaiana",
+      "categoryId": "crepas",
+      "sortOrder": 67,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "crepas-crepa-chicken-hawaiana",
+      "name": "Crepa chicken hawaiana",
+      "categoryId": "crepas",
+      "sortOrder": 68,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "aderezo"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-carlota",
+      "name": "Carlota",
+      "categoryId": "postres",
+      "sortOrder": 69,
+      "price": {
+        "amount": 32,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-brownie",
+      "name": "Brownie",
+      "categoryId": "postres",
+      "sortOrder": 70,
+      "price": {
+        "amount": 38,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "piece",
+        "evidence": "Prototype finished-good inventory item has the same name; mapping needs source validation.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-muffin",
+      "name": "Muffin",
+      "categoryId": "postres",
+      "sortOrder": 71,
+      "price": {
+        "amount": 30,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-pastel-del-d-a",
+      "name": "Pastel del día",
+      "categoryId": "postres",
+      "sortOrder": 72,
+      "price": {
+        "amount": 45,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-strudels-2-pz-",
+      "name": "Strudels (2 pz)",
+      "categoryId": "postres",
+      "sortOrder": 73,
+      "price": {
+        "amount": 45,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": false,
+      "modifierGroupIds": [],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-helado",
+      "name": "Helado",
+      "categoryId": "postres",
+      "sortOrder": 74,
+      "price": {
+        "amount": 45,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "dulceExtra"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-crepa-dulce",
+      "name": "Crepa dulce",
+      "categoryId": "postres",
+      "sortOrder": 75,
+      "price": {
+        "amount": 50,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "crepaSabor",
+        "extraTop",
+        "dulceExtra"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-croissant-dulce",
+      "name": "Croissant dulce",
+      "categoryId": "postres",
+      "sortOrder": 76,
+      "price": {
+        "amount": 60,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "croiSabor",
+        "frutaAcomp"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    },
+    {
+      "id": "postres-affogato",
+      "name": "Affogato",
+      "categoryId": "postres",
+      "sortOrder": 77,
+      "price": {
+        "amount": 65,
+        "currency": null,
+        "provenance": "prototype-seed-unverified"
+      },
+      "available": true,
+      "modifierGroupIds": [
+        "affVar"
+      ],
+      "stockControl": {
+        "mode": "unknown",
+        "evidence": "No direct recipe or finished-good inventory mapping exists in the prototype seed.",
+        "validated": false
+      },
+      "source": {
+        "kind": "prototype-seed",
+        "path": "src/karma-data.js#products"
+      }
+    }
+  ]
+}
