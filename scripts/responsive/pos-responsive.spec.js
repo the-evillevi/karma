@@ -42,6 +42,7 @@ test('POS shell and current order fit desktop, tablet, and phone widths', async 
   for (const viewport of [
     { width: 1280, height: 900 },
     { width: 1024, height: 768 },
+    { width: 1023, height: 768 },
     { width: 768, height: 1024 },
     { width: 667, height: 375 },
     { width: 430, height: 932 },
@@ -51,7 +52,7 @@ test('POS shell and current order fit desktop, tablet, and phone widths', async 
     await openSeededPos(page, viewport.width, viewport.height);
     await expectNoPageOverflow(page, viewport.width);
 
-    if (viewport.width < 768) {
+    if (viewport.width < 1024) {
       const navTrigger = page.getByRole('button', { name: 'Abrir menú de navegación' });
       await expect(navTrigger).toBeVisible();
       await expect(page.locator('.pos-sidebar[data-state]')).toHaveCount(0);
@@ -65,15 +66,20 @@ test('POS shell and current order fit desktop, tablet, and phone widths', async 
       await page.keyboard.press('Escape');
       await expect(sheet).toBeHidden();
       await expect(navTrigger).toBeFocused();
-      const toggle = page.locator('.sales-mobile-cart-toggle');
-      await expect(toggle).toBeVisible();
-      await page.keyboard.press('Alt+ArrowDown');
-      await expect(page.locator('#sales-cart')).toBeVisible();
-      await expect.poll(() => page.locator('#sales-cart').evaluate(cart => cart.contains(document.activeElement))).toBe(true);
-      await page.keyboard.press('Escape');
-      await expect(page.locator('#sales-cart')).toBeHidden();
-      await expect(toggle).toBeFocused();
-      await expectNoPageOverflow(page, viewport.width);
+      if (viewport.width <= 700) {
+        const toggle = page.locator('.sales-mobile-cart-toggle');
+        await expect(toggle).toBeVisible();
+        await page.keyboard.press('Alt+ArrowDown');
+        await expect(page.locator('#sales-cart')).toBeVisible();
+        await expect.poll(() => page.locator('#sales-cart').evaluate(cart => cart.contains(document.activeElement))).toBe(true);
+        await toggle.focus();
+        await page.keyboard.press('Alt+ArrowDown');
+        await expect.poll(() => page.locator('#sales-cart').evaluate(cart => cart.contains(document.activeElement))).toBe(true);
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#sales-cart')).toBeHidden();
+        await expect(toggle).toBeFocused();
+        await expectNoPageOverflow(page, viewport.width);
+      }
     } else {
       await expect(page.locator('[data-slot="sidebar-container"]')).toBeVisible();
       await expect(page.locator('.pos-mobile-bar')).toBeHidden();
@@ -124,6 +130,9 @@ test('phone modules keep primary flows, dialogs, and tables within the viewport'
   const stockTableCard = page.locator('.pos-main [data-slot="card"]').filter({ has: page.locator('table') }).first();
   await expect(stockTableCard).toBeVisible();
   const tableScroller = stockTableCard.locator('[data-slot="table-container"]');
+  await expect(tableScroller).toHaveAttribute('role', 'region');
+  await expect(tableScroller).toHaveAttribute('aria-label', 'Existencias y estado del inventario');
+  await expect(page.getByText('Desliza para ver existencias y estado →')).toBeVisible();
   const tableCardMetrics = await tableScroller.evaluate(card => ({
     client: card.clientWidth,
     scroll: card.scrollWidth,
@@ -131,6 +140,32 @@ test('phone modules keep primary flows, dialogs, and tables within the viewport'
     table: card.querySelector('table')?.getBoundingClientRect().width,
   }));
   expect(tableCardMetrics.scroll, JSON.stringify(tableCardMetrics)).toBeGreaterThan(tableCardMetrics.client);
+  await tableScroller.focus();
+  await expect(tableScroller).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  const visibleColumns = await tableScroller.evaluate(container => {
+    const bounds = container.getBoundingClientRect();
+    const headers = [...container.querySelectorAll('th')]
+      .filter(cell => ['Existencia', 'Mínimo', 'Estado'].includes(cell.textContent.trim()))
+      .map(cell => {
+        const rect = cell.getBoundingClientRect();
+        return { label: cell.textContent.trim(), visible: rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 };
+      });
+    const rowCells = [...container.querySelectorAll('tbody tr:not(:has([colspan]))')][0]?.querySelectorAll('td') ?? [];
+    const values = [rowCells[2], rowCells[4]].map(cell => {
+      const rect = cell.getBoundingClientRect();
+      return { text: cell.textContent.trim(), visible: rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 };
+    });
+    return { headers, values };
+  });
+  expect(visibleColumns.headers).toEqual([
+    { label: 'Existencia', visible: true },
+    { label: 'Mínimo', visible: true },
+    { label: 'Estado', visible: true },
+  ]);
+  expect(visibleColumns.values).toHaveLength(2);
+  expect(visibleColumns.values.every(value => value.visible && value.text.length > 0)).toBe(true);
   await expectNoPageOverflow(page, 390);
   await page.getByRole('button', { name: 'Recetas' }).click();
   await expect(page.getByText('Latte café')).toBeVisible();

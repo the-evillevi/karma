@@ -97,6 +97,17 @@ export default class PosApp extends React.Component {
     const D = window.KARMA;
     let sv = {}; try { sv = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
     this._folio = sv.folioSeq || 1051;
+    const savedOrder = sv.order || this.blank();
+    const restoredOrder = {
+      ...savedOrder,
+      items: (savedOrder.items || []).map((item, index) => ({
+        ...item,
+        // Older saved drafts and seeded accounts predate line identifiers.
+        // Give those rows deterministic identities so cart controls target one
+        // line and React can preserve its row across quantity changes.
+        lineId: item.lineId || `restored-${item.prodId || 'item'}-${index}`,
+      })),
+    };
     this.state = {
       loading: true,
       session: sv.session || null,
@@ -106,7 +117,7 @@ export default class PosApp extends React.Component {
       syncing: false,
       pending: sv.pending || ['Venta A-1047', 'Orden A-1049'],
       toasts: [],
-      order: sv.order || this.blank(),
+      order: restoredOrder,
       open: sv.open || D.seedOrders.map(o => ({ ...o })),
       kitchenTickets: Array.isArray(sv.kitchenTickets) ? sv.kitchenTickets : (sv.open || D.seedOrders.map(o => ({ ...o }))),
       sales: sv.sales || D.sales.map(s => ({ ...s })),
@@ -1168,7 +1179,8 @@ export default class PosApp extends React.Component {
 <Input id="inventory-search" value={V.invSearch} onChange={V.setInvSearch} placeholder="Buscar insumo o ingrediente…" className="max-w-[340px]" />
 <Button type="button" variant={V.lowToggleActive ? 'secondary' : 'outline'} aria-pressed={V.lowToggleActive} onClick={V.toggleLow}>Solo stock bajo</Button>
 </div>
-<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[650px]">
+<div className="text-xs text-muted-foreground lg:hidden">Desliza para ver existencias y estado →</div>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Existencias y estado del inventario', tabIndex: 0 }} className="min-w-[650px]">
 <TableHeader><TableRow><TableHead>Artículo</TableHead><TableHead>Tipo</TableHead><TableHead>Existencia</TableHead><TableHead>Mínimo</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
 <TableBody>
 {(V.stockEmpty) && (<TableRow><TableCell colSpan={5} className="h-20 text-center text-muted-foreground">Sin artículos que coincidan.</TableCell></TableRow>)}
@@ -1178,7 +1190,8 @@ export default class PosApp extends React.Component {
 </TableBody></Table></Card>
 </>)}
 {(V.tMov) && (<>
-<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[900px]">
+<div className="text-xs text-muted-foreground lg:hidden">Desliza para ver cantidad, usuario y motivo →</div>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Movimientos de inventario', tabIndex: 0 }} className="min-w-[900px]">
 <TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Artículo</TableHead><TableHead>Cantidad</TableHead><TableHead>Usuario</TableHead><TableHead>Fecha</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader>
 <TableBody>{(V.movs).map((m, mI) => (<TableRow key={mI}>
 <TableCell><Badge variant={m.tagVariant}>{m.tipoLabel}</Badge></TableCell><TableCell className="font-medium">{m.item}</TableCell><TableCell>{m.qty}</TableCell><TableCell className="text-muted-foreground">{m.user}</TableCell><TableCell className="text-muted-foreground">{m.date}</TableCell><TableCell className="text-muted-foreground">{m.motivo}</TableCell>
@@ -1238,7 +1251,8 @@ export default class PosApp extends React.Component {
 </React.Fragment>))}
 </Card>
 </div>
-<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[1000px]">
+<div className="text-xs text-muted-foreground lg:hidden">Desliza para ver total, estado y sincronización →</div>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Ventas del reporte', tabIndex: 0 }} className="min-w-[1000px]">
 <TableHeader><TableRow><TableHead>Folio</TableHead><TableHead>Fecha</TableHead><TableHead>Tipo</TableHead><TableHead>Usuario</TableHead><TableHead>Total</TableHead><TableHead>Estado</TableHead><TableHead>Sincronización</TableHead></TableRow></TableHeader>
 <TableBody>{(V.repSales).map((s, sI) => (<TableRow key={sI}>
 <TableCell><Button type="button" variant="link" size="sm" className="h-11 justify-start px-0" aria-label={`Abrir detalle de venta ${s.folio}`} onClick={s.open}>{s.folio}</Button></TableCell><TableCell className="text-muted-foreground">{s.fecha}</TableCell><TableCell>{s.tipo}</TableCell><TableCell className="text-muted-foreground">{s.user}</TableCell><TableCell className="font-medium">{s.total}</TableCell><TableCell><Badge variant={s.statusVariant}>{s.statusLabel}</Badge></TableCell><TableCell><Badge variant={s.syncVariant}>{s.syncLabel}</Badge></TableCell>
