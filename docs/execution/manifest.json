@@ -129,7 +129,7 @@
         "EVL-139",
         "EVL-140"
       ],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-bluetooth/karma"
     }
   ],
   "issues": [
@@ -317,15 +317,16 @@
       "agent": "implement_catalog",
       "commits": [
         "17a0f25",
-        "06ac089"
+        "06ac089",
+        "bf3c424"
       ],
       "pr": null,
       "checks": [],
-      "review": "reconciliation_and_re_review_pending",
+      "review": "fixes_requested",
       "blockers": [
         "Carlos approval and source photos pending; runtime seed-loader integration remains open."
       ],
-      "nextAction": "Inspect two local source workbooks privately, reconcile source coverage, then root re-review."
+      "nextAction": "Fix false/zero source availability, protect private output destinations, test importer and re-review."
     },
     {
       "id": "EVL-119",
@@ -695,14 +696,24 @@
       "branch": "codex/hardware/evl-117",
       "baseBranch": "main",
       "requires": [],
-      "stage": "implementing",
-      "agent": "implement_design",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Hardware feasibility documentation and verification harness; physical validation gated."
+      "stage": "awaiting_input",
+      "agent": null,
+      "commits": [
+        "066905c",
+        "f77bb83",
+        "955094c"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/3",
+      "checks": [
+        "Root Chrome CSS/layout inspection passed",
+        "git diff --check"
+      ],
+      "review": "passed_after_fixes",
+      "blockers": [
+        "Exact device/host information and witnessed physical print/drawer/terminal/tip validation pending; merge pending."
+      ],
+      "nextAction": "Use reviewed register for implementation; collect physical evidence when hardware is available.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-124",
@@ -821,18 +832,20 @@
       "id": "EVL-139",
       "chain": "bluetooth",
       "branch": "codex/bluetooth/evl-139",
-      "baseBranch": "main",
+      "baseBranch": "codex/foundation/evl-113",
       "requires": [
         "EVL-114"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "researching",
+      "agent": "implement_design",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "blockers": [
+        "EVL-114 reviewed contracts and actual two-device hardware validation pending."
+      ],
+      "nextAction": "Independent official capability research and bounded protocol work; reconcile with reviewed EVL-114 before publication."
     },
     {
       "id": "EVL-140",
