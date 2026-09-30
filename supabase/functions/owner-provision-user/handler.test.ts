@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createProvisionHandler, type ProvisionServices } from "./handler";
+import {
+  createProvisionHandler,
+  deleteCreatedAuthUser,
+  type ProvisionServices,
+} from "./handler";
 
 const allowedOrigin = "http://127.0.0.1:4179";
 const serviceKey = "server-only-service-key-marker";
@@ -46,6 +50,17 @@ function services(overrides: Partial<ProvisionServices> = {}) {
 }
 
 describe("owner-provision-user handler", () => {
+  it("propagates an Auth SDK deletion error without exposing its contents", async () => {
+    const deleteUser = vi.fn(async () => ({
+      error: new Error(`${serviceKey} ${temporaryPassword}`),
+    }));
+
+    await expect(
+      deleteCreatedAuthUser({ auth: { admin: { deleteUser } } }, "new-auth-id"),
+    ).rejects.toThrow("Account cleanup failed.");
+    expect(deleteUser).toHaveBeenCalledWith("new-auth-id");
+  });
+
   it("requires a verified caller JWT before resolving branch permissions", async () => {
     const deps = services();
     const response = await createProvisionHandler(deps)(request(input, ""));
@@ -147,6 +162,23 @@ describe("owner-provision-user handler", () => {
     expect(deps.deleteUser).toHaveBeenCalledWith("new-auth-id");
     expect(body).not.toContain(temporaryPassword);
     expect(body).not.toContain(serviceKey);
+  });
+
+  it("reports unconfirmed cleanup without exposing the temporary password when Auth deletion fails", async () => {
+    const deps = services({
+      assignMembership: vi.fn(async () => false),
+      deleteUser: vi.fn(async () => {
+        throw new Error(`${serviceKey} ${temporaryPassword}`);
+      }),
+    });
+    const response = await createProvisionHandler(deps)(request());
+    const body = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(body).toContain("cleanup could not be confirmed");
+    expect(body).not.toContain(temporaryPassword);
+    expect(body).not.toContain(serviceKey);
+    expect(deps.deleteUser).toHaveBeenCalledWith("new-auth-id");
   });
 
   it("does not expose dependency errors, service credentials, or generated passwords on failures", async () => {
