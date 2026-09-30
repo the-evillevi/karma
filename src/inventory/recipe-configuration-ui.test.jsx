@@ -287,3 +287,19 @@ it('does not reassign an in-flight recipe publication to another authorized mana
   });
   expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog.events).toHaveLength(0);
 });
+
+
+it('publishes a demo owner recipe using the normalized domain role', async () => {
+  const storage = installMemoryStorage();
+  storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1' }));
+  const user = userEvent.setup();
+  render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+  await openRecipeEditor(user);
+  await prepareDraft(user);
+  await user.click(screen.getByRole('checkbox', { name: 'Revisé las cantidades y advertencias de esta vista previa.' }));
+  await user.click(screen.getByRole('button', { name: 'Publicar revisión' }));
+  await waitFor(() => expect(JSON.parse(storage.getItem('karma-pos-v1')).recipeCatalog?.revision).toBe(1));
+  const event = JSON.parse(storage.getItem('karma-pos-v1')).recipeCatalog.events[0];
+  expect(event.command.actorId).toBe('u1');
+  expect(event.command.roleSnapshot).toBe('duena');
+});

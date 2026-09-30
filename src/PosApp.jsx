@@ -1396,12 +1396,13 @@ export default class PosApp extends React.Component {
         throw Object.assign(new Error('inventory ledger missing'), { code: 'invalid_inventory' });
       const currentInventory = validateInventoryState(persisted.inventoryState);
       const operational = this.latestOperationalState(persisted);
-      const currentActor = { actorId: actor.id, role: actor.role };
+      const domainRole = this.isSecureMode() ? actor.role : seededRoleToAccessRole(actor.role);
+      const currentActor = { actorId: actor.id, role: domainRole };
       const publishCommand = {
         ...command,
         actorId: actor.id,
         actorName: actor.name,
-        roleSnapshot: actor.role,
+        roleSnapshot: domainRole,
       };
       const result = publishRecipe(
         currentRecipeCatalog,
