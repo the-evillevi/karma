@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
-import { createProvisionHandler } from "./handler.ts";
+import { createProvisionHandler, deleteCreatedAuthUser } from "./handler.ts";
 
 const url = Deno.env.get("SUPABASE_URL");
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -55,10 +55,7 @@ const handle = createProvisionHandler({
     });
     return !error;
   },
-  deleteUser: async (userId) => {
-    if (!adminClient) return;
-    await adminClient.auth.admin.deleteUser(userId);
-  },
+  deleteUser: (userId) => deleteCreatedAuthUser(adminClient, userId),
   generateTemporaryPassword: () => {
     const bytes = crypto.getRandomValues(new Uint8Array(24));
     const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join(

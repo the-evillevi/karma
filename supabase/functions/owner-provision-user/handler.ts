@@ -23,6 +23,23 @@ export interface ProvisionServices {
   generateTemporaryPassword(): string;
 }
 
+interface AuthAdminDeleteClient {
+  auth: {
+    admin: {
+      deleteUser(userId: string): Promise<{ error: unknown | null }>;
+    };
+  };
+}
+
+export async function deleteCreatedAuthUser(
+  adminClient: AuthAdminDeleteClient | null,
+  userId: string,
+): Promise<void> {
+  if (!adminClient) throw new Error("Account cleanup is unavailable.");
+  const { error } = await adminClient.auth.admin.deleteUser(userId);
+  if (error) throw new Error("Account cleanup failed.");
+}
+
 function json(
   status: number,
   body: Record<string, unknown>,
@@ -202,11 +219,22 @@ export function createProvisionHandler(
       assigned = false;
     }
     if (!assigned) {
+      let cleanupConfirmed = false;
       try {
         await services.deleteUser(createdUserId);
+        cleanupConfirmed = true;
       } catch {
-        /* Never expose the service failure to the browser. */
+        // Do not claim the new Auth identity was removed if cleanup failed.
       }
+      if (!cleanupConfirmed)
+        return json(
+          500,
+          {
+            error:
+              "The account could not be assigned and cleanup could not be confirmed.",
+          },
+          services.allowedOrigin,
+        );
       return json(
         409,
         { error: "The account could not be assigned to this branch." },
