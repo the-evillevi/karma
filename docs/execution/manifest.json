@@ -202,10 +202,10 @@
     {
       "id": "EVL-126",
       "chain": "foundation",
-      "branch": "codex/foundation/evl-126-server",
-      "baseBranch": "codex/foundation/evl-126-operations-journal",
+      "branch": "codex/foundation/evl-126-lifecycle",
+      "baseBranch": "codex/foundation/evl-126-server",
       "requires": ["EVL-118"],
-      "stage": "reviewing",
+      "stage": "implementing",
       "agent": "foundation_xhigh",
       "commits": [
         "9580c5a",
@@ -229,9 +229,13 @@
         "1197272",
         "4e58ba5",
         "63a9a17",
-        "0d5720c"
+        "0d5720c",
+        "945ca95",
+        "68df298",
+        "694a7dc",
+        "c5b5138"
       ],
-      "pr": "https://github.com/the-evillevi/karma/pull/30",
+      "pr": "https://github.com/the-evillevi/karma/pull/34",
       "checks": [
         "Root7/7 Chromium journal proof and0medium+ journal scan; combinedformat/lint/types/domain86/86 and7/7 Chromium passed",
         "CI repaired missing deterministic access fixture and added Edge/journal lanes; rerun pending",
@@ -239,13 +243,14 @@
         "Root5 adapter domain and27 sharedUI plus2 strengthenedactualrich/legacycheckoutcases;0medium+newsource;GitHubquality36753787540passed",
         "Root19operationalcases/types/lint/Snyk0medium+; fullcombined132domain116components10Edge7journal1PWApassed.",
         "Journal candidate full check passed; root5/5 actual Chromium including future-version preservation; final journal/domain scans zero medium+.",
-        "Root independent local PostgreSQL proof passed inclactualACL/RLS/late rollback; exact38527549 isolatedapplied/historyrecorded;actualhostedprivateACL/RLS/RPC assertionsPASS;hosted7/8PASS, concurrency90s timeout tracedto custom40001 PostgRESTretry."
+        "Root independent local PostgreSQL proof passed inclactualACL/RLS/late rollback; exact38527549 isolatedapplied/historyrecorded;actualhostedprivateACL/RLS/RPC assertionsPASS;hosted7/8PASS, concurrency90s timeout tracedto custom40001 PostgRESTretry.",
+        "Root independent local PostgreSQL atomic rollback/retry and PT409 unchanged-state proof; actual hosted8/8 no skips20seconds; remote private ACL/RLS assertions passed; scoped hosted spec0medium+. Both reviewed126 migrations applied/hash immutable."
       ],
-      "review": "hosted_revision_conflict_forward_fix_in_progress",
+      "review": "server_fixed_and_rereviewed_actual_hosted_pass",
       "blockers": [
-        "Forward versioned server write/read contract and operational integration remain pending; applied114/118 immutable."
+        "All operational command families, complete recoverable views and real runtime bridge remain open; open-order-only server proof is bounded."
       ],
-      "nextAction": "Original open-order SQL38527549 appliedimmutable;7/8hosted passed, custom40001 causes known PostgREST retryloop. Prepare/review forward20260930000200 PT409fix, independently localtest andapplyisolated,rerun8hosted. No POSwiring.",
+      "nextAction": "Forward-only discount/cancellation server family and explicit terminal read facts; no partial POS restore or UI sync claim.",
       "artifactsReady": true
     },
     {
@@ -925,14 +930,14 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "15044a6",
+    "integration": "4424c30",
     "mainMerged": false,
-    "nextIssue": "126server;127truthful-recovery",
+    "nextIssue": "126lifecycle;127truthful-recovery",
     "resumeDocument": "docs/execution/RESUME.md",
-    "status": "active_forward_fix_after_real_hosted_failure",
+    "status": "active_lifecycle_and_truthful_recovery",
     "usage": {
-      "primaryUsedPercent": 0,
-      "weeklyUsedPercent": 16,
+      "primaryUsedPercent": 29,
+      "weeklyUsedPercent": 20,
       "ordinaryUsageAllowed": true,
       "resetCreditsRemaining": 3
     },
