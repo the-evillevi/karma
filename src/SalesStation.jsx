@@ -6,8 +6,35 @@ export default function SalesStation({ V }) {
   const searchRef = React.useRef(null);
   const productRefs = React.useRef([]);
   const cartRef = React.useRef(null);
+  const mobileCartToggleRef = React.useRef(null);
+  const focusCartOnOpenRef = React.useRef(false);
+  const returnFocusToToggleRef = React.useRef(false);
   const [mobileCartOpen, setMobileCartOpen] = React.useState(false);
   const visibleProducts = V.prods;
+
+  React.useEffect(() => {
+    if (mobileCartOpen && focusCartOnOpenRef.current) {
+      focusCartOnOpenRef.current = false;
+      const frame = requestAnimationFrame(() => {
+        cartRef.current?.querySelector('button, input')?.focus({ preventScroll: true });
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    if (!mobileCartOpen && returnFocusToToggleRef.current) {
+      returnFocusToToggleRef.current = false;
+      const frame = requestAnimationFrame(() => mobileCartToggleRef.current?.focus({ preventScroll: true }));
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [mobileCartOpen]);
+
+  function toggleMobileCart() {
+    if (mobileCartOpen) {
+      returnFocusToToggleRef.current = true;
+      setMobileCartOpen(false);
+      return;
+    }
+    setMobileCartOpen(true);
+  }
 
   React.useEffect(() => {
     function onKeyDown(event) {
@@ -29,6 +56,7 @@ export default function SalesStation({ V }) {
           event.preventDefault();
           V.edCancel();
         } else if (mobileCartOpen) {
+          returnFocusToToggleRef.current = true;
           setMobileCartOpen(false);
         } else if (V.search) {
           V.setSearch({ target: { value: '' } });
@@ -43,8 +71,8 @@ export default function SalesStation({ V }) {
       }
       if (event.altKey && event.key === 'ArrowDown' && !typing) {
         event.preventDefault();
+        focusCartOnOpenRef.current = true;
         setMobileCartOpen(true);
-        cartRef.current?.querySelector('button, input')?.focus();
         return;
       }
       if (V.ed || !['ArrowDown', 'ArrowUp'].includes(event.key)) return;
@@ -66,8 +94,9 @@ export default function SalesStation({ V }) {
     <section className={'sales-station' + (mobileCartOpen ? ' sales-station--cart-first' : '')} aria-label="Estación de venta">
       <button
         className="sales-mobile-cart-toggle"
+        ref={mobileCartToggleRef}
         type="button"
-        onClick={() => setMobileCartOpen((open) => !open)}
+        onClick={toggleMobileCart}
         aria-expanded={mobileCartOpen}
         aria-controls="sales-cart"
       >

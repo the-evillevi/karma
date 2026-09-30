@@ -10,6 +10,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar';
 import SalesStation from './SalesStation.jsx';
 import { captureProductLine } from './catalog/catalog-domain.mjs';
 import { normalizeCatalog } from '../scripts/catalog/catalog-normalizer.mjs';
@@ -30,6 +43,45 @@ function Hover({ tag = 'button', base, hover, children, ...rest }) {
       onMouseLeave: () => setOn(false),
     },
     children
+  );
+}
+
+function PosSidebarNavigation({ items, goPos }) {
+  const { isMobile, setOpenMobile } = useSidebar();
+  const navigate = callback => {
+    callback();
+    if (isMobile) setOpenMobile(false);
+  };
+
+  return (
+    <>
+      <SidebarHeader className="gap-3 px-3 pb-4 pt-1">
+        <div className="px-2">
+          <div className="font-[Georgia,serif] text-[27px] italic leading-none">Karma</div>
+          <div className="mt-1.5 text-[10px] font-medium uppercase tracking-[.16em] text-muted-foreground">Abboth · Centro</div>
+        </div>
+        <Button className="w-full justify-start" onClick={() => navigate(goPos)}>+ Nueva venta</Button>
+      </SidebarHeader>
+      <SidebarContent className="px-2">
+        <SidebarMenu aria-label="Áreas del punto de venta">
+          {items.map(item => (
+            <SidebarMenuItem key={item.label}>
+              <SidebarMenuButton
+                type="button"
+                isActive={item.active}
+                aria-current={item.active ? 'page' : undefined}
+                aria-disabled={!item.allowed}
+                className="min-h-11 w-full justify-between"
+                onClick={() => navigate(item.go)}
+              >
+                <span>{item.label}</span>
+                {item.hasBadge && <SidebarMenuBadge aria-label={`${item.badge} órdenes abiertas`}>{item.badge}</SidebarMenuBadge>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarContent>
+    </>
   );
 }
 
@@ -827,43 +879,43 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.isApp) && (<>
-<div style={css("display:flex;height:var(--karma-viewport-height,100vh);overflow:hidden")}>
-<aside style={css("width:236px;flex:none;background:#faf9f5;border-right:1px solid #e2e0d6;display:flex;flex-direction:column;padding:20px 14px 16px;gap:4px;overflow-y:auto")}>
-<div style={css("padding:2px 10px 14px")}>
-<div style={css("font-family:Georgia,serif;font-style:italic;font-size:27px;line-height:1")}>Karma</div>
-<div style={css("margin-top:6px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Abboth · Centro</div>
-</div>
-<Button className="mx-1 mb-3 justify-start" onClick={V.goPos}>+ Nueva venta</Button>
-{(V.navItems).map((n, nI) => (<React.Fragment key={nI}>
-<Button variant="ghost" aria-current={n.active ? 'page' : undefined} aria-disabled={!n.allowed} className={`w-full justify-between text-left ${n.active ? 'bg-accent text-accent-foreground' : ''} ${!n.allowed ? 'opacity-50' : ''}`} onClick={n.go}><span>{n.label}</span>{(n.hasBadge) && (<Badge variant="pending" aria-label={`${n.badge} órdenes abiertas`}>{n.badge}</Badge>)}</Button>
-</React.Fragment>))}
-<div style={css("margin-top:auto;border-top:1px solid #e2e0d6;padding:14px 10px 0;display:flex;flex-direction:column;gap:12px")}>
-<div style={css("display:flex;align-items:center;gap:9px")}>
-<span style={V.connDotStyle}></span>
-<div style={css("flex:1;min-width:0")}><div style={css("font-size:13px;font-weight:500")}>{V.connLabel}</div><div style={css("font-size:11.5px;color:#6b6a63")}>{V.connSub}</div></div>
-</div>
-{(V.showSyncBtn) && (<>
-<Button variant="secondary" className="justify-start" onClick={V.syncNow}>Sincronizar ahora ({V.pendingCount})</Button>
-</>)}
-<Button variant="outline" className="justify-start text-left" onClick={V.toggleOnline}>{V.connToggleLabel}</Button>
-<a href={`${import.meta.env.BASE_URL}comanda.html`} style={css("font-size:12.5px;padding:0 2px")}>Ver comanda de cocina →</a>
-<div style={css("display:flex;align-items:center;gap:9px;border-top:1px solid #e2e0d6;padding-top:12px")}>
-<span style={css("width:32px;height:32px;border-radius:50%;background:#f6e5df;color:#836953;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex:none")}>{V.userInitials}</span>
-<div style={css("flex:1;min-width:0")}><div style={css("font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{V.userName}</div><div style={css("font-size:11.5px;color:#6b6a63")}>{V.userRoleLabel}</div></div>
-<Button variant="link" size="sm" className="h-11 px-1" onClick={V.switchUser}>Salir</Button>
-</div>
-</div>
-</aside>
+<SidebarProvider className="pos-shell" style={{ '--sidebar-width': '236px', '--sidebar-width-icon': '48px', '--sidebar-width-mobile': 'min(18rem, 88vw)' }}>
+<Sidebar collapsible="offcanvas" className="pos-sidebar">
+  <PosSidebarNavigation items={V.navItems} goPos={V.goPos} />
+  <SidebarFooter className="gap-3 border-t border-sidebar-border px-3 pb-3 pt-3">
+    <div className="flex min-w-0 items-center gap-2" aria-label={`Estado de conexión: ${V.connLabel}`}>
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={V.connDotStyle}></span>
+      <div className="min-w-0 flex-1"><div className="text-sm font-medium">{V.connLabel}</div><div className="truncate text-xs text-muted-foreground">{V.connSub}</div></div>
+      <Badge variant={V.offline ? 'pending' : 'success'}>{V.pendingCount}</Badge>
+    </div>
+    {V.showSyncBtn && <Button variant="secondary" className="min-h-11 justify-start" onClick={V.syncNow}>Sincronizar ahora ({V.pendingCount})</Button>}
+    <Button variant="outline" className="min-h-11 justify-start text-left" onClick={V.toggleOnline}>{V.connToggleLabel}</Button>
+    <a className="flex min-h-11 items-center px-1 text-sm" href={`${import.meta.env.BASE_URL}comanda.html`}>Ver comanda de cocina →</a>
+    <div className="flex min-w-0 items-center gap-2 border-t border-sidebar-border pt-3">
+      <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-medium text-accent-foreground">{V.userInitials}</span>
+      <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{V.userName}</div><div className="text-xs text-muted-foreground">{V.userRoleLabel}</div></div>
+      <Button variant="link" className="min-h-11 px-1" onClick={V.switchUser}>Salir</Button>
+    </div>
+  </SidebarFooter>
+</Sidebar>
 
-<main style={css("flex:1;overflow-y:auto;position:relative")}>
+<main className="pos-main">
+<header className="pos-mobile-bar">
+  <SidebarTrigger className="size-11" aria-label="Abrir menú de navegación" />
+  <div className="min-w-0 flex-1">
+    <div className="truncate text-sm font-medium">Karma · {V.navItems.find(item => item.active)?.label || 'Punto de venta'}</div>
+    <div className="truncate text-xs text-muted-foreground">{V.connLabel} · {V.pendingCount} pendientes</div>
+  </div>
+  <Button variant="ghost" className="min-h-11 shrink-0 px-2" onClick={V.switchUser} aria-label={`Salir de la estación de ${V.userName}`}>{V.userInitials} · Salir</Button>
+</header>
 {(V.offline) && (<>
-<div style={css("background:#f6e5df;color:#836953;font-size:12.5px;font-weight:500;padding:8px 24px;position:sticky;top:0;z-index:50")}>Sin conexión — puedes seguir vendiendo; las operaciones se guardan localmente y se sincronizarán al reconectar.</div>
+<div className="pos-offline-banner" style={css("background:#f6e5df;color:#836953;font-size:12.5px;font-weight:500;padding:8px 24px;position:sticky;top:0;z-index:40")}>Sin conexión — puedes seguir vendiendo; las operaciones se guardan localmente y se sincronizarán al reconectar.</div>
 </>)}
 
 {(V.mPos) && (<SalesStation V={V} />)}
 
 {(V.mOrders) && (<>
-<div style={css("padding:22px 24px 40px;display:flex;flex-direction:column;gap:16px")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 40px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:baseline;gap:12px")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Órdenes abiertas</h1>
 <span style={css("font-size:12.5px;color:#6b6a63")}>{V.ordersCount} cuentas pendientes</span>
@@ -871,7 +923,7 @@ export default class PosApp extends React.Component {
 {(V.ordersEmpty) && (<>
 <div style={css("padding:60px 20px;text-align:center;color:#6b6a63;font-size:13.5px;border:1px dashed #e2e0d6;border-radius:12px")}>No hay cuentas abiertas.<br />Guarda una orden desde el punto de venta para verla aquí.</div>
 </>)}
-<div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px")}>
+<div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:12px")}>
 {(V.orders).map((o, oI) => (<React.Fragment key={oI}>
 <Card className="gap-3 p-4">
 <div style={css("display:flex;align-items:center;gap:8px")}>
@@ -904,7 +956,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mCheckout) && (<>
-<div style={css("max-width:960px;margin:0 auto;padding:22px 24px 48px;display:flex;flex-direction:column;gap:18px")}>
+<div className="pos-module" style={css("max-width:960px;margin:0 auto;padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:18px")}>
 <div style={css("display:flex;align-items:center;gap:14px;flex-wrap:wrap")}>
 <Button type="button" variant="outline" onClick={V.ckExit}>← Volver</Button>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Cobro · {V.ckFolio}</h1>
@@ -1026,7 +1078,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mMenu) && (<>
-<div style={css("padding:22px 24px 40px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 40px);display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap")}>
 <Card className="min-w-0 gap-2 p-3 sm:w-[230px] sm:shrink-0">
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500;padding:4px 10px 10px")}>Categorías</div>
 {(V.admCats).map((c, cI) => (<React.Fragment key={cI}>
@@ -1035,7 +1087,7 @@ export default class PosApp extends React.Component {
 <Button type="button" variant="link" className="justify-start px-3" onClick={V.admNewCat}>+ Nueva categoría</Button>
 </Card>
 <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:12px")}>
-<div style={css("display:flex;gap:10px")}>
+<div className="pos-menu-search" style={css("display:flex;gap:10px")}>
 <Label className="sr-only" htmlFor="menu-search">Buscar en el menú</Label>
 <Input id="menu-search" value={V.admSearch} onChange={V.setAdmSearch} placeholder="Buscar en el menú…" className="flex-1" />
 <Button type="button" onClick={V.admNew}>+ Nuevo producto</Button>
@@ -1098,7 +1150,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mInv) && (<>
-<div style={css("padding:22px 24px 40px;display:flex;flex-direction:column;gap:16px")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 40px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Inventario</h1>
 <div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
@@ -1149,7 +1201,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mRep) && (<>
-<div style={css("padding:22px 24px 48px;display:flex;flex-direction:column;gap:16px")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Reportes</h1>
 <div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
@@ -1195,7 +1247,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.mCfg) && (<>
-<div style={css("padding:22px 24px 48px;display:flex;flex-direction:column;gap:16px")}>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Usuarios y configuración</h1>
 <div style={css("display:flex;gap:6px;margin-left:8px")}>
@@ -1270,7 +1322,7 @@ export default class PosApp extends React.Component {
 </div>
 </>)}
 </main>
-</div>
+</SidebarProvider>
 
 <Dialog open={V.ed} onOpenChange={open => { if (!open) V.edCancel(); }}>
 {(V.ed) && (<DialogContent
