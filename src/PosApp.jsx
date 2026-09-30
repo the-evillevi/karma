@@ -65,6 +65,7 @@ import {
 
 const compensationMethodLabels = new Map([['cash', 'Efectivo'], ['card', 'Tarjeta'], ['transfer', 'Transferencia']]);
 const RecipeConfigurationPanel = React.lazy(() => import('./inventory/RecipeConfigurationPanel.jsx'));
+const AuditHistoryPanel = React.lazy(() => import('./reports/AuditHistoryPanel.jsx'));
 const DEFAULT_TABLE_COUNT = 12;
 const MAX_TABLE_COUNT = 50;
 
@@ -337,7 +338,7 @@ export default class PosApp extends React.Component {
       admCat: 'all', admSearch: '', admSel: null, admForm: null,
       invTab: 'stock', invSearch: '', invLow: false,
       recipeEditorOpen: false,
-      range: 'hoy', repSel: null,
+      range: 'hoy', reportTab: 'sales', repSel: null,
       cfgTab: 'usuarios', selUser: null, suForm: null, createdCredential: null,
       flags: sv.flags || { autoprint: true, fpEfectivo: true, fpTarjeta: true, fpTransfer: true, propCustom: true, cancelMotivo: true, cancelAut: true }
     };
@@ -2436,6 +2437,12 @@ export default class PosApp extends React.Component {
 
     // ---- reports
     V.ranges = [['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['30d', 'Últimos 30 días']].map(([id, label]) => ({ label, active: s.range === id, pick: () => this.setState({ range: id }) }));
+    V.reportTab = s.reportTab === 'audit' ? 'audit' : 'sales';
+    V.auditInventoryState = s.inventoryState;
+    V.auditRecipeCatalog = s.recipeCatalog;
+    V.auditInventoryError = s.inventoryError;
+    V.auditRecipeError = s.recipeError;
+    V.auditCanView = this.can('viewReports');
     const lim = s.range === 'hoy' ? 0 : s.range === '7d' ? 6 : 30;
     const rs = s.sales.filter(x => (x.day || 0) <= lim);
     const done = rs.filter(x => x.status === 'completada');
@@ -3117,6 +3124,15 @@ export default class PosApp extends React.Component {
 <div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Reportes</h1>
+<div role="group" aria-label="Vistas de reportes" className="flex flex-wrap gap-2">
+<Button type="button" size="sm" variant={V.reportTab === 'sales' ? 'default' : 'outline'} aria-pressed={V.reportTab === 'sales'} onClick={() => this.requireAction('viewReports') && this.setState({ reportTab: 'sales' })}>Ventas</Button>
+<Button type="button" size="sm" variant={V.reportTab === 'audit' ? 'default' : 'outline'} aria-pressed={V.reportTab === 'audit'} onClick={() => this.requireAction('viewReports') && this.setState({ reportTab: 'audit' })}>Historial de cambios</Button>
+</div>
+</div>
+{V.reportTab === 'audit' ? <React.Suspense fallback={<Card role="status" className="p-4">Cargando historial local…</Card>}>
+<AuditHistoryPanel inventoryState={V.auditInventoryState} recipeCatalog={V.auditRecipeCatalog} inventoryError={V.auditInventoryError} recipeError={V.auditRecipeError} branchTimeZone={this.props.branchTimeZone || 'America/Mexico_City'} canView={V.auditCanView} />
+</React.Suspense> : <>
+<div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
 {(V.ranges).map((r, rI) => (<Button key={rI} type="button" size="sm" variant={r.active ? 'default' : 'outline'} aria-pressed={r.active} onClick={r.pick}>{r.label}</Button>))}
 </div>
@@ -3162,6 +3178,7 @@ export default class PosApp extends React.Component {
 <TableBody>{(V.repSales).map((s, sI) => (<TableRow key={sI}>
 <TableCell><Button type="button" variant="link" size="sm" className="h-11 justify-start px-0" aria-label={`Abrir detalle de venta ${s.folio}`} onClick={s.open}>{s.folio}</Button></TableCell><TableCell className="text-muted-foreground">{s.fecha}</TableCell><TableCell>{s.tipo}</TableCell><TableCell className="text-muted-foreground">{s.user}</TableCell><TableCell className="font-medium">{s.total}</TableCell><TableCell><Badge variant={s.statusVariant}>{s.statusLabel}</Badge></TableCell><TableCell><Badge variant={s.syncVariant}>{s.syncLabel}</Badge></TableCell>
 </TableRow>))}</TableBody></Table></Card>
+</>}
 </div>
 </>)}
 
