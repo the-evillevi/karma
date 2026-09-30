@@ -1374,13 +1374,16 @@ export default class PosApp extends React.Component {
   async confirmRecipePublication(command) {
     if (!this.requireAction('adjustInventory', command?.reason || ''))
       return { ok: false, message: 'Tu acceso actual no permite publicar cambios de receta.' };
+    const startingActor = this.user();
+    if (!startingActor) return { ok: false, message: 'Tu identidad ya no está disponible. Vuelve a abrir la receta.' };
+    const startingIdentity = { id: startingActor.id, role: startingActor.role };
     try {
       const { default: currentProductCatalog } = await import('../catalog/catalog.json');
       if (!this.requireAction('adjustInventory', command?.reason || ''))
         return { ok: false, message: 'Tu acceso actual no permite publicar cambios de receta.' };
       const actor = this.user();
-      if (!actor)
-        return { ok: false, message: 'Tu identidad ya no está disponible. Revisa el acceso y vuelve a abrir la receta.' };
+      if (!actor || actor.id !== startingIdentity.id || actor.role !== startingIdentity.role)
+        return { ok: false, message: 'Cambió la identidad o el rol durante la publicación. Vuelve a abrir la receta.' };
       const key = this._storageKey || 'karma-pos-v1';
       const raw = localStorage.getItem(key);
       const persisted = raw ? JSON.parse(raw) : {};

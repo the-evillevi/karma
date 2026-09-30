@@ -702,6 +702,18 @@ test("cancel/refund planning reverses actual committed quantities and is safe to
     ...reversed.compensation,
     applicationState: "committed",
   };
+  assert.throws(
+    () =>
+      planConsumptionCompensation(
+        committed,
+        { ...cancellation, commandId: "another-cancel" },
+        actor,
+        inventory,
+        [reversed.compensation],
+      ),
+    /Only committed compensations/,
+  );
+
   assert.equal(
     planConsumptionCompensation(committed, cancellation, actor, inventory, [
       committedReversal,
@@ -739,4 +751,88 @@ test("cancel/refund planning reverses actual committed quantities and is safe to
       ]),
     /differs from recorded preparation consumption/,
   );
+});
+
+test("modifier-only shortages are visible before publication", () => {
+  const draft = recipeDraft();
+  draft.modifierEffects.find(
+    (effect) => effect.optionId === "amareto",
+  ).add[0].quantityText = "1001";
+  const preview = previewRecipePublication(
+    createRecipeCatalog(),
+    productCatalog,
+    inventoryFixture(),
+    product.id,
+    draft,
+  );
+  assert.ok(
+    preview.baseConsumption.every((row) => row.projectedStockBaseUnits >= 0),
+  );
+  assert.ok(
+    preview.warnings.some(
+      (warning) =>
+        warning.code === "insufficient_stock" &&
+        warning.groupId === "shot" &&
+        warning.optionId === "amareto" &&
+        warning.itemId === "syrup",
+    ),
+  );
+  assert.equal(preview.automaticConsumptionEligible, false);
+});
+
+test("self-consistent edited or omitted consumption cannot authorize retry or compensation", () => {
+  const inventory = inventoryFixture();
+  const empty = createRecipeCatalog();
+  const catalog = publishRecipe(
+    empty,
+    publishCommand(empty, inventory, recipeDraft(), "recipe:tamper"),
+    actor,
+    productCatalog,
+    inventory,
+  ).catalog;
+  const command = preparationCommand(inventory, catalog);
+  const original = {
+    ...planPreparationConsumption(
+      catalog,
+      productCatalog,
+      inventory,
+      command,
+      actor,
+    ).plan,
+    applicationState: "committed",
+  };
+  for (const kind of ["inflate", "omit", "duplicate"]) {
+    const edited = structuredClone(original);
+    const movement = edited.movements[0];
+    if (kind === "inflate") {
+      movement.quantityBaseUnits += 2;
+      movement.deltaBaseUnits -= 2;
+      movement.sourceAllocations[0].quantityBaseUnits += 2;
+      movement.sourceAllocations[0].perProductBaseUnits += 1;
+    } else if (kind === "omit") {
+      edited.movements.pop();
+    } else {
+      movement.sourceAllocations.push(
+        structuredClone(movement.sourceAllocations[0]),
+      );
+      movement.quantityBaseUnits *= 2;
+      movement.deltaBaseUnits *= 2;
+    }
+    assert.throws(
+      () =>
+        planPreparationConsumption(
+          catalog,
+          productCatalog,
+          inventory,
+          command,
+          actor,
+          [edited],
+        ),
+      /immutable recipe/,
+    );
+    assert.throws(
+      () => planConsumptionCompensation(edited, {}, actor, inventory),
+      /immutable recipe/,
+    );
+  }
 });

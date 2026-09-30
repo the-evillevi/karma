@@ -1232,6 +1232,19 @@ export function previewRecipePublication(
     inventoryState,
     baseConsumption,
   );
+  for (const scenario of modifierScenarios) {
+    for (const usage of scenario.consumption) {
+      if (usage.projectedStockBaseUnits < 0)
+        warnings.push({
+          code: "insufficient_stock",
+          message: `La opción ${scenario.optionNameSnapshot} deja existencia negativa para ${usage.itemNameSnapshot}.`,
+          itemId: usage.itemId,
+          groupId: scenario.groupId,
+          optionId: scenario.optionId,
+        });
+    }
+  }
+
   const revisions = sourceRevisions(
     recipeCatalog,
     productCatalog,
@@ -1740,6 +1753,62 @@ function validatePreparationPlan(input) {
         );
     }
   }
+  // Match amounts to frozen recipes, not merely to each other: a consistent
+  // edited consumption must not inflate inventory restored by a later refund.
+  const expectedAllocations = new Map();
+  for (const line of input.lines) {
+    if (!line.recipeSnapshot || line.readiness !== "configured") continue;
+    let usage;
+    try {
+      usage = buildUsageMap(
+        line.recipeSnapshot,
+        line.capturedModifiers,
+        line.quantity,
+      );
+    } catch (error) {
+      if (
+        !(error instanceof RecipeLedgerError) ||
+        input.automaticConsumptionEligible ||
+        !input.warnings.some(
+          (warning) =>
+            warning.lineId === line.lineId && warning.code === error.code,
+        )
+      )
+        throw error;
+      continue;
+    }
+    for (const entry of usage) {
+      expectedAllocations.set(modifierKey(line.lineId, entry.line.itemId), {
+        perProductBaseUnits: entry.perProductBaseUnits,
+        quantityBaseUnits: entry.quantityBaseUnits,
+        baseUnitSnapshot: entry.line.baseUnitSnapshot,
+        itemKindSnapshot: entry.line.itemKindSnapshot,
+      });
+    }
+  }
+  for (const movement of input.movements) {
+    for (const allocation of movement.sourceAllocations) {
+      const key = modifierKey(allocation.lineId, movement.itemId);
+      const expected = expectedAllocations.get(key);
+      if (
+        !expected ||
+        expected.perProductBaseUnits !== allocation.perProductBaseUnits ||
+        expected.quantityBaseUnits !== allocation.quantityBaseUnits ||
+        expected.baseUnitSnapshot !== movement.baseUnitSnapshot ||
+        expected.itemKindSnapshot !== movement.itemKindSnapshot
+      )
+        fail(
+          "invalid_preparation_history",
+          "Consumption differs from its immutable recipe quantities.",
+        );
+      expectedAllocations.delete(key);
+    }
+  }
+  if (expectedAllocations.size)
+    fail(
+      "invalid_preparation_history",
+      "Consumption omits immutable recipe allocations.",
+    );
   for (const warning of input.warnings) {
     exact(
       warning,
@@ -2402,6 +2471,11 @@ export function planConsumptionCompensation(
       "Saved compensation history exceeds the supported limit.",
     );
   const prior = priorCompensationInputs.map(validateCompensationPlan);
+  if (prior.some((event) => event.applicationState !== "committed"))
+    fail(
+      "invalid_compensation_history",
+      "Only committed compensations may reserve returned stock quantities.",
+    );
   const seen = new Set();
   for (const compensation of prior) {
     if (seen.has(compensation.command.commandId))

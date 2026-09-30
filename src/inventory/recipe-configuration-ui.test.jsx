@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom';
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"http://localhost/"}
 import React from 'react';
@@ -263,4 +264,26 @@ it('allows Encargado to review a recipe but disables the open form and rejects i
     expect(result.ok).toBe(false);
   });
   expect(JSON.parse(window.localStorage.getItem(storageKey)).recipeCatalog.revision).toBe(0);
+});
+
+
+it('does not reassign an in-flight recipe publication to another authorized manager', async () => {
+  const storage = installMemoryStorage();
+  const user = userEvent.setup();
+  const app = mount();
+  await openRecipeEditor(user);
+  await prepareDraft(user);
+  await user.click(screen.getByRole('checkbox', { name: 'Revisé las cantidades y advertencias de esta vista previa.' }));
+  let captured;
+  const confirm = app.ref.current.confirmRecipePublication;
+  app.ref.current.confirmRecipePublication = async command => { captured = command; return { ok: false, message: 'captured' }; };
+  await user.click(screen.getByRole('button', { name: 'Publicar revisión' }));
+  await act(async () => {
+    const pending = confirm.call(app.ref.current, captured);
+    flushSync(() => app.rerender(<PosApp ref={app.ref} vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0"
+      accessMode="secure" accessStorageKey={storageKey} accessBranchId="branch-a" accessDeviceId="register-a"
+      accessScreen={<main>Inicio seguro</main>} accessContext={context('encargado', 'other-manager')} />));
+    expect((await pending).ok).toBe(false);
+  });
+  expect(JSON.parse(storage.getItem(storageKey)).recipeCatalog.events).toHaveLength(0);
 });
