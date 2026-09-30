@@ -276,7 +276,7 @@
       "requires": [
         "EVL-118"
       ],
-      "stage": "implementing",
+      "stage": "fixing_review",
       "agent": "foundation_xhigh",
       "commits": [
         "9580c5a"
@@ -287,7 +287,7 @@
       "blockers": [
         "Forward versioned server write/read contract and operational integration remain pending; applied114/118 immutable."
       ],
-      "nextAction": "Root reviews strict snapshot journal and IndexedDB revision/atomicity/recovery before actual POS mapping."
+      "nextAction": "Fix lifecycle/cache invalidation and validate derived journal state against immutable replay; browser proof before POS wiring."
     },
     {
       "id": "EVL-154",
@@ -614,7 +614,7 @@
         "2e01d1c",
         "8ac4ee5"
       ],
-      "pr": null,
+      "pr": "https://github.com/the-evillevi/karma/pull/20",
       "checks": [
         "Root full77domain/79component/10Edge and PWA restart check passed; final12 split guards passed; scoped scan no new findings."
       ],
@@ -632,14 +632,14 @@
       "requires": [
         "EVL-189"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "orders_xhigh",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "GPT-6 Luna xhigh implementing operator selected split quantities; root review with fixes follows."
     },
     {
       "id": "EVL-186",
@@ -723,19 +723,19 @@
       "id": "EVL-125",
       "chain": "payments",
       "branch": "codex/payments/evl-125",
-      "baseBranch": "codex/payments/evl-187",
+      "baseBranch": "codex/payments/corrections-base",
       "requires": [
         "EVL-187",
         "EVL-129"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "root",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Root finishing manual refund/void evidence, scoped authority and saved-state guards; durable126/inventory129 remain gates."
     },
     {
       "id": "EVL-128",
@@ -1071,10 +1071,10 @@
   "sessionCheckpoint": {
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
-    "runningAgents": 0,
-    "integration": "8ac4ee5",
+    "runningAgents": 2,
+    "integration": "15ea82b",
     "mainMerged": false,
-    "nextIssue": "Root EVL-126 review; EVL-155 operator selections; EVL-125 manual compensation",
+    "nextIssue": "EVL-126 review fixes, EVL-155 operator controls, EVL-125 refund/void review",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed"
   }
