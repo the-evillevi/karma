@@ -202,8 +202,8 @@
     {
       "id": "EVL-126",
       "chain": "foundation",
-      "branch": "codex/foundation/evl-126-compat",
-      "baseBranch": "codex/foundation/evl-126",
+      "branch": "codex/foundation/evl-126-operations",
+      "baseBranch": "codex/foundation/evl-126-compat",
       "requires": ["EVL-118"],
       "stage": "implementing",
       "agent": "foundation_xhigh",
@@ -214,19 +214,22 @@
         "e4f0260",
         "fe657b1",
         "40d0d1e",
-        "4a8959c"
+        "4a8959c",
+        "ae11b00",
+        "fc9d954"
       ],
-      "pr": "https://github.com/the-evillevi/karma/pull/23",
+      "pr": "https://github.com/the-evillevi/karma/pull/25",
       "checks": [
         "Root7/7 Chromium journal proof and0medium+ journal scan; combinedformat/lint/types/domain86/86 and7/7 Chromium passed",
         "CI repaired missing deterministic access fixture and added Edge/journal lanes; rerun pending",
-        "GitHub quality rerun PASSED after deterministic fixture repair;118run36740648986,126run36740649771 including Edge/journal lanes"
+        "GitHub quality rerun PASSED after deterministic fixture repair;118run36740648986,126run36740649771 including Edge/journal lanes",
+        "Root5 adapter domain and27 sharedUI plus2 strengthenedactualrich/legacycheckoutcases;0medium+newsource;GitHubquality36753787540passed"
       ],
-      "review": "phase1_fixed_and_rereviewed_compat_adapter_in_progress",
+      "review": "compatible_view_fixed_and_rereviewed_operations_in_progress",
       "blockers": [
         "Forward versioned server write/read contract and operational integration remain pending; applied114/118 immutable."
       ],
-      "nextAction": "Root review found rich checkout lineSnapshots/table/aliases compatibility losses; Luna xhigh fixing adapter before full atomic contract work.",
+      "nextAction": "Luna xhigh implements typed atomic operational contracts/pure replay; noUIwiring untilcompletebusinessfamilies/server/localtransactions reviewed. Replay preserves committedhistory withoutcurrentrolechecks; newappend/uploadreauthorize.",
       "artifactsReady": true
     },
     {
@@ -588,19 +591,21 @@
       "branch": "codex/inventory/evl-128-catalog",
       "baseBranch": "codex/inventory/evl-128",
       "requires": ["EVL-126", "EVL-118"],
-      "stage": "implementing",
-      "agent": "orders_xhigh",
-      "commits": ["20035f3", "2fc994c"],
-      "pr": "https://github.com/the-evillevi/karma/pull/24",
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": ["20035f3", "2fc994c", "47a8951", "389c3b9", "2693cd4"],
+      "pr": "https://github.com/the-evillevi/karma/pull/26",
       "checks": [
         "Root10 domain /9 actualUI; combined96domain/103components/10Edge/fullbuild/PWA/bundlescans",
-        "GitHub quality run36750425881 passed; root14 secure UI cases include current-role/revocation inventory confirmation at90ceb52"
+        "GitHub quality run36750425881 passed; root14 secure UI cases include current-role/revocation inventory confirmation at90ceb52",
+        "Root16 ledger /13 actualinventory UI; fullcombined107domain/108components/10Edge/7journal/1PWA bothbuilds/scans/types/lint/format PASS",
+        "GitHubquality36754485284 passed"
       ],
-      "review": "manual_ledger_fixed_and_rereviewed_catalog_in_progress",
+      "review": "catalog_fixed_and_rereviewed_local_scope",
       "blockers": [
-        "Item administration in progress; durable authority126, recipe consumption129 and real stock verification remain open."
+        "Durable126 remote authority/acknowledgement, recipe consumption129 and physical synthetic-stock verification remain open."
       ],
-      "nextAction": "Luna xhigh completes audited item creation/edit/archive on stacked catalog branch; root review/fixes follow.",
+      "nextAction": "Local audited catalog and manual ledger reviewed and published;126/129 complete remote/consumption acceptance.",
       "artifactsReady": true
     },
     {
@@ -684,14 +689,14 @@
       "branch": "codex/customers/evl-135",
       "baseBranch": "codex/customers/credit-base",
       "requires": ["EVL-123", "EVL-126", "EVL-118"],
-      "stage": "queued",
-      "agent": null,
-      "commits": ["40d93b1"],
+      "stage": "implementing",
+      "agent": "orders_xhigh",
+      "commits": ["40d93b1", "930592f", "1e097ab", "5c81d72"],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Prepared isolated WT and owner-approved implementation boundary at40d93b1; assign next available Luna xhigh after current catalog review. No credit runtime implemented."
+      "nextAction": "Luna xhigh reviewed root isolatedplanner thenimplements profile/statements/ownerlimit/manualpayments UI. No standalonefakecreditsale/prepaidcheckout; atomic126gate remains."
     },
     {
       "id": "EVL-136",
@@ -873,14 +878,14 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "90ceb52",
+    "integration": "899b153",
     "mainMerged": false,
-    "nextIssue": "EVL-126 snapshot fixes/full durability and EVL-128 audited item catalog",
+    "nextIssue": "EVL-126 atomic operations and EVL-135 profile/accounts",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed_after_user_reset",
     "usage": {
-      "primaryUsedPercent": 1,
-      "weeklyUsedPercent": 0,
+      "primaryUsedPercent": 25,
+      "weeklyUsedPercent": 4,
       "ordinaryUsageAllowed": true,
       "resetCreditsRemaining": 3
     },

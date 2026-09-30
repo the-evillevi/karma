@@ -13,3 +13,5 @@ Complete payment identity sets now validate refund allocations, selected payment
 Root independently passed5 domain adapter cases after fixes and the scoped security scan returned0 medium+ findings. Agent passed82 domain/69 component tests, typecheck, lint, formatting and production build. The modified existing actual POS payment test exercises serialization; root current integration serialization proof follows integration because its checkout has richer snapshots than the older foundation worktree.
 
 Met: bounded versioned/scope-tagged, sanitized compatibility view with explicit unknown provenance and available-money consistency. Open: actual restore, all-family local transactions/replay, protected server writes/reads, authoritative acknowledgements, conflicts, enrollment and hosted offline recovery. Do not wire open-only replay or claim EVL-126 complete.
+
+Combined root integration at899b153 passed107 domain/108 component/10 Edge/7 journal and1 PWA cold restart, both builds, format/lint/types and credential scans. DraftPR25/26 GitHub quality passed. Actual rich checkout serialization and legacy checkout were independently strengthened and passed.

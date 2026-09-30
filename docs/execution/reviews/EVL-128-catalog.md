@@ -18,3 +18,5 @@ Root independently passed16 ledger domain tests and13 actual inventory UI cases;
 Met locally: owner/manager item creation with an explicit real zero-or-positive opening count, audited metadata edits, compatible display-unit changes, no base-unit migration, archive only at zero stock while retaining visible history, role/revision/reason checks, write-before-success and stable retry. Anonymous seed balances remain unverified and historical fixtures remain separate.
 
 Open for full EVL-128: EVL-126 cross-device transactions/acknowledgement and EVL-129 consumption/compensation, physical seed stock verification and real catalog acceptance. Archive does not erase item history or hide positive stock. Publish as a draft and verify combined split/refund/inventory behavior before integration acceptance.
+
+Combined root integration at899b153 passed107 domain/108 component/10 Edge/7 journal and1 PWA cold restart, both builds, format/lint/types and credential scans. DraftPR25/26 GitHub quality passed. Actual rich checkout serialization and legacy checkout were independently strengthened and passed.
