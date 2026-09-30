@@ -10,13 +10,13 @@ Root owns integration `/Users/evillevi/.codex/worktrees/karma-integration/karma`
 
 `orders_xhigh` exclusively owns `/Users/evillevi/.codex/worktrees/karma-reports/karma`, `codex/reports/evl-127`, base recovery-base5d124cd. Truthful local/network/server status, protected actual CSV and explicit recovery limits. Root preliminary finding: payment success must not render before storage confirms; agent changed write-before-publish and adds mounted quota-failure regression. Root final review/scan/publication/integration pending. No whole-state import or invented pending commands/acknowledgements.
 
-Root owns clean inventory1536bb32ea, customers135a425237, orders155b61a477 and payments12507cf51b worktrees. Transfer exclusive ownership explicitly. New third agent failed hard thread-count limit; use two existing requested xhigh delegates. Do not substitute user-owned threads.
+Root owns clean inventory1536bb32ea, customers13674e7313 (prepared policy contract, base135a425237), orders155b61a477 and payments12507cf51b worktrees. Transfer exclusive ownership explicitly. New third agent failed hard thread-count limit; use two existing requested xhigh delegates. Do not substitute user-owned threads.
 
 ## Reviewed checkpoints
 
 Normal full check passed15044a6:150domain,131screens,10Edge,1PWA cold restart,7phase1journal,5operationsjournal,format/lint/types/both builds/client scans. Screen concurrency capped2 after reproduced host-contention timeouts; deadlines/coverage unchanged. Later153 focused root5domain/4UI; integrated11report+audit and8compensation screens plus build passed. Server integration format/types/diff passed. Broader check required after127 runtime changes.
 
-PR30 operational journal a629c4e CI36765677197 passed; PR31 recipes1162163 CI36766553233 passed; PR32 report periods c71c7f9 CI36768697072 passed; PR33 audit6bb32ea CI36787218117 passed. PR34 open-order server c5b5138 published/attached; inspect REST for CI. GraphQL exhausted, REST usable; duplicate-check then create draft and attach every PR.
+PR30 operational journal a629c4e CI36765677197 passed; PR31 recipes1162163 CI36766553233 passed; PR32 report periods c71c7f9 CI36768697072 passed; PR33 audit6bb32ea CI36787218117 passed. PR34 open-order server c5b5138 published/attached; CI36789436203 passed. Root linked read confirms exactly the four reviewed migration versions. GraphQL exhausted, REST usable; duplicate-check then create draft and attach every PR.
 
 ## Applied backend and actual proof
 
@@ -34,4 +34,6 @@ Older four Reports prototype sinks matched baseline and were not fixed under new
 
 ## Limits and persistence
 
-Latest observed ordinary allowance allowed, primary29%, weekly20%, three reset credits remain. Root redeemed none. Continue authorized work until a real boundary, commit/resume manifests frequently, no automatic credit redemption or automation. Keep main unchanged and drafts stacked. Prior checkpoint details and reviewed evidence remain in per-issue docs/reviews and manifest.
+Latest observed ordinary allowance allowed, primary35%, weekly21%, three reset credits remain. Root redeemed none. Continue authorized work until a real boundary, commit/resume manifests frequently, no automatic credit redemption or automation. Keep main unchanged and drafts stacked. Prior checkpoint details and reviewed evidence remain in per-issue docs/reviews and manifest.
+
+Foundation lifecycle proposal root-read/accepted; align TS money validation NOW: discounted orders cannot become unknown-price through a line edit. Differential parity must not be deferred. Reports127 root review also requires current-state failed-save retry guard (including captured callbacks), continued report/config navigation, discount form retention and accurate actual-write status. Final candidate/checks pending.
