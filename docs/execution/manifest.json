@@ -248,11 +248,11 @@
       "pr": "https://github.com/the-evillevi/karma/pull/16",
       "checks": [
         "Root full combined check passed: 68 unit tests without skips, 27 components, format/lint/scoped types, four-entry builds, secret scans and PWA restart browser proof",
-        "Exact migration hash independently verified unchanged"
+        "Exact migration hash independently verified unchanged",
+        "2026-09-30 root exact reviewed migration applied to isolated karma-pos; 12/12 real hosted RPC/RLS/browser proofs passed, synthetic owners restored after concurrency proof."
       ],
       "review": "pending_resumed_work",
       "blockers": [
-        "Migration remains unapplied; private EVL-114 fixture is stale and compatible EVL-118 hosted proof is not run.",
         "Actual POS role boundaries, draft-preserving identity switch and production enrollment/recovery are incomplete."
       ],
       "nextAction": "Continue implementation from reviewed integration with GPT-6 Luna xhigh; root review and fixes before acceptance.",
@@ -671,14 +671,14 @@
         "EVL-123",
         "EVL-118"
       ],
-      "stage": "preparing",
+      "stage": "implementing",
       "agent": null,
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending_resumed_work",
       "blockers": [],
-      "nextAction": "Continue implementation from reviewed integration with GPT-6 Luna xhigh; root review and fixes before acceptance."
+      "nextAction": "Root unifies cancellation history, reason/actor/stale-source checks and retry protection; no third agent thread available."
     },
     {
       "id": "EVL-125",
