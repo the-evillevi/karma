@@ -41,13 +41,16 @@ async function signIn(page) {
   const enrollPin = page.getByRole("button", {
     name: "Guardar PIN y abrir estación",
   });
-  if (await enrollPin.count()) {
+  const unlockPin = page.getByRole("button", { name: "Desbloquear con PIN" });
+  if (env.SUPABASE_V118_TESTS_ENABLED === "1") {
+    await expect(enrollPin.or(unlockPin)).toBeVisible();
+  }
+  if (await enrollPin.isVisible()) {
     await page.getByLabel("Crear PIN offline").fill("246810");
     await page.getByLabel("Confirmar PIN offline").fill("246810");
     await enrollPin.click();
   } else {
-    const unlockPin = page.getByRole("button", { name: "Desbloquear con PIN" });
-    if (await unlockPin.count()) {
+    if (await unlockPin.isVisible()) {
       await page.getByLabel("PIN offline").fill("246810");
       await unlockPin.click();
     }
@@ -313,7 +316,14 @@ test("RLS allows valid cash and preparation writes but rejects forged, mutable, 
     deviceId: env.SUPABASE_CASH_DEVICE_ID,
     type: "PreparationStarted",
   });
-  expect(cashWrite.error?.code).toBe("42501");
+  if (env.SUPABASE_V118_TESTS_ENABLED === "1") {
+    // The reviewed matrix permits Barra to update preparation on an active
+    // cash-register device as well as a preparation device.
+    expect(cashWrite.error).toBeNull();
+    expect(cashWrite.data.command_id).toBeTruthy();
+  } else {
+    expect(cashWrite.error?.code).toBe("42501");
+  }
 
   const waiterClient = anon();
   const waiterLogin = await waiterClient.auth.signInWithPassword({

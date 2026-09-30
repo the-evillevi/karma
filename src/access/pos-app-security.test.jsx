@@ -182,3 +182,33 @@ describe('secure POS UI boundary', () => {
     expect(screen.queryByText('one-time-secret')).toBeNull();
   });
 });
+
+
+it('rechecks a secure cancellation dialog after identity switching and persists the original and cancelling actors in the scoped store', () => {
+  const ref = React.createRef();
+  const key = posAccessStorageKey('secure', 'branch-a', 'register-a');
+  const account = { ...structuredClone(window.KARMA.seedOrders[0]), folio: 'A-SECURE-CANCEL', user: 'Originadora', actorId: 'auth-origin', actorName: 'Originadora', time: '09:20' };
+  localStorage.setItem(key, JSON.stringify({ open: [account], kitchenTickets: [account], sales: [] }));
+  const view = render(<PosApp ref={ref} {...props()} />);
+  act(() => ref.current.cancelOpen(account.folio));
+  const confirm = ref.current.state.dlg.onConfirm;
+  view.rerender(<PosApp ref={ref} {...props({ accessContext: context({ userId: 'auth-barra', role: 'barra', displayName: 'Barra' }) })} />);
+  act(() => expect(confirm({ reason: 'Corrección del pedido' })).toBe('keep'));
+  expect(JSON.parse(localStorage.getItem(key)).sales).toEqual([]);
+  view.rerender(<PosApp ref={ref} {...props({ accessContext: context({ userId: 'auth-manager', role: 'encargado', displayName: 'Encargado' }) })} />);
+  act(() => confirm({ reason: 'Corrección del pedido' }));
+  expect(JSON.parse(localStorage.getItem(key)).sales[0]).toMatchObject({ creo: 'Originadora', actorId: 'auth-origin', cancelledByActorId: 'auth-manager', cancelledByActorName: 'Encargado', createdTime: '09:20' });
+  expect(localStorage.getItem('karma-pos-v1')).toBeNull();
+});
+
+it('preserves the order creator when a different verified identity saves and starts checkout', () => {
+  const ref = React.createRef();
+  const view = render(<PosApp ref={ref} {...props()} />);
+  act(() => ref.current.mutateOrder('line_added', order => ({ ...order, items: [{ lineId: 'origin-line', prodId: 'espresso', name: 'Espresso', unit: 30, qty: 1, mods: {}, notes: '' }] })));
+  view.rerender(<PosApp ref={ref} {...props({ accessContext: context({ userId: 'auth-barra', role: 'barra', displayName: 'Barra' }) })} />);
+  act(() => ref.current.saveOpen(false));
+  const saved = ref.current.state.open[0];
+  expect(saved).toMatchObject({ user: 'Dueña verificada', actorId: 'auth-owner-1', actorName: 'Dueña verificada' });
+  act(() => ref.current.startCheckout(saved.folio));
+  expect(ref.current.state.ck).toMatchObject({ originalActorId: 'auth-owner-1', originalActorName: 'Dueña verificada', actorId: 'auth-barra', actorName: 'Barra' });
+});

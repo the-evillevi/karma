@@ -11,6 +11,9 @@ const child = spawn(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['build:
     VITE_SUPABASE_ANON_KEY: '',
     VITE_DEMO_BRANCH_ID: '',
     VITE_DEMO_DEVICE_ID: '',
+    VITE_KARMA_ACCESS_MODE: 'demo',
+    VITE_KARMA_BRANCH_ID: '',
+    VITE_KARMA_DEVICE_ID: '',
   },
 });
 child.on('error', () => { process.exitCode = 1; });

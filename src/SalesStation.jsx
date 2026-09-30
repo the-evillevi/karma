@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import './SalesStation.css';
 
 /** Sale-station UI; the parent owns the local order draft and existing POS actions. */
@@ -194,14 +195,34 @@ export default function SalesStation({ V }) {
         </div>
         {V.showMesa && (
           <label className="sales-field">
-            <span>Número de mesa</span>
-            <input value={V.mesa} onChange={V.setMesa} placeholder="Número de mesa" inputMode="numeric" />
+            <span>Mesa (opcional)</span>
+            <Select value={V.mesaSelection} onValueChange={V.setMesa}>
+              <SelectTrigger aria-label="Número de mesa" className="min-h-11 w-full bg-[#f0eee6]">
+                <SelectValue placeholder="Sin mesa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__sin_mesa__">Sin mesa</SelectItem>
+                {V.tableOptions.map((table) => <SelectItem key={table.value} value={'mesa:' + table.value}>{table.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </label>
         )}
         <label className="sales-field">
-          <span>Nombre o referencia</span>
-          <input value={V.orderName} onChange={V.setOrderName} placeholder="Opcional" />
+          <span>{V.orderNameLabel}{V.orderNameRequired ? ' · obligatorio' : ''}</span>
+          <input value={V.orderName} onChange={V.setOrderName} placeholder={V.orderNameRequired ? 'Nombre completo' : 'Opcional'} maxLength={100} required={V.orderNameRequired} />
         </label>
+        {V.showOrderPhone && (
+          <label className="sales-field">
+            <span>Teléfono · obligatorio</span>
+            <input type="tel" inputMode="tel" autoComplete="tel" value={V.orderPhone} onChange={V.setOrderPhone} placeholder="Teléfono de contacto" maxLength={40} required />
+          </label>
+        )}
+        {V.showOrderAddress && (
+          <label className="sales-field">
+            <span>Dirección · obligatoria</span>
+            <textarea autoComplete="street-address" value={V.orderAddress} onChange={V.setOrderAddress} placeholder="Calle, número, colonia y referencias" rows={2} maxLength={240} required />
+          </label>
+        )}
 
         {V.linesEmpty ? (
           <div className="sales-empty sales-cart-empty">Sin productos.<br />Toca un producto del catálogo para agregarlo.</div>

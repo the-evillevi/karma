@@ -111,22 +111,42 @@ for (const [table, row, conflictKey] of [
   ],
   [
     "branch_memberships",
-    { branch_id: branchId, user_id: cashierId, role: "barra" },
+    {
+      branch_id: branchId,
+      user_id: cashierId,
+      role: "barra",
+      display_name: "Barra sintética",
+    },
     "branch_id,user_id",
   ],
   [
     "branch_memberships",
-    { branch_id: branchId, user_id: waiterId, role: "mesero" },
+    {
+      branch_id: branchId,
+      user_id: waiterId,
+      role: "mesero",
+      display_name: "Mesero sintético",
+    },
     "branch_id,user_id",
   ],
   [
     "branch_memberships",
-    { branch_id: branchId, user_id: ownerId, role: "duena" },
+    {
+      branch_id: branchId,
+      user_id: ownerId,
+      role: "duena",
+      display_name: "Dueña sintética 1",
+    },
     "branch_id,user_id",
   ],
   [
     "branch_memberships",
-    { branch_id: branchId, user_id: ownerTwoId, role: "duena" },
+    {
+      branch_id: branchId,
+      user_id: ownerTwoId,
+      role: "duena",
+      display_name: "Dueña sintética 2",
+    },
     "branch_id,user_id",
   ],
   [
