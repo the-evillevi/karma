@@ -32,6 +32,34 @@ import { sameCapturedModifiers } from './catalog/captured-modifiers.mjs';
 import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue.js';
 import { calculateTender, centsToMoney, moneyToCents, paymentMethodTotalsCents, paymentNetCents } from './domain/payment-tender.js';
 
+const DEFAULT_TABLE_COUNT = 12;
+const MAX_TABLE_COUNT = 50;
+
+function validTableCount(value) {
+  const count = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && /^\d{1,2}$/.test(value)
+      ? Number(value)
+      : NaN;
+  return Number.isSafeInteger(count) && count >= 1 && count <= MAX_TABLE_COUNT
+    ? count
+    : DEFAULT_TABLE_COUNT;
+}
+
+function textField(value, maxLength = 160) {
+  return typeof value === 'string' ? value.slice(0, maxLength) : '';
+}
+
+function hasText(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function tableFromReference(reference) {
+  if (typeof reference !== 'string') return '';
+  const match = /^\s*mesa\s+(.+?)\s*$/i.exec(reference);
+  return match && match[1] !== '—' ? match[1].slice(0, 32) : '';
+}
+
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
 // it (keypad key, product card, sales row). Merges base + hover style on hover.
 function Hover({ tag = 'button', base, hover, children, ...rest }) {
@@ -98,10 +126,15 @@ export default class PosApp extends React.Component {
     this._dialogReturnFocus = null;
     const D = window.KARMA;
     let sv = {}; try { sv = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
+    const orderSettings = { tableCount: validTableCount(sv.orderSettings?.tableCount) };
     this._folio = sv.folioSeq || 1051;
     const savedOrder = sv.order || this.blank();
     const restoredOrder = {
       ...savedOrder,
+      mesa: textField(savedOrder.mesa, 32),
+      name: textField(savedOrder.name, 100),
+      phone: textField(savedOrder.phone, 40),
+      address: textField(savedOrder.address, 240),
       items: (savedOrder.items || []).map((item, index) => ({
         ...item,
         // Older saved drafts and seeded accounts predate line identifiers.
@@ -120,6 +153,8 @@ export default class PosApp extends React.Component {
       pending: sv.pending || ['Venta A-1047', 'Orden A-1049'],
       toasts: [],
       order: restoredOrder,
+      orderSettings,
+      tableCountDraft: String(orderSettings.tableCount),
       open: sv.open || D.seedOrders.map(o => ({ ...o })),
       kitchenTickets: Array.isArray(sv.kitchenTickets) ? sv.kitchenTickets : (sv.open || D.seedOrders.map(o => ({ ...o }))),
       sales: sv.sales || D.sales.map(s => ({ ...s })),
@@ -172,6 +207,7 @@ export default class PosApp extends React.Component {
     try {
       localStorage.setItem('karma-pos-v1', JSON.stringify({
         session: s.session, pick: s.pick, online: s.online, pending: s.pending, order: s.order,
+        orderSettings: s.orderSettings,
         open: s.open, kitchenTickets: s.kitchenTickets,
         sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq: this._folio
       }));
@@ -190,8 +226,21 @@ export default class PosApp extends React.Component {
   role() { const u = this.user(); return u ? u.role : 'cajero'; }
   can(act) {
     const r = this.role();
-    const P = { cancelar: ['dueno', 'encargado'], descuento: ['dueno', 'encargado'], ajuste: ['dueno', 'encargado'] };
+    const P = { cancelar: ['dueno', 'encargado'], descuento: ['dueno', 'encargado'], ajuste: ['dueno', 'encargado'], configureTables: ['dueno', 'encargado'] };
     return (P[act] || []).includes(r);
+  }
+  needsOrderContact(order) {
+    if (order.type === 'domicilio') {
+      if (!hasText(order.name) || !hasText(order.phone) || !hasText(order.address)) {
+        this.toast('Para domicilio captura nombre, teléfono y dirección.', 'warn');
+        return false;
+      }
+    }
+    if (['llevar', 'recoger'].includes(order.type) && (!hasText(order.name) || !hasText(order.phone))) {
+      this.toast('Para recoger captura nombre y teléfono.', 'warn');
+      return false;
+    }
+    return true;
   }
   navAllowed(m) {
     const r = this.role();
@@ -252,9 +301,15 @@ export default class PosApp extends React.Component {
     return false;
   }
   openEntry(o) {
+    const totals = this.orderTotals(o);
+    const totalCents = totals.total === null ? null : moneyToCents(totals.total);
+    const responsible = textField(o.responsible || o.user || this.user()?.name || '—', 100);
+    const createdBy = textField(o.user || responsible, 100);
     return {
-      folio: o.folio, type: o.type, ref: this.refOf(o), time: this.now(),
-      user: this.user().name, prep: 'en-cola', sync: this.state.online ? 'sincronizada' : 'pendiente',
+      folio: o.folio, type: o.type, ref: this.refOf(o), reference: this.refOf(o), time: textField(o.time || this.now(), 40),
+      user: createdBy, responsible, totalCents,
+      phone: textField(o.phone, 40), address: textField(o.address, 240),
+      mesa: textField(o.mesa, 32), prep: 'en-cola', sync: this.state.online ? 'sincronizada' : 'pendiente',
       items: o.items.map(l => ({ ...l, prodId: l.prodId, name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, mods: l.mods, modsText: this.modsText(l), notes: l.notes, unit: this.lineUnit(l) })),
       name: o.name, discount: o.discount || 0
     };
@@ -263,12 +318,31 @@ export default class PosApp extends React.Component {
     if (!this.needItems()) return;
     if (!this.needCapturedPrices()) return;
     const s = this.state; const o = { ...s.order };
+    try {
+      const total = this.orderTotals(o).total;
+      if (total === null) throw new RangeError('captured total is missing');
+      moneyToCents(total);
+    } catch {
+      this.toast('No se puede guardar la cuenta: revisa que todos los precios y el total sean importes válidos.', 'warn');
+      return;
+    }
+    if (!this.needsOrderContact(o)) return;
     if (!o.folio) o.folio = this.nf();
     const entry = this.openEntry(o);
     const prev = s.kitchenTickets.find(x => x.folio === o.folio) || s.open.find(x => x.folio === o.folio);
-    if (prev) { entry.prep = prev.prep; entry.time = prev.time; entry.user = prev.user; }
+    if (prev) { entry.prep = prev.prep; entry.time = prev.time; entry.user = prev.user; entry.responsible = prev.responsible || prev.user; }
     const open = [entry, ...s.open.filter(x => x.folio !== o.folio)];
-    const kitchenTickets = upsertKitchenTicket(s.kitchenTickets, entry);
+    const ticketEntry = { ...entry };
+    delete ticketEntry.phone;
+    delete ticketEntry.address;
+    const kitchenBase = s.kitchenTickets.map(ticket => {
+      if (ticket.folio !== entry.folio) return ticket;
+      const safeTicket = { ...ticket };
+      delete safeTicket.phone;
+      delete safeTicket.address;
+      return safeTicket;
+    });
+    const kitchenTickets = upsertKitchenTicket(kitchenBase, ticketEntry);
     const pending = s.online ? s.pending : [...s.pending, 'Orden ' + o.folio];
     if (keepStation) this.up({ open, kitchenTickets, pending, order: o });
     else this.up({ open, kitchenTickets, pending, order: this.blank() });
@@ -276,6 +350,8 @@ export default class PosApp extends React.Component {
   }
   startCheckout(folio, lines, discount, type, fromStation) {
     if (!this.needCapturedPrices(lines)) return;
+    const sourceOrder = fromStation ? this.state.order : this.state.open.find(entry => entry.folio === folio);
+    if (sourceOrder && !this.needsOrderContact(sourceOrder)) return;
     const sourceSnapshot = this.checkoutSourceSnapshot({ folio, fromStation }, this.state);
     let subCents;
     let discCents;
@@ -542,8 +618,25 @@ export default class PosApp extends React.Component {
     V.hasFolio = !!o.folio; V.orderFolio = o.folio || '';
     V.typeBtns = [['local', 'En local'], ['mesa', 'Mesa'], ['llevar', 'Llevar'], ['domicilio', 'Domicilio'], ['recoger', 'Recoger']].map(([id, label]) => ({ label, active: o.type === id, pick: () => this.up({ order: { ...o, type: id } }) }));
     V.showMesa = o.type === 'mesa';
-    V.mesa = o.mesa; V.setMesa = e => this.up({ order: { ...this.state.order, mesa: e.target.value } });
+    const tableOptions = Array.from({ length: s.orderSettings.tableCount }, (_, index) => ({ value: String(index + 1), label: 'Mesa ' + (index + 1) }));
+    const currentMesa = textField(o.mesa, 32);
+    if (currentMesa && !tableOptions.some(option => option.value === currentMesa)) {
+      tableOptions.push({ value: currentMesa, label: /^\d+$/.test(currentMesa) ? 'Mesa ' + currentMesa + ' · histórica' : 'Referencia histórica · ' + currentMesa });
+    }
+    V.tableOptions = tableOptions;
+    V.mesa = currentMesa;
+    V.mesaSelection = currentMesa ? 'mesa:' + currentMesa : '__sin_mesa__';
+    V.setMesa = value => {
+      const mesa = value === '__sin_mesa__' ? '' : typeof value === 'string' && value.startsWith('mesa:') ? textField(value.slice(5), 32) : '';
+      this.up({ order: { ...this.state.order, mesa } });
+    };
     V.orderName = o.name; V.setOrderName = e => this.up({ order: { ...this.state.order, name: e.target.value } });
+    V.orderNameLabel = o.type === 'domicilio' ? 'Nombre de quien recibe' : ['llevar', 'recoger'].includes(o.type) ? 'Nombre para recoger' : 'Nombre o referencia';
+    V.orderNameRequired = o.type === 'domicilio' || ['llevar', 'recoger'].includes(o.type);
+    V.showOrderPhone = V.orderNameRequired;
+    V.orderPhone = o.phone || ''; V.setOrderPhone = e => this.up({ order: { ...this.state.order, phone: e.target.value } });
+    V.showOrderAddress = o.type === 'domicilio';
+    V.orderAddress = o.address || ''; V.setOrderAddress = e => this.up({ order: { ...this.state.order, address: e.target.value } });
     V.linesEmpty = o.items.length === 0;
     V.lines = o.items.map(l => ({
       lineId: l.lineId,
@@ -574,6 +667,7 @@ export default class PosApp extends React.Component {
       if (!this.needItems()) return;
       if (!this.needCapturedPrices()) return;
       const f = this.saveOpen(true);
+      if (!f) return;
       this.toast('Comanda ' + f + ' enviada a cocina y barra' + (s.flags.autoprint ? ' · impresa' : ''));
     };
     V.goCharge = () => { if (!this.needItems()) return; const oo = this.state.order; this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + (oo.type === 'mesa' && oo.mesa ? ' ' + oo.mesa : ''), true); };
@@ -688,22 +782,20 @@ export default class PosApp extends React.Component {
         folio: oo.folio, total: total === null ? 'Precio por verificar' : this.fmt(total),
         prepLabel: pt[0], prepVariant: prep === 'listo' ? 'success' : prep === 'preparando' ? 'pending' : 'outline',
         syncLabel: st2[0], syncVariant: oo.sync === 'pendiente' ? 'pending' : oo.sync === 'conflicto' ? 'conflict' : 'outline',
-        meta: this.typeLabel(oo.type) + ' · ' + oo.ref + ' · ' + oo.time + ' · ' + oo.user,
+        meta: this.typeLabel(oo.type) + ' · ' + textField(oo.reference || oo.ref || this.typeLabel(oo.type)) + ' · ' + textField(oo.time || '—', 40) + ' · ' + textField(oo.responsible || oo.user || '—', 100),
         itemsText: oo.items.map(l => l.qty + '× ' + l.name).join(' · '),
         conflict: oo.sync === 'conflicto',
-        resolve: () => this.setState({ dlg: { title: 'Conflicto de sincronización', body: oo.folio + ' fue modificada también en otro dispositivo. Conserva la versión de esta caja para continuar; la otra versión quedará en el historial de auditoría.', confirmLabel: 'Conservar esta versión', onConfirm: () => { this.up({ open: this.state.open.map(x => x.folio === oo.folio ? { ...x, sync: 'sincronizada' } : x) }); this.toast('Conflicto resuelto — versión local conservada'); } } }),
         resume: () => {
           const items = oo.items.map((l, i) => ({ ...l, lineId: 'l' + Date.now() + i, prodId: l.prodId, qty: l.qty, mods: l.mods || {}, notes: l.notes || '', unit: this.lineUnit(l), name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name, modsText: this.modsText(l) }));
-          this.up({ order: { folio: oo.folio, type: oo.type, mesa: oo.type === 'mesa' ? oo.ref.replace(/\D/g, '') : '', name: oo.name || '', items, discount: oo.discount || 0 }, open: this.state.open.filter(x => x.folio !== oo.folio), module: 'pos' }, () => this.toast(oo.folio + ' abierta en la estación'));
+          const mesa = oo.type === 'mesa' ? textField(oo.mesa, 32) || tableFromReference(oo.reference || oo.ref) : '';
+          this.up({ order: { folio: oo.folio, type: oo.type, mesa, name: textField(oo.name, 100), phone: textField(oo.phone, 40), address: textField(oo.address, 240), user: textField(oo.user || oo.responsible, 100), responsible: textField(oo.responsible || oo.user, 100), time: textField(oo.time, 40), items, discount: oo.discount || 0 }, open: this.state.open.filter(x => x.folio !== oo.folio), module: 'pos' }, () => this.toast(oo.folio + ' abierta en la estación'));
         },
         charge: () => this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + ' · ' + oo.ref, false),
         reprint: () => this.toast('Comanda de ' + oo.folio + ' reimpresa en cocina'),
-        move: () => this.setState({ dlg: { title: 'Mover ' + oo.folio, body: 'Cambia la mesa o referencia de la cuenta.', confirmLabel: 'Mover', fields: [{ key: 'ref', label: 'Nueva mesa o referencia', ph: 'P. ej. Mesa 7', value: '' }], onConfirm: d => { const f = (d.fields || [])[0]; if (!f || !f.value) { this.toast('Captura la nueva referencia', 'warn'); return 'keep'; } this.up({ open: this.state.open.map(x => x.folio === oo.folio ? { ...x, ref: f.value, type: /mesa/i.test(f.value) ? 'mesa' : x.type } : x) }); this.toast(oo.folio + ' movida a ' + f.value); } } }),
         split: () => {
           if (oo.items.length < 2) { this.toast('La cuenta necesita al menos 2 productos para dividirse', 'warn'); return; }
           this.setState({ dlg: { title: 'Dividir ' + oo.folio, body: 'Se creará un folio nuevo con la mitad de los productos. Después podrás cobrar cada cuenta por separado.', confirmLabel: 'Dividir cuenta', onConfirm: () => { const st = this.state; const src = st.open.find(x => x.folio === oo.folio); const half = Math.ceil(src.items.length / 2); const nfo = this.nf(); const b = { ...src, folio: nfo, items: src.items.slice(half), time: this.now(), ref: src.ref + ' (2)' }; const a = { ...src, items: src.items.slice(0, half) }; this.up({ open: [b, ...st.open.map(x => x.folio === oo.folio ? a : x)] }); this.toast(oo.folio + ' dividida — nueva cuenta ' + nfo); } } });
         },
-        merge: () => this.setState({ dlg: { title: 'Unir con ' + oo.folio, body: 'Los productos de la otra cuenta pasarán a esta y el folio origen se cerrará.', confirmLabel: 'Unir cuentas', fields: [{ key: 'src', label: 'Folio a unir', ph: 'P. ej. A-1049', value: '' }], onConfirm: d => { const f = (d.fields || [])[0]; const st = this.state; const src = st.open.find(x => x.folio === (f && f.value.trim().toUpperCase())); if (!src || src.folio === oo.folio) { this.toast('No se encontró esa cuenta abierta', 'warn'); return 'keep'; } this.up({ open: st.open.filter(x => x.folio !== src.folio).map(x => x.folio === oo.folio ? { ...x, items: [...x.items, ...src.items] } : x) }); this.toast(src.folio + ' unida con ' + oo.folio); } } }),
         cancel: () => this.cancelOpen(oo.folio)
       };
     });
@@ -901,6 +993,25 @@ export default class PosApp extends React.Component {
     // ---- users & config
     V.cfgTabs = [['usuarios', 'Usuarios'], ['config', 'Configuración']].map(([id, label]) => ({ label, active: s.cfgTab === id, pick: () => this.setState({ cfgTab: id }) }));
     V.cUsers = s.cfgTab === 'usuarios'; V.cCfg = s.cfgTab === 'config';
+    V.tableCount = s.orderSettings.tableCount;
+    V.tableCountDraft = s.tableCountDraft;
+    V.setTableCountDraft = e => this.setState({ tableCountDraft: e.target.value });
+    V.canConfigureTables = this.can('configureTables');
+    V.saveTableCount = () => {
+      const count = Number(this.state.tableCountDraft);
+      if (!Number.isSafeInteger(count) || count < 1 || count > MAX_TABLE_COUNT) {
+        this.toast('Elige un número de mesas entre 1 y ' + MAX_TABLE_COUNT + '.', 'warn');
+        return;
+      }
+      const allowed = typeof this.requireAction === 'function'
+        ? this.requireAction('configureTables')
+        : this.can('configureTables');
+      if (!allowed) {
+        if (typeof this.requireAction !== 'function') this.notAllowed('configurar las mesas disponibles');
+        return;
+      }
+      this.up({ orderSettings: { ...this.state.orderSettings, tableCount: count }, tableCountDraft: String(count) }, () => this.toast('Mesas disponibles actualizadas: ' + count));
+    };
     V.newUser = () => this.setState({ selUser: 'new', suForm: { name: '', role: 'cajero', active: true, perms: null } });
     V.usersRows = s.usersX.map(u => ({
       name: u.name, roleLabel: D.roleLabels[u.role],
@@ -1086,18 +1197,15 @@ export default class PosApp extends React.Component {
 <div style={css("font-size:12.5px;color:#141413;line-height:1.5")}>{o.itemsText}</div>
 {(o.conflict) && (<>
 <div style={css("background:#f6e5df;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px")}>
-<span style={css("font-size:12px;color:#836953;flex:1")}>Conflicto de sincronización: esta cuenta cambió en otro dispositivo.</span>
-<Button size="sm" onClick={o.resolve}>Resolver</Button>
+<span style={css("font-size:12px;color:#836953;flex:1")}>Conflicto pendiente: las versiones requieren revisión de sincronización. Esta cuenta está bloqueada para cambios y cobros.</span>
 </div>
 </>)}
 <div style={css("display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid #e2e0d6;padding-top:10px")}>
-<Button size="sm" onClick={o.resume}>Abrir</Button>
-<Button size="sm" variant="secondary" onClick={o.charge}>Cobrar</Button>
-<Button size="sm" variant="outline" onClick={o.reprint}>Comanda</Button>
-<Button size="sm" variant="outline" onClick={o.move}>Mover</Button>
-<Button size="sm" variant="outline" onClick={o.split}>Dividir</Button>
-<Button size="sm" variant="outline" onClick={o.merge}>Unir</Button>
-<Button size="sm" variant="ghost" className="ml-auto" onClick={o.cancel}>Cancelar</Button>
+<Button size="sm" onClick={o.resume} disabled={o.conflict}>Abrir</Button>
+<Button size="sm" variant="secondary" onClick={o.charge} disabled={o.conflict}>Cobrar</Button>
+<Button size="sm" variant="outline" onClick={o.reprint} disabled={o.conflict}>Comanda</Button>
+<Button size="sm" variant="outline" onClick={o.split} disabled={o.conflict}>Dividir</Button>
+<Button size="sm" variant="ghost" className="ml-auto" onClick={o.cancel} disabled={o.conflict}>Cancelar</Button>
 </div>
 </Card>
 </React.Fragment>))}
@@ -1455,6 +1563,17 @@ export default class PosApp extends React.Component {
 </div>
 </>)}
 {(V.cCfg) && (<>
+<Card className="max-w-2xl gap-3 p-4">
+<div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Mesas</div>
+<div className="flex flex-wrap items-end gap-3">
+<div className="flex min-w-40 flex-col gap-2">
+<Label htmlFor="available-table-count">Mesas disponibles</Label>
+<Input id="available-table-count" type="number" inputMode="numeric" min="1" max="50" step="1" value={V.tableCountDraft} onChange={V.setTableCountDraft} disabled={!V.canConfigureTables} />
+</div>
+<Button type="button" onClick={V.saveTableCount} disabled={!V.canConfigureTables}>Guardar mesas</Button>
+</div>
+<p className="m-0 text-xs text-muted-foreground">La selección de mesa es opcional. Reducir el número disponible conserva las mesas ya guardadas en cuentas abiertas. Solo Dueña o Encargado puede cambiar este ajuste.</p>
+</Card>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px")}>
 {(V.cfgCards).map((c, cI) => (<React.Fragment key={cI}>
 <Card className="gap-3 p-4">

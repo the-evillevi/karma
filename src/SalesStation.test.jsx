@@ -65,7 +65,7 @@ it('exposes and updates selected category and order type through pressed button 
   await user.click(tableType);
   expect(localType.getAttribute('aria-pressed')).toBe('false');
   expect(tableType.getAttribute('aria-pressed')).toBe('true');
-  expect(screen.getByRole('textbox', { name: 'Número de mesa' })).toBeTruthy();
+  expect(screen.getByRole('combobox', { name: 'Número de mesa' }).value).toBe('');
 });
 
 it('restores stable identities for legacy order lines before quantity updates', async () => {
