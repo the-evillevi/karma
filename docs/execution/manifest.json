@@ -168,20 +168,29 @@
       "requires": [
         "EVL-113"
       ],
-      "stage": "verifying",
-      "agent": "implement_foundation",
+      "stage": "awaiting_merge",
+      "agent": null,
       "commits": [
         "bab9eb2",
-        "115c638"
+        "115c638",
+        "873c829",
+        "074f814"
       ],
-      "pr": null,
+      "pr": "https://github.com/the-evillevi/karma/pull/5",
       "checks": [
-        "Vite build passed",
-        "Playwright test discovery passed"
+        "8 real hosted browser/RLS tests passed independently by root",
+        "13 domain tests passed",
+        "3-entry Vite build passed",
+        "Private fixture HTTP403,mode0600,obsoletefileabsent,no privileged build secrets",
+        "Migration hash unchanged and remotehistory recorded",
+        "git diff --check passed"
       ],
-      "review": "ddl_reviewed_cloud_apply_authorized",
-      "blockers": [],
-      "nextAction": "Newproject migration applied with reviewedhash and historyrepair; verify realcloud API RLS/browser offline/restart/reconnect/retry proof."
+      "review": "fixed_and_rereviewed_no_blocking_poc_findings",
+      "blockers": [
+        "Draft merge pending. Production enrollment/app persistence/coldboot/recovery are follow-on116/118/126/127."
+      ],
+      "nextAction": "EVL116 can start from reviewed074f814. Preserve synthetic proof evidence; no mainmerge.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-116",
@@ -191,14 +200,14 @@
       "requires": [
         "EVL-114"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_foundation",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "LunaHigh implementing quality/PWA/envdiagnostics/migrations; root hostingpreview after codeproof."
     },
     {
       "id": "EVL-118",
