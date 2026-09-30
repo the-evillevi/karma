@@ -35,6 +35,14 @@ import { calculateTender, centsToMoney, moneyToCents, paymentMethodTotalsCents, 
 import { canPerform, resolveAccessAction, seededRoleToAccessRole } from './access/role-policy.ts';
 import { parseVerifiedAccessContext } from './access/offline-identity.ts';
 import { planOrderSplit, suggestSplitSelection } from './orders/order-split.mjs';
+import {
+  applyInventoryMovement,
+  applyInventoryThreshold,
+  createInitialInventoryState,
+  formatBaseUnits,
+  inventorySummary,
+  validateInventoryState,
+} from './inventory/inventory-ledger.mjs';
 
 const compensationMethodLabels = new Map([['cash', 'Efectivo'], ['card', 'Tarjeta'], ['transfer', 'Transferencia']]);
 const DEFAULT_TABLE_COUNT = 12;
@@ -49,6 +57,24 @@ function validTableCount(value) {
   return Number.isSafeInteger(count) && count >= 1 && count <= MAX_TABLE_COUNT
     ? count
     : DEFAULT_TABLE_COUNT;
+}
+
+function inventoryOperatorError(error) {
+  const messages = new Map([
+    ['invalid_quantity', 'Captura una cantidad válida con hasta tres decimales.'],
+    ['fractional_base_unit', 'La cantidad debe respetar la unidad mínima de inventario; las piezas no admiten fracciones.'],
+    ['unit_mismatch', 'La unidad seleccionada no corresponde a este artículo.'],
+    ['unsafe_quantity', 'La cantidad está fuera del rango permitido.'],
+    ['unsafe_balance', 'El saldo quedaría fuera del rango permitido.'],
+    ['negative_balance', 'El movimiento no puede dejar existencias negativas.'],
+    ['stale_revision', 'El artículo cambió desde que abriste el formulario. Revisa el saldo y vuelve a intentarlo.'],
+    ['command_conflict', 'Este identificador ya se usó para otros datos. Revisa el historial antes de continuar.'],
+    ['unknown_item', 'El artículo ya no está disponible. Revisa el inventario y vuelve a intentarlo.'],
+    ['invalid_command', 'Revisa el artículo, cantidad, unidad y motivo capturados.'],
+    ['invalid_record', 'Revisa los datos capturados antes de guardar.'],
+    ['invalid_state', 'El registro local requiere revisión. No se aplicó el movimiento.'],
+  ]);
+  return messages.get(error?.code) || 'No se pudo guardar el movimiento. Revisa el inventario e intenta de nuevo.';
 }
 
 function textField(value, maxLength = 160) {
@@ -98,6 +124,10 @@ function tableFromReference(reference) {
 }
 
 function restoreStoredOrder(savedOrder) {
+  if (!savedOrder || typeof savedOrder !== 'object' || Array.isArray(savedOrder) || !Array.isArray(savedOrder.items)
+    || savedOrder.items.some(item => !item || typeof item !== 'object' || Array.isArray(item))) {
+    throw new TypeError('saved station draft is invalid');
+  }
   return {
     ...savedOrder,
     mesa: textField(savedOrder.mesa, 32),
@@ -180,6 +210,12 @@ export default class PosApp extends React.Component {
     this._storageKey = this._secureStorage ? (props.accessStorageKey || 'karma-pos-secure-v1:unconfigured:unconfigured') : 'karma-pos-v1';
     let sv = {}; try { sv = JSON.parse(localStorage.getItem(this._storageKey)) || {}; } catch (e) {}
     const orderSettings = { tableCount: validTableCount(sv.orderSettings?.tableCount) };
+    let inventoryState = null;
+    let inventoryError = '';
+    if (Object.prototype.hasOwnProperty.call(sv, 'inventoryState')) {
+      try { inventoryState = validateInventoryState(sv.inventoryState); }
+      catch { inventoryError = 'El registro guardado de inventario no es válido. No se aplicaron saldos ni movimientos.'; }
+    }
     this._folio = sv.folioSeq || 1051;
     const savedOrder = sv.order || this.blank();
     const restoredOrder = restoreStoredOrder(savedOrder);
@@ -201,6 +237,7 @@ export default class PosApp extends React.Component {
       prods: sv.prods || D.products.map(p => ({ ...p })),
       usersX: this._secureStorage ? [] : sv.usersX || D.users.map(u => ({ ...u })),
       movs: D.movements.slice(),
+      inventoryState, inventoryError,
       ed: null, dlg: null, ck: null,
       cat: 'concafe', search: '',
       admCat: 'all', admSearch: '', admSel: null, admForm: null,
@@ -236,6 +273,7 @@ export default class PosApp extends React.Component {
   }
   componentDidMount() {
     this.reportPwaUpdateSafety();
+    this.initializeInventoryState();
     this._t = setTimeout(() => this.setState({ loading: false }), 650);
     this._online = () => { if (this._secureStorage) this.setState({ online: navigator.onLine }); };
     window.addEventListener('online', this._online);
@@ -247,6 +285,10 @@ export default class PosApp extends React.Component {
           this.setState({
             ...(Array.isArray(v.open) ? { open: v.open } : {}),
             ...(Array.isArray(v.kitchenTickets) ? { kitchenTickets: v.kitchenTickets } : {}),
+            ...(Object.prototype.hasOwnProperty.call(v, 'inventoryState') ? (() => {
+              try { return { inventoryState: validateInventoryState(v.inventoryState), inventoryError: '' }; }
+              catch { return { inventoryState: null, inventoryError: 'El registro guardado de inventario no es válido. No se aplicaron saldos ni movimientos.' }; }
+            })() : {}),
           });
         } catch (_) {}
       }
@@ -280,17 +322,59 @@ export default class PosApp extends React.Component {
       ...(this._secureStorage ? {} : { session: s.session, pick: s.pick }), online: s.online, pending: s.pending, order: s.order,
       orderSettings: s.orderSettings,
       open: s.open, kitchenTickets: s.kitchenTickets,
-      sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq
+      sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq,
+      ...(s.inventoryState ? { inventoryState: s.inventoryState } : {}),
     };
   }
   writePersistedState(s = this.state, folioSeq = this._folio) {
     try {
-      localStorage.setItem(this._storageKey || 'karma-pos-v1', JSON.stringify(this.storedState(s, folioSeq)));
+      const key = this._storageKey || 'karma-pos-v1';
+      const outgoing = this.storedState(s, folioSeq);
+      const raw = localStorage.getItem(key);
+      if (raw !== null) {
+        const latest = JSON.parse(raw);
+        if (latest && typeof latest === 'object' && Object.prototype.hasOwnProperty.call(latest, 'inventoryState')) outgoing.inventoryState = latest.inventoryState;
+      }
+      localStorage.setItem(key, JSON.stringify(outgoing));
       return true;
     } catch { return false; }
   }
   persist() { this.writePersistedState(); }
   up(p, cb) { this.setState(p, () => { this.persist(); cb && cb(); }); }
+  latestOperationalState(persisted) {
+    if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) throw new TypeError('saved POS state must be a record');
+    const patch = {};
+    patch.open = persistedRecords(persisted, 'open', this.state.open);
+    patch.kitchenTickets = persistedRecords(persisted, 'kitchenTickets', this.state.kitchenTickets);
+    patch.sales = persistedRecords(persisted, 'sales', this.state.sales);
+    patch.pending = persistedPending(persisted, this.state.pending);
+    if (Object.prototype.hasOwnProperty.call(persisted, 'order')) patch.order = restoreStoredOrder(persisted.order);
+    else patch.order = this.state.order;
+    if (Object.prototype.hasOwnProperty.call(persisted, 'orderSettings')) {
+      if (!persisted.orderSettings || typeof persisted.orderSettings !== 'object' || Array.isArray(persisted.orderSettings)
+        || !Number.isSafeInteger(persisted.orderSettings.tableCount) || persisted.orderSettings.tableCount < 1 || persisted.orderSettings.tableCount > MAX_TABLE_COUNT) {
+        throw new TypeError('saved order settings are invalid');
+      }
+      patch.orderSettings = persisted.orderSettings;
+    } else patch.orderSettings = this.state.orderSettings;
+    if (Object.prototype.hasOwnProperty.call(persisted, 'prods')) {
+      if (!Array.isArray(persisted.prods) || persisted.prods.some(product => !product || typeof product !== 'object' || Array.isArray(product)
+        || typeof product.id !== 'string' || typeof product.name !== 'string')) throw new TypeError('saved products are invalid');
+      patch.prods = persisted.prods;
+    }
+    if (Object.prototype.hasOwnProperty.call(persisted, 'flags')) {
+      if (!persisted.flags || typeof persisted.flags !== 'object' || Array.isArray(persisted.flags)) throw new TypeError('saved settings are invalid');
+      patch.flags = persisted.flags;
+    }
+    if (Object.prototype.hasOwnProperty.call(persisted, 'online')) {
+      if (typeof persisted.online !== 'boolean') throw new TypeError('saved connection state is invalid');
+      patch.online = this._secureStorage ? navigator.onLine : persisted.online;
+    }
+    if (Object.prototype.hasOwnProperty.call(persisted, 'folioSeq')) {
+      if (!Number.isSafeInteger(persisted.folioSeq) || persisted.folioSeq < 1) throw new TypeError('saved folio sequence is invalid');
+    }
+    return patch;
+  }
   toast(msg, kind) {
     const id = Date.now() + Math.random();
     this.setState(s => ({ toasts: [...s.toasts, { id, msg, kind: kind || 'ok' }] }));
@@ -1133,22 +1217,102 @@ export default class PosApp extends React.Component {
     this._folio = Math.max(this._folio, persisted.folioSeq || 0);
     this.setState(restored, () => this.toast('Devolución manual registrada; verifica por separado dinero e inventario.'));
   }
-  invDialog(tipo, label, needsPerm) {
-    if (!this.requireAction('adjustInventory')) return;
-    this.setState({
-      dlg: {
-        title: label, body: 'La operación quedará registrada en movimientos con tu usuario y fecha.', needReason: true, confirmLabel: 'Registrar',
-        fields: [{ key: 'item', label: 'Artículo', ph: 'P. ej. Leche entera', value: '' }, { key: 'qty', label: 'Cantidad y unidad', ph: 'P. ej. −2 L', value: '' }],
-        onConfirm: d => {
-          if (!this.requireAction('adjustInventory', d.reason || '')) return 'keep';
-          const f = {}; (d.fields || []).forEach(x => f[x.key] = x.value);
-          if (!f.item || !f.qty) { this.toast('Captura artículo y cantidad', 'warn'); return 'keep'; }
-          const actor = this.user();
-          this.setState(s => ({ movs: [{ id: 'm' + Date.now(), tipo, item: f.item, qty: f.qty, user: actor.name, actorId: actor.id, date: 'Hoy · ' + this.now(), motivo: d.reason.trim() }, ...s.movs] }));
-          this.toast(label + ' registrada');
-        }
+  initializeInventoryState() {
+    if (this.state.inventoryState || this.state.inventoryError) return;
+    try {
+      const key = this._storageKey || 'karma-pos-v1';
+      const raw = localStorage.getItem(key);
+      const persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) throw new Error('invalid saved state');
+      if (Object.prototype.hasOwnProperty.call(persisted, 'inventoryState')) {
+        const inventoryState = validateInventoryState(persisted.inventoryState);
+        this.setState({ inventoryState, inventoryError: '' });
+        return;
       }
-    });
+      const inventoryState = createInitialInventoryState(window.KARMA.inventory);
+      localStorage.setItem(key, JSON.stringify({ ...persisted, inventoryState }));
+      this.setState({ inventoryState, inventoryError: '' });
+    } catch {
+      this.setState({ inventoryState: null, inventoryError: 'No se pudo cargar o inicializar el registro local de inventario. Reintenta antes de registrar movimientos.' });
+    }
+  }
+  retryInventoryInitialization() { this.setState({ inventoryError: '' }, () => this.initializeInventoryState()); }
+  inventoryField(fields, key) { return fields.find(field => field.key === key); }
+  openInventoryDialog(kind, itemId = null) {
+    if (!this.requireAction('adjustInventory')) return;
+    const state = this.state.inventoryState;
+    if (!state) { this.toast('El inventario no está disponible; revisa el registro local antes de continuar.', 'warn'); return; }
+    const item = state.items.find(candidate => candidate.itemId === itemId) || state.items[0];
+    if (!item) { this.toast('No hay artículos de inventario disponibles.', 'warn'); return; }
+    const labels = { entry: 'Registrar entrada', waste: 'Registrar merma', adjustment: 'Ajuste manual de inventario', threshold: 'Cambiar mínimo de stock' };
+    const labelsByKind = { Ingrediente: 'Ingrediente', Insumo: 'Insumo', 'Producto terminado': 'Producto terminado' };
+    const unitOptions = [...new Set([item.displayUnit, item.baseUnit])];
+    const unitLabel = unit => unit === 'g' ? 'g (gramos)' : unit === 'kg' ? 'kg (kilogramos)' : unit === 'ml' ? 'ml (mililitros)' : unit === 'L' ? 'L (litros)' : 'pz (piezas)';
+    const commandId = globalThis.crypto?.randomUUID ? `inventory:${globalThis.crypto.randomUUID()}` : `inventory:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    const fields = [
+      { key: 'itemId', type: 'select', label: 'Artículo', value: item.itemId, options: state.items.map(candidate => ({ value: candidate.itemId, label: `${candidate.name} · ${labelsByKind[candidate.kind]}` })) },
+      { key: 'unit', type: 'select', label: 'Unidad', value: item.displayUnit, options: unitOptions.map(unit => ({ value: unit, label: unitLabel(unit) })) },
+      { key: 'quantityText', label: kind === 'adjustment' ? 'Ajuste con signo (+ o −)' : kind === 'threshold' ? 'Nuevo mínimo' : 'Cantidad', ph: kind === 'adjustment' ? '+0.5 o -2' : '0.5', value: '', maxLength: 32 },
+    ];
+    this.setState({ dlg: {
+      title: labels[kind],
+      body: kind === 'adjustment'
+        ? 'Indica la diferencia real con signo: positivo agrega existencias y negativo las reduce.'
+        : kind === 'threshold' ? 'El mínimo solo cambia el aviso de stock bajo; no modifica la existencia.' : 'El movimiento quedará en un historial local con tu usuario, hora y motivo.',
+      needReason: true, confirmLabel: 'Registrar', commandId, commandOccurredAt: new Date().toISOString(), expectedItemRevision: item.revision,
+      fields, inventoryCommandKind: kind,
+      onInventoryItemChange: nextItemId => {
+        const selected = this.state.inventoryState?.items.find(candidate => candidate.itemId === nextItemId);
+        if (!selected) return;
+        const selectedUnits = [...new Set([selected.displayUnit, selected.baseUnit])];
+        this.setState(current => ({ dlg: current.dlg ? {
+          ...current.dlg, expectedItemRevision: selected.revision,
+          fields: current.dlg.fields.map(field => field.key === 'itemId' ? { ...field, value: selected.itemId }
+            : field.key === 'unit' ? { ...field, value: selected.displayUnit, options: selectedUnits.map(unit => ({ value: unit, label: unitLabel(unit) })) } : field),
+        } : current.dlg }));
+      },
+      onConfirm: dialog => this.confirmInventoryCommand(dialog),
+    } });
+  }
+  confirmInventoryCommand(dialog) {
+    const reason = typeof dialog.reason === 'string' ? dialog.reason.trim() : '';
+    if (!reason || reason.length > 250) { this.toast('Captura un motivo de entre 1 y 250 caracteres.', 'warn'); return 'keep'; }
+    if (!this.requireAction('adjustInventory', reason)) return 'keep';
+    const actor = this.user();
+    if (!actor) return 'keep';
+    const itemIdField = this.inventoryField(dialog.fields || [], 'itemId');
+    const unitField = this.inventoryField(dialog.fields || [], 'unit');
+    const quantityField = this.inventoryField(dialog.fields || [], 'quantityText');
+    if (!itemIdField || !unitField || !quantityField) { this.toast('El formulario de inventario está incompleto.', 'warn'); return 'keep'; }
+    try {
+      const key = this._storageKey || 'karma-pos-v1';
+      const raw = localStorage.getItem(key);
+      const persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted) || !Object.prototype.hasOwnProperty.call(persisted, 'inventoryState')) throw new Error('inventory ledger missing');
+      const current = validateInventoryState(persisted.inventoryState);
+      const operational = this.latestOperationalState(persisted);
+      const command = {
+        commandId: dialog.commandId, itemId: itemIdField.value,
+        kind: dialog.inventoryCommandKind, quantityText: quantityField.value,
+        unit: unitField.value, actorId: actor.id, actorName: actor.name,
+        occurredAt: dialog.commandOccurredAt || new Date().toISOString(), reason,
+        expectedRevision: dialog.expectedItemRevision,
+      };
+      const result = command.kind === 'threshold'
+        ? applyInventoryThreshold(current, command)
+        : applyInventoryMovement(current, command);
+      if (result.changed) {
+        try { localStorage.setItem(key, JSON.stringify({ ...persisted, inventoryState: result.state })); }
+        catch { this.toast('No se pudo guardar el movimiento. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+      }
+      if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
+      this.setState({ ...operational, inventoryState: result.state, inventoryError: '' });
+      this.toast(result.duplicate ? 'Este movimiento ya estaba registrado; no se duplicó.' : `${dialog.title} guardado en el historial local.`);
+      return undefined;
+    } catch (error) {
+      this.toast(inventoryOperatorError(error), 'warn');
+      return 'keep';
+    }
   }
   renderVals() {
     const D = window.KARMA;
@@ -1609,19 +1773,41 @@ export default class PosApp extends React.Component {
     V.invSearch = s.invSearch; V.setInvSearch = e => this.setState({ invSearch: e.target.value });
     V.toggleLow = () => this.setState({ invLow: !s.invLow });
     V.lowToggleActive = s.invLow;
-    let inv = D.inventory.filter(i => !s.invSearch || i.name.toLowerCase().includes(s.invSearch.toLowerCase()));
-    if (s.invLow) inv = inv.filter(i => i.qty <= i.min);
+    const inventoryRows = s.inventoryState ? inventorySummary(s.inventoryState) : [];
+    let inv = inventoryRows.filter(i => !s.invSearch || i.name.toLowerCase().includes(s.invSearch.toLowerCase()));
+    if (s.invLow) inv = inv.filter(i => i.low);
     V.stockEmpty = inv.length === 0;
-    V.stock = inv.map(i => {
-      const low = i.qty <= i.min;
-      return { name: i.name, kind: i.kind, qty: i.qty + ' ' + i.unit, min: i.min + ' ' + i.unit, tagLabel: low ? 'Stock bajo' : 'OK', tagVariant: low ? 'pending' : 'outline' };
+    V.inventoryReady = !!s.inventoryState;
+    V.inventoryError = s.inventoryError;
+    V.retryInventory = () => this.retryInventoryInitialization();
+    V.inventorySynthetic = true;
+    V.inventoryCanAdjust = this.can('adjustInventory') && !!s.inventoryState;
+    V.stock = inv.map(i => ({
+      id: i.itemId, name: i.name, kind: i.kind,
+      qty: formatBaseUnits(i.stockBaseUnits, i.displayUnit), min: formatBaseUnits(i.lowThresholdBaseUnits, i.displayUnit),
+      tagLabel: i.low ? 'Stock bajo' : 'OK', tagVariant: i.low ? 'pending' : 'outline',
+      changeThreshold: () => this.openInventoryDialog('threshold', i.itemId),
+    }));
+    const entryTags = { opening: ['Saldo inicial sintético', 'outline'], entry: ['Entrada', 'pending'], waste: ['Merma', 'destructive'], adjustment: ['Ajuste', 'outline'], threshold: ['Mínimo', 'secondary'] };
+    V.movs = [...(s.inventoryState?.entries || [])].reverse().map(event => {
+      const item = s.inventoryState.items.find(candidate => candidate.itemId === event.itemId);
+      const tag = entryTags[event.kind];
+      const quantity = event.kind === 'threshold'
+        ? `mínimo ${formatBaseUnits(event.thresholdBaseUnits, event.unitSnapshot)}`
+        : event.kind === 'opening' || event.kind === 'entry' ? `+${event.quantityText} ${event.unitSnapshot}`
+          : event.kind === 'waste' ? `−${event.quantityText} ${event.unitSnapshot}` : `${event.quantityText} ${event.unitSnapshot}`;
+      return {
+        id: event.commandId, kind: event.kind, tipoLabel: tag[0], tagVariant: tag[1],
+        item: item?.name || 'Artículo desconocido', qty: quantity,
+        user: event.actorName, date: new Date(event.occurredAt).toLocaleString('es-MX'), motivo: event.reason,
+        sync: event.syncStatus === 'unverified' ? 'Saldo inicial sin verificar' : 'Guardado local · sincronización pendiente',
+      };
     });
-    const movTags = { entrada: ['Entrada', 'pending'], merma: ['Merma', 'destructive'], ajuste: ['Ajuste', 'outline'], venta: ['Venta', 'secondary'] };
-    V.movs = s.movs.map(mv => { const t = movTags[mv.tipo]; return { tipoLabel: t[0], tagVariant: t[1], item: mv.item, qty: mv.qty, user: mv.user, date: mv.date, motivo: mv.motivo }; });
+    V.legacyMovs = s.movs.map(movement => ({ item: movement.item, qty: movement.qty, user: movement.user, date: movement.date, motivo: movement.motivo }));
     V.recs = D.recipes.map(r => ({ product: r.product, items: r.items.map(([name, use, conv]) => ({ name, use, conv })) }));
-    V.regEntrada = () => this.invDialog('entrada', 'Registrar entrada', false);
-    V.regMerma = () => this.invDialog('merma', 'Registrar merma', false);
-    V.regAjuste = () => this.invDialog('ajuste', 'Ajuste manual de inventario', true);
+    V.regEntrada = () => this.openInventoryDialog('entry');
+    V.regMerma = () => this.openInventoryDialog('waste');
+    V.regAjuste = () => this.openInventoryDialog('adjustment');
 
     // ---- reports
     V.ranges = [['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['30d', 'Últimos 30 días']].map(([id, label]) => ({ label, active: s.range === id, pick: () => this.setState({ range: id }) }));
@@ -1834,7 +2020,15 @@ export default class PosApp extends React.Component {
     if (dg) {
       V.dlgTitle = dg.title; V.dlgBody = dg.body; V.dlgSplitPreview = dg.splitPreview || null;
       V.dlgRefundPayments = dg.refundPaymentOptions || []; V.dlgRefundPayment = dg.paymentId ? 'payment:' + dg.paymentId : '__all__'; V.setDlgRefundPayment = value => this.setState({ dlg: { ...this.state.dlg, paymentId: value === '__all__' ? null : value.slice(8) } });
-      V.dlgFields = (dg.fields || []).map(f => ({ label: f.label, value: f.value, ph: f.ph || '', inputMode: f.key === 'monto' ? 'decimal' : undefined, set: e => this.setState({ dlg: { ...this.state.dlg, fields: this.state.dlg.fields.map(x => x.key === f.key ? { ...x, value: e.target.value } : x) } }) }));
+      V.dlgFields = (dg.fields || []).map(f => ({
+        key: f.key, type: f.type || 'input', label: f.label, value: f.value, options: f.options || [], ph: f.ph || '', maxLength: f.maxLength,
+        inputMode: f.key === 'monto' || f.key === 'quantityText' ? 'decimal' : undefined,
+        set: eventOrValue => {
+          const value = typeof eventOrValue === 'string' ? eventOrValue : eventOrValue.target.value;
+          if (f.key === 'itemId' && this.state.dlg?.onInventoryItemChange) { this.state.dlg.onInventoryItemChange(value); return; }
+          this.setState(current => ({ dlg: current.dlg ? { ...current.dlg, fields: current.dlg.fields.map(x => x.key === f.key ? { ...x, value } : x) } : current.dlg }));
+        },
+      }));
       V.dlgNeedReason = !!dg.needReason && s.flags.cancelMotivo !== false || !!dg.needReason;
       V.dlgReason = dg.reason || ''; V.setDlgReason = e => this.setState({ dlg: { ...this.state.dlg, reason: e.target.value } });
       V.hasDlgErr = !!dg.err; V.dlgErr = dg.err || '';
@@ -2182,11 +2376,13 @@ export default class PosApp extends React.Component {
 {(V.invTabs).map((t, tI) => (<Button key={tI} type="button" size="sm" variant={t.active ? 'default' : 'outline'} aria-pressed={t.active} onClick={t.pick}>{t.label}</Button>))}
 </div>
 <div style={css("margin-left:auto;display:flex;gap:8px")}>
-<Button type="button" onClick={V.regEntrada}>+ Entrada</Button>
-<Button type="button" variant="outline" onClick={V.regMerma}>Registrar merma</Button>
-<Button type="button" variant="outline" onClick={V.regAjuste}>Ajuste manual</Button>
+<Button type="button" onClick={V.regEntrada} disabled={!V.inventoryCanAdjust}>+ Entrada</Button>
+<Button type="button" variant="outline" onClick={V.regMerma} disabled={!V.inventoryCanAdjust}>Registrar merma</Button>
+<Button type="button" variant="outline" onClick={V.regAjuste} disabled={!V.inventoryCanAdjust}>Ajuste manual</Button>
 </div>
 </div>
+{V.inventoryError && <Card role="alert" className="gap-2 border-destructive/40 p-3"><span>{V.inventoryError}</span><Button type="button" variant="outline" onClick={V.retryInventory}>Reintentar carga de inventario</Button></Card>}
+{V.inventoryReady && <div role="note" className="text-xs text-muted-foreground">Los saldos iniciales son datos sintéticos de demostración. Confírmalos con un conteo físico; el historial anterior de demostración no modifica estas existencias.</div>}
 {(V.tStock) && (<>
 <div style={css("display:flex;gap:10px")}>
 <Label className="sr-only" htmlFor="inventory-search">Buscar insumo o ingrediente</Label>
@@ -2194,22 +2390,27 @@ export default class PosApp extends React.Component {
 <Button type="button" variant={V.lowToggleActive ? 'secondary' : 'outline'} aria-pressed={V.lowToggleActive} onClick={V.toggleLow}>Solo stock bajo</Button>
 </div>
 <div className="text-xs text-muted-foreground lg:hidden">Desliza para ver existencias y estado →</div>
-<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Existencias y estado del inventario', tabIndex: 0 }} className="min-w-[650px]">
-<TableHeader><TableRow><TableHead>Artículo</TableHead><TableHead>Tipo</TableHead><TableHead>Existencia</TableHead><TableHead>Mínimo</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Existencias y estado del inventario', tabIndex: 0 }} className="min-w-[740px]">
+<TableHeader><TableRow><TableHead>Artículo</TableHead><TableHead>Tipo</TableHead><TableHead>Existencia</TableHead><TableHead>Mínimo</TableHead><TableHead>Estado</TableHead><TableHead>Acción</TableHead></TableRow></TableHeader>
 <TableBody>
-{(V.stockEmpty) && (<TableRow><TableCell colSpan={5} className="h-20 text-center text-muted-foreground">Sin artículos que coincidan.</TableCell></TableRow>)}
+{(!V.inventoryReady || V.stockEmpty) && (<TableRow><TableCell colSpan={6} className="h-20 text-center text-muted-foreground">{V.inventoryReady ? 'Sin artículos que coincidan.' : 'Existencias no disponibles.'}</TableCell></TableRow>)}
 {(V.stock).map((s, sI) => (<TableRow key={sI}>
-<TableCell className="font-medium">{s.name}</TableCell><TableCell className="text-muted-foreground">{s.kind}</TableCell><TableCell>{s.qty}</TableCell><TableCell className="text-muted-foreground">{s.min}</TableCell><TableCell><Badge variant={s.tagVariant}>{s.tagLabel}</Badge></TableCell>
+<TableCell className="font-medium">{s.name}</TableCell><TableCell className="text-muted-foreground">{s.kind}</TableCell><TableCell>{s.qty}</TableCell><TableCell className="text-muted-foreground">{s.min}</TableCell><TableCell><Badge variant={s.tagVariant}>{s.tagLabel}</Badge></TableCell><TableCell><Button type="button" size="sm" variant="outline" onClick={s.changeThreshold} disabled={!V.inventoryCanAdjust}>Cambiar mínimo</Button></TableCell>
 </TableRow>))}
 </TableBody></Table></Card>
 </>)}
 {(V.tMov) && (<>
 <div className="text-xs text-muted-foreground lg:hidden">Desliza para ver cantidad, usuario y motivo →</div>
-<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Movimientos de inventario', tabIndex: 0 }} className="min-w-[900px]">
-<TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Artículo</TableHead><TableHead>Cantidad</TableHead><TableHead>Usuario</TableHead><TableHead>Fecha</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Movimientos de inventario', tabIndex: 0 }} className="min-w-[980px]">
+<TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Artículo</TableHead><TableHead>Cantidad</TableHead><TableHead>Usuario</TableHead><TableHead>Fecha</TableHead><TableHead>Motivo</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
 <TableBody>{(V.movs).map((m, mI) => (<TableRow key={mI}>
-<TableCell><Badge variant={m.tagVariant}>{m.tipoLabel}</Badge></TableCell><TableCell className="font-medium">{m.item}</TableCell><TableCell>{m.qty}</TableCell><TableCell className="text-muted-foreground">{m.user}</TableCell><TableCell className="text-muted-foreground">{m.date}</TableCell><TableCell className="text-muted-foreground">{m.motivo}</TableCell>
+<TableCell><Badge variant={m.tagVariant}>{m.tipoLabel}</Badge></TableCell><TableCell className="font-medium">{m.item}</TableCell><TableCell>{m.qty}</TableCell><TableCell className="text-muted-foreground">{m.user}</TableCell><TableCell className="text-muted-foreground">{m.date}</TableCell><TableCell className="text-muted-foreground">{m.motivo}</TableCell><TableCell className="text-muted-foreground">{m.sync}</TableCell>
 </TableRow>))}</TableBody></Table></Card>
+<p role="note" className="text-xs text-muted-foreground">Historial anterior de demostración · no verificado · no afecta las existencias.</p>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Historial anterior de demostración no verificado', tabIndex: 0 }} className="min-w-[900px]">
+<TableHeader><TableRow><TableHead>Tipo ilustrativo</TableHead><TableHead>Artículo</TableHead><TableHead>Cantidad</TableHead><TableHead>Usuario</TableHead><TableHead>Fecha</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader>
+<TableBody>{V.legacyMovs.map((m, index) => <TableRow key={index}><TableCell>Demostración</TableCell><TableCell>{m.item}</TableCell><TableCell>{m.qty}</TableCell><TableCell>{m.user}</TableCell><TableCell>{m.date}</TableCell><TableCell>{m.motivo}</TableCell></TableRow>)}</TableBody>
+</Table></Card>
 </>)}
 {(V.tRec) && (<>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px")}>
@@ -2512,7 +2713,7 @@ export default class PosApp extends React.Component {
 {(V.dlgFields).map((f, fI) => (<React.Fragment key={fI}>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 <Label htmlFor={`dialog-field-${fI}`}>{f.label}</Label>
-<Input id={`dialog-field-${fI}`} inputMode={f.inputMode} value={f.value} onChange={f.set} placeholder={f.ph} aria-invalid={V.hasDlgErr || undefined} aria-describedby={V.hasDlgErr ? 'dialog-error' : undefined} />
+{f.type === 'select' ? <Select value={f.value} onValueChange={f.set}><SelectTrigger id={`dialog-field-${fI}`} aria-label={f.label}><SelectValue /></SelectTrigger><SelectContent>{f.options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select> : <Input id={`dialog-field-${fI}`} inputMode={f.inputMode} value={f.value} onChange={f.set} placeholder={f.ph} maxLength={f.maxLength} aria-invalid={V.hasDlgErr || undefined} aria-describedby={V.hasDlgErr ? 'dialog-error' : undefined} />}
 </div>
 </React.Fragment>))}
 {(V.dlgNeedReason) && (<>
