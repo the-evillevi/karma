@@ -256,9 +256,13 @@ export default class PosApp extends React.Component {
     this.setState({ dlg: { title: 'Acción no permitida', body: 'Tu rol (' + (D.roleLabels[this.role()] || '') + ') no tiene permiso para ' + what + '. Solicita apoyo a un encargado o a la dueña.', closeLabel: 'Entendido', onConfirm: null } });
   }
   lineUnit(l) {
-    if (Number.isFinite(l?.capturedSnapshot?.unitPriceCents)) return l.capturedSnapshot.unitPriceCents / 100;
+    if (l?.capturedSnapshot && Object.prototype.hasOwnProperty.call(l.capturedSnapshot, 'unitPriceCents')) {
+      return Number.isSafeInteger(l.capturedSnapshot.unitPriceCents) && l.capturedSnapshot.unitPriceCents >= 0
+        ? l.capturedSnapshot.unitPriceCents / 100
+        : null;
+    }
     // Older saved accounts store their captured per-unit total in MXN.
-    if (Number.isFinite(l?.unit)) return l.unit;
+    if (typeof l?.unit === 'number' && Number.isFinite(l.unit)) return l.unit;
     return null;
   }
   previewLineUnit(l) {
@@ -285,24 +289,72 @@ export default class PosApp extends React.Component {
     });
     return parts.join(' · ');
   }
-  orderTotals(o) {
-    if (o.items.some(l => this.lineUnit(l) === null)) return { sub: null, disc: 0, total: null };
-    const sub = o.items.reduce((a, l) => a + this.lineUnit(l) * l.qty, 0);
-    const disc = Math.min(o.discount || 0, sub);
-    return { sub, disc, total: sub - disc };
+  orderLineUnitCents(line) {
+    if (line?.capturedSnapshot && Object.prototype.hasOwnProperty.call(line.capturedSnapshot, 'unitPriceCents')) {
+      const captured = line.capturedSnapshot.unitPriceCents;
+      return Number.isSafeInteger(captured) && captured >= 0 ? captured : null;
+    }
+    try { return moneyToCents(line?.unit); } catch { return null; }
+  }
+  orderTotalsCents(order) {
+    if (!Array.isArray(order?.items)) return null;
+    let subCents = 0;
+    try {
+      for (const line of order.items) {
+        if (!Number.isSafeInteger(line?.qty) || line.qty < 1) return null;
+        const unitCents = this.orderLineUnitCents(line);
+        if (unitCents === null) return null;
+        const lineCents = unitCents * line.qty;
+        const next = subCents + lineCents;
+        if (!Number.isSafeInteger(lineCents) || !Number.isSafeInteger(next)) return null;
+        subCents = next;
+      }
+      const discountCents = Math.min(moneyToCents(order.discount || 0), subCents);
+      const totalCents = subCents - discountCents;
+      if (!Number.isSafeInteger(totalCents)) return null;
+      return { subCents, discountCents, totalCents };
+    } catch {
+      return null;
+    }
+  }
+  orderTotals(order) {
+    const totals = this.orderTotalsCents(order);
+    if (!totals) return { sub: null, disc: 0, total: null };
+    return { sub: centsToMoney(totals.subCents), disc: centsToMoney(totals.discountCents), total: centsToMoney(totals.totalCents) };
+  }
+  persistedOrderState() {
+    try { return JSON.parse(localStorage.getItem(this._storageKey || 'karma-pos-v1')) || {}; } catch { return {}; }
+  }
+  orderSourceStatus(folio, kind = 'station', stationOrder = this.state.order) {
+    if (stationOrder?.sync === 'conflicto') return 'conflict';
+    if (!folio) return kind === 'open' ? 'missing' : 'available';
+    const persisted = this.persistedOrderState();
+    const stateOpen = this.state.open.find(entry => entry.folio === folio);
+    const stateTicket = this.state.kitchenTickets.find(ticket => ticket.folio === folio);
+    const savedOpen = Array.isArray(persisted.open) ? persisted.open.find(entry => entry?.folio === folio) : null;
+    const savedTicket = Array.isArray(persisted.kitchenTickets) ? persisted.kitchenTickets.find(ticket => ticket?.folio === folio) : null;
+    if ([stateOpen, stateTicket, savedOpen, savedTicket].some(record => record?.sync === 'conflicto')) return 'conflict';
+    if (kind === 'open') return stateOpen && (!Array.isArray(persisted.open) || savedOpen) ? 'available' : 'missing';
+    if (stateOpen || stateTicket || savedOpen || savedTicket || (stationOrder?.folio === folio && Array.isArray(stationOrder.items))) return 'available';
+    return 'missing';
+  }
+  blockOrderSource(status) {
+    this.toast(status === 'conflict'
+      ? 'La cuenta tiene un conflicto de sincronización pendiente; espera a que se concilie antes de continuar.'
+      : 'La cuenta ya no está disponible. Vuelve a Órdenes abiertas y revisa su estado.', 'warn');
   }
   typeLabel(t) { return ({ local: 'En local', mesa: 'Mesa', llevar: 'Para llevar', domicilio: 'Domicilio', recoger: 'Recoger' })[t] || t; }
   refOf(o) { return o.type === 'mesa' ? ('Mesa ' + (o.mesa || '—')) : (o.name || this.typeLabel(o.type)); }
   needItems() { if (!this.state.order.items.length) { this.toast('Agrega productos a la orden primero', 'warn'); return false; } return true; }
-  hasCapturedPrice(line) { return Number.isFinite(line?.capturedSnapshot?.unitPriceCents) || Number.isFinite(line?.unit); }
+  hasCapturedPrice(line) { return this.orderLineUnitCents(line) !== null; }
   needCapturedPrices(lines = this.state.order.items) {
     if (lines.every(line => this.hasCapturedPrice(line))) return true;
     this.toast('Hay productos sin precio capturado. Revisa el historial antes de guardar o cobrar; el precio actual del menú no sustituye el dato faltante.', 'warn');
     return false;
   }
   openEntry(o) {
-    const totals = this.orderTotals(o);
-    const totalCents = totals.total === null ? null : moneyToCents(totals.total);
+    const totals = this.orderTotalsCents(o);
+    const totalCents = totals?.totalCents ?? null;
     const responsible = textField(o.responsible || o.user || this.user()?.name || '—', 100);
     const createdBy = textField(o.user || responsible, 100);
     return {
@@ -310,7 +362,7 @@ export default class PosApp extends React.Component {
       user: createdBy, responsible, totalCents,
       phone: textField(o.phone, 40), address: textField(o.address, 240),
       mesa: textField(o.mesa, 32), prep: 'en-cola', sync: this.state.online ? 'sincronizada' : 'pendiente',
-      items: o.items.map(l => ({ ...l, prodId: l.prodId, name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, mods: l.mods, modsText: this.modsText(l), notes: l.notes, unit: this.lineUnit(l) })),
+      items: o.items.map(l => ({ ...l, prodId: l.prodId, name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, mods: l.mods, modsText: this.modsText(l), notes: l.notes, unit: this.orderLineUnitCents(l) === null ? null : centsToMoney(this.orderLineUnitCents(l)) })),
       name: o.name, discount: o.discount || 0
     };
   }
@@ -318,14 +370,12 @@ export default class PosApp extends React.Component {
     if (!this.needItems()) return;
     if (!this.needCapturedPrices()) return;
     const s = this.state; const o = { ...s.order };
-    try {
-      const total = this.orderTotals(o).total;
-      if (total === null) throw new RangeError('captured total is missing');
-      moneyToCents(total);
-    } catch {
+    if (!this.orderTotalsCents(o)) {
       this.toast('No se puede guardar la cuenta: revisa que todos los precios y el total sean importes válidos.', 'warn');
       return;
     }
+    const sourceStatus = this.orderSourceStatus(o.folio, 'station', o);
+    if (sourceStatus !== 'available') { this.blockOrderSource(sourceStatus); return; }
     if (!this.needsOrderContact(o)) return;
     if (!o.folio) o.folio = this.nf();
     const entry = this.openEntry(o);
@@ -349,8 +399,24 @@ export default class PosApp extends React.Component {
     return o.folio;
   }
   startCheckout(folio, lines, discount, type, fromStation) {
+    let sourceOrder;
+    if (fromStation) {
+      sourceOrder = this.state.order;
+      folio = sourceOrder.folio;
+      lines = sourceOrder.items;
+      discount = sourceOrder.discount;
+      type = this.typeLabel(sourceOrder.type) + (sourceOrder.type === 'mesa' && sourceOrder.mesa ? ' ' + sourceOrder.mesa : '');
+      const sourceStatus = this.orderSourceStatus(folio, 'station', sourceOrder);
+      if (sourceStatus !== 'available') { this.blockOrderSource(sourceStatus); return; }
+    } else {
+      sourceOrder = this.state.open.find(entry => entry.folio === folio);
+      const sourceStatus = this.orderSourceStatus(folio, 'open');
+      if (sourceStatus !== 'available' || !sourceOrder) { this.blockOrderSource(sourceStatus); return; }
+      lines = sourceOrder.items;
+      discount = sourceOrder.discount;
+      type = this.typeLabel(sourceOrder.type) + ' · ' + (sourceOrder.reference || sourceOrder.ref || this.typeLabel(sourceOrder.type));
+    }
     if (!this.needCapturedPrices(lines)) return;
-    const sourceOrder = fromStation ? this.state.order : this.state.open.find(entry => entry.folio === folio);
     if (sourceOrder && !this.needsOrderContact(sourceOrder)) return;
     const sourceSnapshot = this.checkoutSourceSnapshot({ folio, fromStation }, this.state);
     let subCents;
@@ -358,7 +424,9 @@ export default class PosApp extends React.Component {
     try {
       subCents = lines.reduce((sum, line) => {
         if (!Number.isSafeInteger(line.qty) || line.qty < 1) throw new RangeError('quantity must be a positive safe integer');
-        const lineCents = moneyToCents(line.unit != null ? line.unit : this.lineUnit(line)) * line.qty;
+        const unitCents = this.orderLineUnitCents(line);
+        if (unitCents === null) throw new RangeError('captured unit price is invalid');
+        const lineCents = unitCents * line.qty;
         const next = sum + lineCents;
         if (!Number.isSafeInteger(next)) throw new RangeError('order total exceeds safe centavos');
         return next;
@@ -375,8 +443,8 @@ export default class PosApp extends React.Component {
     this.up({
       module: 'checkout',
       ck: {
-        folio, fromStation, sourceSnapshot, type, step: 'review', ok: null, error: '', change: 0,
-        lines: lines.map(l => ({ name: l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, modsText: l.modsText != null ? l.modsText : this.modsText(l), unit: l.unit != null ? l.unit : this.lineUnit(l) })),
+        folio, sourceFolio: folio || null, fromStation, sourceSnapshot, type, step: 'review', ok: null, error: '', change: 0,
+        lines: lines.map(l => ({ name: l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, modsText: l.modsText != null ? l.modsText : this.modsText(l), unit: centsToMoney(this.orderLineUnitCents(l)) })),
         subCents, discCents, tipSel, tipCustom: '',
         sub: centsToMoney(subCents), disc: centsToMoney(discCents),
         pays: [{ id: 1, method: 'efectivo', amount: centsToMoney(totalCents).toFixed(2) }]
@@ -431,10 +499,13 @@ export default class PosApp extends React.Component {
       const st = this.state;
       if (st.ck?.folio !== folio || st.ck?.step !== 'processing') return;
       if (st.sales.some(sale => sale.folio === folio && sale.status === 'completada')) return;
-      let persisted = {};
-      try { persisted = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
+      const persisted = this.persistedOrderState();
       const persistedState = { ...st, open: Array.isArray(persisted.open) ? persisted.open : [], order: persisted.order || this.blank() };
-      if (!sourceSnapshot || this.checkoutSourceSnapshot(ck, st) !== sourceSnapshot || this.checkoutSourceSnapshot(ck, persistedState) !== sourceSnapshot) {
+      const sourceStatus = ck.sourceFolio
+        ? this.orderSourceStatus(ck.sourceFolio, ck.fromStation ? 'station' : 'open', st.order)
+        : ck.fromStation ? 'available' : 'missing';
+      if (sourceStatus !== 'available' || !sourceSnapshot || this.checkoutSourceSnapshot(ck, st) !== sourceSnapshot || this.checkoutSourceSnapshot(ck, persistedState) !== sourceSnapshot) {
+        if (sourceStatus !== 'available') this.blockOrderSource(sourceStatus);
         this.setCk({ step: 'result', ok: false, error: 'La cuenta cambió mientras se confirmaba el cobro. Revisa la cuenta antes de volver a intentar.' });
         return;
       }
@@ -774,27 +845,44 @@ export default class PosApp extends React.Component {
     // ---- open orders
     V.ordersCount = s.open.length; V.ordersEmpty = s.open.length === 0;
     V.orders = s.open.map(oo => {
-      const hasCapturedPrices = oo.items.every(l => this.hasCapturedPrice(l));
-      const total = hasCapturedPrices ? oo.items.reduce((a, l) => a + this.lineUnit(l) * l.qty, 0) - (oo.discount || 0) : null;
+      const totals = this.orderTotalsCents(oo);
       const prep = (s.kitchenTickets.find(ticket => ticket.folio === oo.folio) || oo).prep;
       const pt = prepTags[prep] || prepTags['en-cola']; const st2 = syncTags[oo.sync] || syncTags.sincronizada;
       return {
-        folio: oo.folio, total: total === null ? 'Precio por verificar' : this.fmt(total),
+        folio: oo.folio, total: totals === null ? 'Precio por verificar' : this.fmt(centsToMoney(totals.totalCents)),
         prepLabel: pt[0], prepVariant: prep === 'listo' ? 'success' : prep === 'preparando' ? 'pending' : 'outline',
         syncLabel: st2[0], syncVariant: oo.sync === 'pendiente' ? 'pending' : oo.sync === 'conflicto' ? 'conflict' : 'outline',
         meta: this.typeLabel(oo.type) + ' · ' + textField(oo.reference || oo.ref || this.typeLabel(oo.type)) + ' · ' + textField(oo.time || '—', 40) + ' · ' + textField(oo.responsible || oo.user || '—', 100),
         itemsText: oo.items.map(l => l.qty + '× ' + l.name).join(' · '),
         conflict: oo.sync === 'conflicto',
         resume: () => {
-          const items = oo.items.map((l, i) => ({ ...l, lineId: 'l' + Date.now() + i, prodId: l.prodId, qty: l.qty, mods: l.mods || {}, notes: l.notes || '', unit: this.lineUnit(l), name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name, modsText: this.modsText(l) }));
-          const mesa = oo.type === 'mesa' ? textField(oo.mesa, 32) || tableFromReference(oo.reference || oo.ref) : '';
-          this.up({ order: { folio: oo.folio, type: oo.type, mesa, name: textField(oo.name, 100), phone: textField(oo.phone, 40), address: textField(oo.address, 240), user: textField(oo.user || oo.responsible, 100), responsible: textField(oo.responsible || oo.user, 100), time: textField(oo.time, 40), items, discount: oo.discount || 0 }, open: this.state.open.filter(x => x.folio !== oo.folio), module: 'pos' }, () => this.toast(oo.folio + ' abierta en la estación'));
+          const status = this.orderSourceStatus(oo.folio, 'open');
+          const source = this.state.open.find(entry => entry.folio === oo.folio);
+          if (status !== 'available' || !source) { this.blockOrderSource(status); return; }
+          const items = source.items.map((l, i) => ({ ...l, lineId: 'l' + Date.now() + i, prodId: l.prodId, qty: l.qty, mods: l.mods || {}, notes: l.notes || '', unit: this.lineUnit(l), name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name, modsText: this.modsText(l) }));
+          const mesa = source.type === 'mesa' ? textField(source.mesa, 32) || tableFromReference(source.reference || source.ref) : '';
+          this.up({ order: { folio: source.folio, type: source.type, mesa, name: textField(source.name, 100), phone: textField(source.phone, 40), address: textField(source.address, 240), user: textField(source.user || source.responsible, 100), responsible: textField(source.responsible || source.user, 100), time: textField(source.time, 40), items, discount: source.discount || 0 }, open: this.state.open.filter(x => x.folio !== source.folio), module: 'pos' }, () => this.toast(source.folio + ' abierta en la estación'));
         },
         charge: () => this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + ' · ' + oo.ref, false),
-        reprint: () => this.toast('Comanda de ' + oo.folio + ' reimpresa en cocina'),
+        reprint: () => {
+          const status = this.orderSourceStatus(oo.folio, 'open');
+          if (status !== 'available') { this.blockOrderSource(status); return; }
+          this.toast('Comanda de ' + oo.folio + ' reimpresa en cocina');
+        },
         split: () => {
-          if (oo.items.length < 2) { this.toast('La cuenta necesita al menos 2 productos para dividirse', 'warn'); return; }
-          this.setState({ dlg: { title: 'Dividir ' + oo.folio, body: 'Se creará un folio nuevo con la mitad de los productos. Después podrás cobrar cada cuenta por separado.', confirmLabel: 'Dividir cuenta', onConfirm: () => { const st = this.state; const src = st.open.find(x => x.folio === oo.folio); const half = Math.ceil(src.items.length / 2); const nfo = this.nf(); const b = { ...src, folio: nfo, items: src.items.slice(half), time: this.now(), ref: src.ref + ' (2)' }; const a = { ...src, items: src.items.slice(0, half) }; this.up({ open: [b, ...st.open.map(x => x.folio === oo.folio ? a : x)] }); this.toast(oo.folio + ' dividida — nueva cuenta ' + nfo); } } });
+          const status = this.orderSourceStatus(oo.folio, 'open');
+          const source = this.state.open.find(entry => entry.folio === oo.folio);
+          if (status !== 'available' || !source) { this.blockOrderSource(status); return; }
+          if (source.items.length < 2) { this.toast('La cuenta necesita al menos 2 productos para dividirse', 'warn'); return; }
+          this.setState({ dlg: { title: 'Dividir ' + oo.folio, body: 'Se creará un folio nuevo con la mitad de los productos. Después podrás cobrar cada cuenta por separado.', confirmLabel: 'Dividir cuenta', onConfirm: () => {
+            const st = this.state;
+            const currentStatus = this.orderSourceStatus(oo.folio, 'open');
+            const src = st.open.find(entry => entry.folio === oo.folio);
+            if (currentStatus !== 'available' || !src) { this.blockOrderSource(currentStatus); return 'keep'; }
+            if (src.items.length < 2) { this.toast('La cuenta necesita al menos 2 productos para dividirse', 'warn'); return 'keep'; }
+            const half = Math.ceil(src.items.length / 2); const nfo = this.nf(); const b = { ...src, folio: nfo, items: src.items.slice(half), time: this.now(), ref: src.ref + ' (2)' }; const a = { ...src, items: src.items.slice(0, half) };
+            this.up({ open: [b, ...st.open.map(x => x.folio === oo.folio ? a : x)] }); this.toast(oo.folio + ' dividida — nueva cuenta ' + nfo);
+          } } });
         },
         cancel: () => this.cancelOpen(oo.folio)
       };

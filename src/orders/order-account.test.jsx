@@ -2,7 +2,7 @@
 // @vitest-environment-options {"url":"http://localhost/"}
 import React from 'react';
 import { afterEach, beforeAll, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PosApp from '../PosApp.jsx';
 import '../karma-data.js';
@@ -28,7 +28,8 @@ function storageWith(value) {
 }
 
 function mountStation(App = PosApp) {
-  return render(<App vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+  const appRef = React.createRef();
+  return { ...render(<App ref={appRef} vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />), appRef };
 }
 
 async function addEspresso(user) {
@@ -98,6 +99,35 @@ it('saves, reloads and resumes an unpaid delivery account with captured details 
   expect(await screen.findByText('Cobro · A-1051')).toBeTruthy();
   expect(JSON.parse(storage.getItem('karma-pos-v1')).order.items[0].unit).toBe(30);
   view.unmount();
+});
+
+it('saves decimal legacy line prices as the exact integer-cent total', async () => {
+  const storage = storageWith({
+    session: 'u3', online: false,
+    order: { type: 'local', items: [
+      { prodId: 'legacy-ten-cent', name: 'Diez centavos', qty: 1, unit: 0.1, mods: {} },
+      { prodId: 'legacy-twenty-cent', name: 'Veinte centavos', qty: 1, unit: 0.2, mods: {} },
+    ] },
+  });
+  const user = userEvent.setup();
+  mountStation();
+  await user.click(await screen.findByRole('button', { name: 'Guardar cuenta' }));
+  await waitFor(() => expect(JSON.parse(storage.getItem('karma-pos-v1')).open[0].totalCents).toBe(30));
+});
+
+it('rejects an invalid explicit captured price even when a legacy unit field exists', async () => {
+  const storage = storageWith({
+    session: 'u3', online: false,
+    order: { type: 'local', items: [{
+      prodId: 'bad-capture', name: 'Precio inválido', qty: 1, unit: 0.1, mods: {},
+      capturedSnapshot: { unitPriceCents: -1 },
+    }] },
+  });
+  const user = userEvent.setup();
+  mountStation();
+  await user.click(await screen.findByRole('button', { name: 'Guardar cuenta' }));
+  expect(await screen.findByText(/precio capturado/)).toBeTruthy();
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).open || []).toEqual([]);
 });
 
 it.each(['Llevar', 'Recoger'])('requires pickup name and phone before saving an unpaid %s account', async type => {
@@ -187,4 +217,51 @@ it('keeps conflicting accounts pending and blocks local pseudo-resolution and ch
   expect(screen.queryByRole('button', { name: 'Resolver' })).toBeNull();
   expect(screen.getByRole('button', { name: 'Abrir' }).disabled).toBe(true);
   expect(screen.getByRole('button', { name: 'Cobrar' }).disabled).toBe(true);
+});
+
+it('does not charge through a stale open-order callback after local source removal', async () => {
+  const original = { ...window.KARMA.seedOrders.find(order => order.folio === 'A-1048') };
+  const storage = storageWith({ session: 'u1', open: [original], kitchenTickets: [original] });
+  const view = mountStation();
+  const staleCharge = view.appRef.current.renderVals().orders.find(order => order.folio === original.folio).charge;
+  storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [], kitchenTickets: [] }));
+  await act(async () => staleCharge());
+  expect(view.appRef.current.state.module).toBe('pos');
+  expect(view.appRef.current.state.ck).toBeNull();
+});
+
+it('rechecks live sources inside previously captured resume, charge, and split confirmations', async () => {
+  const original = { ...window.KARMA.seedOrders.find(order => order.folio === 'A-1048') };
+  const storage = storageWith({ session: 'u1', open: [original], kitchenTickets: [original] });
+  const view = mountStation();
+  const oldActions = view.appRef.current.renderVals().orders.find(order => order.folio === original.folio);
+
+  await act(async () => oldActions.split());
+  expect(view.appRef.current.state.dlg.title).toBe('Dividir A-1048');
+
+  const conflicted = { ...original, sync: 'conflicto' };
+  const next = { session: 'u1', open: [conflicted], kitchenTickets: [conflicted] };
+  storage.setItem('karma-pos-v1', JSON.stringify(next));
+  await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'karma-pos-v1', newValue: JSON.stringify(next) })));
+  await waitFor(() => expect(view.appRef.current.state.open[0].sync).toBe('conflicto'));
+
+  await act(async () => oldActions.resume());
+  await act(async () => oldActions.charge());
+  await act(async () => view.appRef.current.state.dlg.onConfirm());
+  expect(view.appRef.current.state.order.folio).toBeNull();
+  expect(view.appRef.current.state.module).toBe('pos');
+  expect(view.appRef.current.state.open).toEqual([conflicted]);
+  expect(view.appRef.current.state.dlg).not.toBeNull();
+
+  const removed = { session: 'u1', open: [], kitchenTickets: [] };
+  storage.setItem('karma-pos-v1', JSON.stringify(removed));
+  await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'karma-pos-v1', newValue: JSON.stringify(removed) })));
+  await waitFor(() => expect(view.appRef.current.state.open).toEqual([]));
+  await act(async () => view.appRef.current.setState({ dlg: null }));
+  await act(async () => oldActions.resume());
+  await act(async () => oldActions.charge());
+  await act(async () => oldActions.split());
+  expect(view.appRef.current.state.order.folio).toBeNull();
+  expect(view.appRef.current.state.module).toBe('pos');
+  expect(view.appRef.current.state.dlg).toBeNull();
 });
