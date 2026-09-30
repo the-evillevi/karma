@@ -10,8 +10,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
-import stat
 import unicodedata
 import posixpath
 import zipfile
@@ -28,7 +28,7 @@ SEED_PATH = Path(__file__).resolve().parents[2] / "catalog/catalog.json"
 
 
 def normalize_text(value: object) -> str:
-    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = unicodedata.normalize("NFKD", "" if value is None else str(value))
     text = "".join(char for char in text if not unicodedata.combining(char))
     return " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
 
@@ -164,12 +164,19 @@ def get_field(record: dict, normalized_header: str) -> object:
 def parse_cents(value: object) -> int | None:
     if value is None or str(value).strip() == "":
         return None
+    text = str(value).replace("$", "").replace(" ", "").strip()
+    if "," in text:
+        if not re.fullmatch(r"\d{1,3}(,\d{3})+(\.\d+)?", text):
+            return None
+        text = text.replace(",", "")
     try:
-        pesos = Decimal(str(value).replace(",", "").replace("$", "").strip())
+        pesos = Decimal(text)
     except InvalidOperation:
         return None
+    if not pesos.is_finite() or pesos < 0:
+        return None
     centavos = pesos * 100
-    if not centavos.is_finite() or centavos != centavos.to_integral_value():
+    if centavos != centavos.to_integral_value():
         return None
     return int(centavos)
 
@@ -177,12 +184,60 @@ def parse_cents(value: object) -> int | None:
 def availability(value: object) -> bool | None:
     if value is None:
         return None
+    if isinstance(value, bool):
+        return value
     normalized = normalize_text(value)
     if normalized in {"y", "yes", "si", "1", "true", "disponible"}:
         return True
     if normalized in {"n", "no", "0", "false", "no disponible"}:
         return False
     return None
+
+
+def candidate_stock_mode(*, identity_match: bool, piece_unit: bool, recipe_match: bool) -> str:
+    if identity_match and piece_unit and not recipe_match:
+        return "piece"
+    return "unknown"
+
+
+def within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_private_directory(path: Path, repository_root: Path) -> Path:
+    candidate = path.expanduser().absolute()
+    root = repository_root.resolve()
+    resolved = candidate.resolve(strict=False)
+    if within(resolved, root):
+        raise ValueError("private output directory must be outside the repository checkout")
+    resolved.mkdir(parents=True, exist_ok=True, mode=0o700)
+    resolved = resolved.resolve(strict=True)
+    if not resolved.is_dir():
+        raise ValueError("private output path must be a directory")
+    if within(resolved, root):
+        raise ValueError("private output directory resolves inside the repository checkout")
+    resolved.chmod(0o700)
+    return resolved
+
+
+def write_private_json(directory: Path, filename: str, payload: dict) -> Path:
+    if Path(filename).name != filename:
+        raise ValueError("private output filename must be a basename")
+    private_root = directory.resolve(strict=True)
+    path = private_root / filename
+    if path.is_symlink() or path.parent.resolve(strict=True) != private_root:
+        raise ValueError("private output file cannot be a symlink or escape its output directory")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    os.fchmod(descriptor, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        json.dump(payload, output, ensure_ascii=False, indent=2)
+        output.write("\n")
+    return path
 
 
 def load_seed(seed_path: Path) -> dict:
@@ -237,6 +292,10 @@ def build_reconciliation(stock_path: Path, products_path: Path, seed_path: Path)
         "duplicateStockSkuGroups": 0,
         "menuRowsWithImageFieldValue": sum(1 for row in product_records if get_field(row, "imagen") not in (None, "")),
     }
+    all_availability = [availability(get_field(row, "disponible")) for row in product_records]
+    comparison_stats["menuAvailableRows"] = sum(value is True for value in all_availability)
+    comparison_stats["menuUnavailableRows"] = sum(value is False for value in all_availability)
+    comparison_stats["menuAvailabilityUnrecognizedRows"] = sum(value is None for value in all_availability)
     seed_recipe_names = {
         normalize_text(product["name"]) for product in seed["products"]
         if product.get("stockControl", {}).get("mode") == "recipe"
@@ -315,7 +374,11 @@ def build_reconciliation(stock_path: Path, products_path: Path, seed_path: Path)
                     comparison_stats["stockPieceUnitCandidates"] += 1
                 if piece_unit and name_key in seed_recipe_names:
                     comparison_stats["recipeVsPieceCandidateConflicts"] += 1
-                entry["candidateStockMode"] = "piece" if piece_unit and name_key not in seed_recipe_names else "unknown"
+                entry["candidateStockMode"] = candidate_stock_mode(
+                    identity_match=stock_name_match,
+                    piece_unit=piece_unit,
+                    recipe_match=name_key in seed_recipe_names,
+                )
                 if stock_name_match:
                     entry["stockEvidence"].append("Source SKU and normalized product name match; review unit and business mapping.")
                     if name_key in seed_recipe_names:
@@ -339,7 +402,11 @@ def build_reconciliation(stock_path: Path, products_path: Path, seed_path: Path)
                         comparison_stats["stockPieceUnitCandidates"] += 1
                         if name_key in seed_recipe_names:
                             comparison_stats["recipeVsPieceCandidateConflicts"] += 1
-                    entry["candidateStockMode"] = "piece" if unit in {"pza", "pz", "pieza", "piezas", "piece", "pieces", "ea"} and name_key not in seed_recipe_names else "unknown"
+                    entry["candidateStockMode"] = candidate_stock_mode(
+                        identity_match=False,
+                        piece_unit=unit in {"pza", "pz", "pieza", "piezas", "piece", "pieces", "ea"},
+                        recipe_match=name_key in seed_recipe_names,
+                    )
                     entry["stockEvidence"].append("Only normalized name matches; identity and stock behavior need human review.")
                     if name_key in seed_recipe_names:
                         entry["stockEvidence"].append("Prototype recipe also exists; the workbooks do not establish recipe contents or settle recipe-versus-piece control.")
@@ -408,15 +475,15 @@ def main() -> None:
     for source in (args.stock, args.products):
         if not source.is_file():
             raise SystemExit(f"Missing source workbook: {source}")
-    args.private_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    args.private_dir.chmod(0o700)
+    try:
+        private_dir = resolve_private_directory(args.private_dir, Path(__file__).resolve().parents[2])
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     reconciliation, candidate = build_reconciliation(args.stock, args.products, args.seed)
     for name, payload in (("source-reconciliation.json", reconciliation), ("candidate-catalog.json", candidate)):
-        path = args.private_dir / name
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
-        path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        write_private_json(private_dir, name, payload)
     print(json.dumps({
-        "privateOutputDirectory": str(args.private_dir),
+        "privateOutputDirectory": str(private_dir),
         "workbooks": [
             {"filename": f["filename"], "sizeBytes": f["sizeBytes"], "sha256": f["sha256"], "sheets": f["sheets"]}
             for f in reconciliation["sourceFiles"].values()

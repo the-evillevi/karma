@@ -34,7 +34,13 @@
           "SKU",
           "Stock Actual",
           "Unidad"
-        ]
+        ],
+        "reconciliationSummary": {
+          "matchedProductSkuAndName": 17,
+          "unmappedRows": 90,
+          "pieceUnitCandidates": 0,
+          "skuNameConflicts": 0
+        }
       }
     },
     {
@@ -66,7 +72,22 @@
           "Clave de producto CFDI",
           "Unidad CFDI",
           "Combo?"
-        ]
+        ],
+        "reconciliationSummary": {
+          "exactNormalizedNameMatches": 17,
+          "prototypeProductsUnmatched": 61,
+          "ambiguousExactMatches": 0,
+          "menuPriceDifferences": 6,
+          "menuAvailability": {
+            "available": 0,
+            "unavailable": 51,
+            "unknown": 64
+          },
+          "availabilityDifferencesAmongExactMatches": 5,
+          "categoryLabelDifferences": 11,
+          "duplicateNormalizedNameGroups": 3,
+          "duplicateSkuGroups": 0
+        }
       }
     },
     {
