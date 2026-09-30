@@ -145,12 +145,18 @@ function options(supabase: ReturnType<typeof client>): PosAccessOptions {
   };
 }
 
-beforeEach(installMemoryStorage);
+beforeEach(() => {
+  installMemoryStorage();
+  // Tests inject a fake client; do not depend on private developer .env files.
+  vi.stubEnv("VITE_SUPABASE_URL", "https://mock-supabase.example.invalid");
+  vi.stubEnv("VITE_SUPABASE_ANON_KEY", "synthetic-public-test-key");
+});
 afterEach(() => {
   cleanup();
   storage.clear();
   setOnline(true);
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("secure access session lifecycle", () => {
