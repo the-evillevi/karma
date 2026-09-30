@@ -1,0 +1,21 @@
+{
+  "provider": "supabase",
+  "name": "karma-pos",
+  "projectRef": "vwvlsayxsunefeehiavt",
+  "region": "us-east-1",
+  "dashboard": "https://supabase.com/dashboard/project/vwvlsayxsunefeehiavt",
+  "createdAt": "2026-09-29",
+  "schemaDeployed": true,
+  "productionReady": false,
+  "credentials": "Stored privately outside the public repository; never commit keys or passwords.",
+  "appliedMigrations": [
+    {
+      "version": "20260929000100",
+      "issue": "EVL-114",
+      "sha256": "4cbd6999a2d8f4151769da2b923ed001474ea502192470ada15d86afd0cdc8d3",
+      "method": "ManagementAPI file query + CLI migration repair",
+      "verification": "8/8 real hosted browser/RLS proof passed independently by root; hash unchanged; migration history recorded"
+    }
+  ],
+  "schemaScope": "EVL-114 synthetic proof schema only; production policies and app integration pending"
+}

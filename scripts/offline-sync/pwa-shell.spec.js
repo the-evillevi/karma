@@ -69,7 +69,9 @@ test("production service worker boots the cached POS, Comanda and offline demo a
     await expect(
       page.getByRole("button", { name: "Actualizar ahora" }),
     ).toBeDisabled();
-    await page.getByRole("button", { name: "×" }).click();
+    await page
+      .getByRole("button", { name: "Cerrar editor de usuario" })
+      .click();
     const confirmUpdate = page.getByLabel(
       "Confirmo que guardé o revisé el trabajo visible",
     );

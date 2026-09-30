@@ -1,0 +1,56 @@
+name: Demo preview
+
+on:
+  push:
+    branches: [codex/karma-integration]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: karma-demo-preview
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm check
+        env:
+          KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
+      - run: pnpm build:preview
+        env:
+          KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
+      - run: pnpm test:preview:e2e
+      - run: pnpm check:client-bundle
+        env:
+          KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: karma-demo-preview
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

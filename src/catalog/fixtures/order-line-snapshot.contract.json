@@ -1,0 +1,25 @@
+{
+  "source": "karma-foundation EVL-113 src/domain/contracts.ts OrderLineSnapshot and ModifierSnapshot; contract last changed at bab9eb22a9dc2cddbc538fa90b513705a3a49e06; consumer checkout inspected at 115c6386c54a19e0f8d398fcfa9d3460f2123fd5",
+  "synthetic": true,
+  "expected": {
+    "lineId": "line-synthetic-1",
+    "productId": "catalog-item-1",
+    "productNameSnapshot": "Synthetic coffee",
+    "unitPriceCents": 6900,
+    "quantity": 1,
+    "taxRateBasisPoints": 0,
+    "priceIncludesTax": true,
+    "catalogPriceVersionId": "catalog-price-test-v1",
+    "modifierSnapshots": [
+      {
+        "modifierId": "leche/deslactosada",
+        "nameSnapshot": "Tipo de leche: Deslactosada",
+        "priceDeltaCents": 1000,
+        "taxRateBasisPoints": 0,
+        "priceIncludesTax": true
+      }
+    ],
+    "notesSnapshot": "synthetic note"
+  },
+  "subtotalCents": 7900
+}

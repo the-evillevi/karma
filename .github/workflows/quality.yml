@@ -22,7 +22,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test:domain
-      - run: pnpm test:typed
+      - run: pnpm test:components
       - run: pnpm build
         env:
           KARMA_SECRET_SCAN_CANARY: ci-only-secret-sentinel-never-bundle-this

@@ -1,5 +1,6 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
 
 // Multi-page app: the POS (root) and the kitchen Comanda screen are separate
@@ -7,9 +8,17 @@ import { resolve } from 'path';
 // through localStorage ('karma-pos-v1'), so keeping them as distinct documents
 // preserves the cross-tab sync behavior.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  test: {
+    include: ['src/**/*.test.jsx'],
+  },
   server: {
     fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '.env.offline-test.local'] },
+  },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src'),
+    },
   },
   build: {
     rollupOptions: {
@@ -17,6 +26,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         comanda: resolve(__dirname, 'comanda.html'),
         offlineDemo: resolve(__dirname, 'offline-demo.html'),
+        components: resolve(__dirname, 'components-demo.html'),
       },
     },
   },

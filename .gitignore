@@ -6,3 +6,4 @@ dist
 .pwa-playwright-output
 test-results
 .DS_Store
+.preview-playwright-output

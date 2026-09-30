@@ -1,5 +1,8 @@
 import React from 'react';
 import { css } from './css.js';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 // Ported verbatim from design/Comanda.dc.html. The original `class Component
 // extends DCLogic` becomes a real React.Component (identical setState /
@@ -43,9 +46,9 @@ export default class ComandaApp extends React.Component {
   componentWillUnmount() { window.removeEventListener('storage', this._l); clearInterval(this._p); }
   renderVals() {
     const s = this.state;
-    const acc = '#836953', tint = '#f6e5df', paper = '#faf9f5', ink = '#141413', mut = '#6b6a63', line = '#e2e0d6', bg = '#f0eee6';
+    const acc = '#836953', tint = '#f6e5df', paper = '#faf9f5', ink = '#141413';
     const tag = (b, c) => ({ fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 999, background: b, color: c, whiteSpace: 'nowrap' });
-    const prepTags = { 'en-cola': ['En cola', bg, mut], preparando: ['Preparando', tint, acc], listo: ['Listo', acc, paper], entregado: ['Entregado', bg, mut] };
+    const prepTags = { 'en-cola': ['En cola', 'outline'], preparando: ['Preparando', 'pending'], listo: ['Listo', 'success'], entregado: ['Entregado', 'outline'] };
     const typeLabel = t => ({ local: 'En local', mesa: 'Mesa', llevar: 'Para llevar', domicilio: 'Domicilio', recoger: 'Recoger' })[t] || t;
     const next = { 'en-cola': ['preparando', 'Empezar preparación'], preparando: ['listo', 'Marcar listo'], listo: ['entregado', 'Marcar entregado'] };
     const order = { 'en-cola': 0, preparando: 1, listo: 2, entregado: 3 };
@@ -58,7 +61,7 @@ export default class ComandaApp extends React.Component {
       connStyle: { marginLeft: 'auto', ...tag(s.online ? tint : ink, s.online ? acc : paper) },
       tabs: [['todas', 'Todas'], ['en-cola', 'En cola'], ['preparando', 'Preparando'], ['listo', 'Listas']].map(([id, label]) => ({
         label, hasCount: counts[id] > 0, count: counts[id],
-        style: { padding: '7px 12px', borderRadius: 999, fontSize: 12.5, fontWeight: 500, cursor: 'pointer', border: '1px solid ' + (s.tab === id ? acc : line), background: s.tab === id ? acc : paper, color: s.tab === id ? paper : ink, whiteSpace: 'nowrap' },
+        active: s.tab === id,
         pick: () => this.setState({ tab: id })
       })),
       empty: list.length === 0,
@@ -67,12 +70,12 @@ export default class ComandaApp extends React.Component {
         const nx = next[o.prep];
         return {
           folio: o.folio, time: o.time,
-          prepLabel: pt[0], prepStyle: tag(pt[1], pt[2]),
+          prepLabel: pt[0], prepVariant: pt[1],
           meta: typeLabel(o.type) + ' · ' + o.ref + ' · ' + o.user,
           items: o.items.map(i => ({ qty: i.qty, name: i.name, mods: i.modsText, hasMods: !!i.modsText, notes: i.notes, hasNotes: !!i.notes })),
           hasAction: !!nx,
           actionLabel: nx ? nx[1] : '',
-          actionStyle: { padding: '13px', minHeight: 46, background: o.prep === 'preparando' ? acc : paper, color: o.prep === 'preparando' ? paper : ink, border: o.prep === 'preparando' ? 'none' : '1px solid ' + line, borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', width: '100%' },
+          actionVariant: o.prep === 'preparando' ? 'default' : 'outline',
           advance: () => {
             const open = this.state.open.map(x => x.folio === o.folio ? { ...x, prep: nx[0] } : x);
             this.setState({ open });
@@ -86,7 +89,7 @@ export default class ComandaApp extends React.Component {
   render() {
     const V = this.renderVals();
     return (
-      <div style={css('min-height:100vh;display:flex;justify-content:center;padding:24px 12px')}>
+      <div style={css('min-height:var(--karma-viewport-height,100vh);display:flex;justify-content:center;padding:24px 12px')}>
         <div style={css('width:390px;max-width:100%;background:#f0eee6;border-radius:24px;overflow:hidden;display:flex;flex-direction:column;min-height:760px')}>
           <div style={css('background:#faf9f5;border-bottom:1px solid #e2e0d6;padding:18px 18px 14px;display:flex;flex-direction:column;gap:12px;position:sticky;top:0;z-index:10')}>
             <div style={css('display:flex;align-items:baseline;gap:10px')}>
@@ -96,7 +99,7 @@ export default class ComandaApp extends React.Component {
             </div>
             <div style={css('display:flex;gap:6px')}>
               {V.tabs.map((t, i) => (
-                <button key={i} style={t.style} onClick={t.pick}>{t.label}{t.hasCount && <> · {t.count}</>}</button>
+                <Button key={i} size="sm" variant={t.active ? 'default' : 'outline'} className="rounded-[var(--radius-pill)]" aria-pressed={t.active} onClick={t.pick}>{t.label}{t.hasCount && <> · {t.count}</>}</Button>
               ))}
             </div>
           </div>
@@ -105,10 +108,10 @@ export default class ComandaApp extends React.Component {
               <div style={css('padding:56px 20px;text-align:center;color:#6b6a63;font-size:13.5px;border:1px dashed #e2e0d6;border-radius:14px')}>Sin comandas en este estado.<br/>Las órdenes nuevas del punto de venta aparecerán aquí.</div>
             )}
             {V.cards.map((c, i) => (
-              <div key={i} style={css('background:#faf9f5;border:1px solid #e2e0d6;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;animation:rise .25s ease')}>
+              <Card key={i} className="gap-3 rounded-[var(--radius-card-large)] p-4" style={{ animation: 'rise .25s ease' }}>
                 <div style={css('display:flex;align-items:center;gap:8px')}>
                   <span style={css('font-size:15px;font-weight:500;color:#141413')}>{c.folio}</span>
-                  <span style={c.prepStyle}>{c.prepLabel}</span>
+                  <Badge variant={c.prepVariant}>{c.prepLabel}</Badge>
                   <span style={css('margin-left:auto;font-size:12px;color:#6b6a63')}>{c.time}</span>
                 </div>
                 <div style={css('font-size:12px;color:#6b6a63')}>{c.meta}</div>
@@ -125,9 +128,9 @@ export default class ComandaApp extends React.Component {
                   ))}
                 </div>
                 {c.hasAction && (
-                  <button onClick={c.advance} style={c.actionStyle}>{c.actionLabel}</button>
+                  <Button className="w-full" variant={c.actionVariant} onClick={c.advance}>{c.actionLabel}</Button>
                 )}
-              </div>
+              </Card>
             ))}
           </div>
           <div style={css('background:#faf9f5;border-top:1px solid #e2e0d6;padding:12px 18px;display:flex;align-items:center;gap:10px')}>

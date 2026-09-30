@@ -1,0 +1,973 @@
+{
+  "version": 1,
+  "baseline": "ef10819184c1fe7769b316c8a259f00c4391d79e",
+  "createdAt": "2026-09-29",
+  "delivery": "draft_pr_stacks_no_main_merges",
+  "agent": {
+    "model": "gpt-6-luna",
+    "reasoningEffort": "high",
+    "maxConcurrent": 3
+  },
+  "coordinatorModel": "gpt-6.1-sol",
+  "integration": {
+    "branch": "codex/karma-integration",
+    "worktree": "/Users/evillevi/.codex/worktrees/karma-integration/karma"
+  },
+  "decisions": {
+    "moveMerge": "deferred",
+    "reprint": "owner_manager_with_reason",
+    "credit": "before_pilot_owner_approved_limits",
+    "historicalBackup": "manual_user_retention"
+  },
+  "chains": [
+    {
+      "name": "foundation",
+      "issues": [
+        "EVL-113",
+        "EVL-114",
+        "EVL-116",
+        "EVL-118",
+        "EVL-126"
+      ],
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-foundation/karma"
+    },
+    {
+      "name": "design",
+      "issues": [
+        "EVL-154",
+        "EVL-156",
+        "EVL-158",
+        "EVL-115"
+      ],
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-design/karma"
+    },
+    {
+      "name": "catalog",
+      "issues": [
+        "EVL-112",
+        "EVL-119",
+        "EVL-120",
+        "EVL-121"
+      ],
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-catalog/karma"
+    },
+    {
+      "name": "orders",
+      "issues": [
+        "EVL-185",
+        "EVL-188",
+        "EVL-122",
+        "EVL-189",
+        "EVL-155"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "payments",
+      "issues": [
+        "EVL-186",
+        "EVL-123",
+        "EVL-187",
+        "EVL-125"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "inventory",
+      "issues": [
+        "EVL-128",
+        "EVL-129",
+        "EVL-153",
+        "EVL-157"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "reports",
+      "issues": [
+        "EVL-130",
+        "EVL-127"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "customers",
+      "issues": [
+        "EVL-135",
+        "EVL-136"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "hardware",
+      "issues": [
+        "EVL-117",
+        "EVL-124",
+        "EVL-133"
+      ],
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-hardware/karma"
+    },
+    {
+      "name": "pilot",
+      "issues": [
+        "EVL-131",
+        "EVL-132"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "public",
+      "issues": [
+        "EVL-134",
+        "EVL-138"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "bluetooth",
+      "issues": [
+        "EVL-139",
+        "EVL-140"
+      ],
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-bluetooth/karma"
+    }
+  ],
+  "issues": [
+    {
+      "id": "EVL-113",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-113",
+      "baseBranch": "main",
+      "requires": [],
+      "stage": "awaiting_merge",
+      "agent": null,
+      "commits": [
+        "69fabf0",
+        "ad93ebf",
+        "63dcf6d",
+        "5ac36b9"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/2",
+      "checks": [
+        "13 Node tests passed",
+        "Both Vite entry builds passed",
+        "git diff --check"
+      ],
+      "review": "passed_after_fixes",
+      "blockers": [
+        "Runtime integration and durable offline behavior remain in follow-on issues; merge pending."
+      ],
+      "nextAction": "EVL-114 implements the reviewed architecture proof; runtime criteria remain open.",
+      "artifactsReady": true
+    },
+    {
+      "id": "EVL-114",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-114",
+      "baseBranch": "codex/foundation/evl-113",
+      "requires": [
+        "EVL-113"
+      ],
+      "stage": "awaiting_merge",
+      "agent": null,
+      "commits": [
+        "bab9eb2",
+        "115c638",
+        "873c829",
+        "074f814"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/5",
+      "checks": [
+        "8 real hosted browser/RLS tests passed independently by root",
+        "13 domain tests passed",
+        "3-entry Vite build passed",
+        "Private fixture HTTP403,mode0600,obsoletefileabsent,no privileged build secrets",
+        "Migration hash unchanged and remotehistory recorded",
+        "git diff --check passed"
+      ],
+      "review": "fixed_and_rereviewed_no_blocking_poc_findings",
+      "blockers": [
+        "Draft merge pending. Production enrollment/app persistence/coldboot/recovery are follow-on116/118/126/127."
+      ],
+      "nextAction": "EVL116 can start from reviewed074f814. Preserve synthetic proof evidence; no mainmerge.",
+      "artifactsReady": true
+    },
+    {
+      "id": "EVL-116",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-116",
+      "baseBranch": "codex/foundation/evl-114",
+      "requires": [
+        "EVL-114"
+      ],
+      "stage": "implementing",
+      "agent": "implement_foundation",
+      "commits": [
+        "c38a398",
+        "741aaef"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/10",
+      "checks": [
+        "Root pnpm check passed: scopedformat/lint/types,14Node,builds,bundlescan,PWAoffline restart",
+        "Rootstrengthenedlogin/pageerrorofflineproofpassed",
+        "Agent /karma/ subpath buildverified",
+        "Remote CI and actualpreview URL stillpending"
+      ],
+      "review": "bounded_foundation_fixed_rereviewed",
+      "blockers": [
+        "Legacy type/lint migration coverage and remaining safe update diagnostics review; hosted preview and component CI integrated."
+      ],
+      "nextAction": "Manuallyresume116remaininggates; reconcilewithreviewed156integrationall4entriesbeforemerge. No118startyet."
+    },
+    {
+      "id": "EVL-118",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-118",
+      "baseBranch": "codex/foundation/evl-116",
+      "requires": [
+        "EVL-116"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-126",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-126",
+      "baseBranch": "codex/foundation/evl-118",
+      "requires": [
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-154",
+      "chain": "design",
+      "branch": "codex/design/evl-154",
+      "baseBranch": "main",
+      "requires": [],
+      "stage": "awaiting_input",
+      "agent": null,
+      "commits": [
+        "fed6ab5",
+        "38b721d",
+        "8f8edd0"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/1",
+      "checks": [
+        "Source/token/contrast review",
+        "git diff --check"
+      ],
+      "review": "passed_after_fixes",
+      "blockers": [
+        "Team acceptance and merge pending; Carlos flow validation is EVL-115."
+      ],
+      "nextAction": "After EVL-116, implement EVL-156 using the provisional reviewed reference.",
+      "artifactsReady": true
+    },
+    {
+      "id": "EVL-156",
+      "chain": "design",
+      "branch": "codex/design/evl-156",
+      "baseBranch": "codex/design/evl-154",
+      "requires": [
+        "EVL-154",
+        "EVL-116"
+      ],
+      "stage": "awaiting_input",
+      "agent": null,
+      "commits": [
+        "84d3d4a",
+        "0505fa0",
+        "69c8d46",
+        "4f0446f",
+        "26cbb43",
+        "ca2dd25",
+        "c42afe8",
+        "a81e8d3",
+        "818b15d",
+        "f4b3466"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/9",
+      "checks": [
+        "Initialcheckpointroot4tests/3buildpass",
+        "Rootcomponentdemo desktop1280/mobile390visual andactualPOSdesktopstartup/loginpass",
+        "Root independent 8 Vitest flows and standard build passed on c42afe8",
+        "Root integrated report detail Escape/focus-return regression passed"
+      ],
+      "review": "mapping_batches_reviewed_combined_visual_pending",
+      "blockers": [
+        "Remaining modal/table/toast mapping and combined visual acceptance; EVL158 owns mobile shell."
+      ],
+      "nextAction": "Combined responsive158 visual QA; keep remaining documented mappings and team acceptance open.",
+      "artifactsReady": true
+    },
+    {
+      "id": "EVL-158",
+      "chain": "design",
+      "branch": "codex/design/evl-158",
+      "baseBranch": "codex/design/evl-156",
+      "requires": [
+        "EVL-156"
+      ],
+      "stage": "implementing",
+      "agent": "implement_design",
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Implement responsive shell/shared station from reviewed156 and121 anchors."
+    },
+    {
+      "id": "EVL-115",
+      "chain": "design",
+      "branch": "codex/design/evl-115",
+      "baseBranch": "codex/design/evl-158",
+      "requires": [
+        "EVL-158",
+        "EVL-121",
+        "EVL-124"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-112",
+      "chain": "catalog",
+      "branch": "codex/catalog/evl-112",
+      "baseBranch": "main",
+      "requires": [],
+      "stage": "awaiting_input",
+      "agent": null,
+      "commits": [
+        "17a0f25",
+        "06ac089",
+        "bf3c424",
+        "654f345",
+        "80fd189"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/4",
+      "checks": [
+        "9 Node tests passed",
+        "7 Python tests passed",
+        "Catalog reproducibility passed",
+        "Private source reconciliation passed",
+        "git diff --check"
+      ],
+      "review": "passed_after_fixes",
+      "blockers": [
+        "Carlos approval and source photos pending; runtime seed-loader integration remains open."
+      ],
+      "nextAction": "Carlos source mapping/approval and photos; runtime loader in119 remains open.",
+      "artifactsReady": true
+    },
+    {
+      "id": "EVL-119",
+      "chain": "catalog",
+      "branch": "codex/catalog/evl-119",
+      "baseBranch": "codex/catalog/evl-112",
+      "requires": [
+        "EVL-112",
+        "EVL-116",
+        "EVL-118",
+        "EVL-126"
+      ],
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "fd83d62",
+        "3225008",
+        "4c5937b"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/7",
+      "checks": [
+        "17 focused Node tests passed",
+        "Catalog reproducibility passed",
+        "git diff --check"
+      ],
+      "review": "domain_preparation_passed_after_fixes",
+      "blockers": [
+        "Reviewed foundation runtime/auth/sync required before application integration."
+      ],
+      "nextAction": "DraftdomainpreparationPR7published. IntegrateactualCRUD/runtime/auth/syncafterreviewed116/118/126; sourcegate112remainsclosed."
+    },
+    {
+      "id": "EVL-120",
+      "chain": "catalog",
+      "branch": "codex/catalog/evl-120",
+      "baseBranch": "codex/catalog/evl-119",
+      "requires": [
+        "EVL-119",
+        "EVL-113"
+      ],
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "af890ae",
+        "0b17618",
+        "ffbc8bf"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/8",
+      "checks": [
+        "27 focusedNode tests passed; real113validatorincluded no skips",
+        "seedreproducibility passed",
+        "git diff --check passed"
+      ],
+      "review": "bounded_domain_fixed_rereviewed",
+      "blockers": [
+        "Runtime/UI/auth/sync integration awaits reviewed116/118/126 and119workflow."
+      ],
+      "nextAction": "Draft8 domainpreparationreviewed; implementactualUIafter116/118/126and119, adoptmeasurementsharedcontract."
+    },
+    {
+      "id": "EVL-121",
+      "chain": "catalog",
+      "branch": "codex/catalog/evl-121",
+      "baseBranch": "codex/catalog/evl-120",
+      "requires": [
+        "EVL-120",
+        "EVL-122",
+        "EVL-123",
+        "EVL-158"
+      ],
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "062537e",
+        "fee12e8",
+        "e02b812"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/11",
+      "checks": [
+        "Root23catalog tests with real113validator passed no skips",
+        "Root10combinedcomponent flows and preview build passed"
+      ],
+      "review": "station_fixed_rereviewed",
+      "blockers": [
+        "Combined responsive/shared UI158 and production authorization118/persistence126 still pending."
+      ],
+      "nextAction": "Draft station PR; integrate responsive158 then production storage126."
+    },
+    {
+      "id": "EVL-185",
+      "chain": "orders",
+      "branch": "codex/orders/evl-185",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-126"
+      ],
+      "stage": "implementing",
+      "agent": "implement_catalog",
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Fix paid preparation actual app regression from reviewed integration; production durability126 gate remains open."
+    },
+    {
+      "id": "EVL-188",
+      "chain": "orders",
+      "branch": "codex/orders/evl-188",
+      "baseBranch": "codex/orders/evl-185",
+      "requires": [
+        "EVL-185",
+        "EVL-113",
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-122",
+      "chain": "orders",
+      "branch": "codex/orders/evl-122",
+      "baseBranch": "codex/orders/evl-188",
+      "requires": [
+        "EVL-188",
+        "EVL-120",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-189",
+      "chain": "orders",
+      "branch": "codex/orders/evl-189",
+      "baseBranch": "codex/orders/evl-122",
+      "requires": [
+        "EVL-122"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-155",
+      "chain": "orders",
+      "branch": "codex/orders/evl-155",
+      "baseBranch": "codex/orders/evl-189",
+      "requires": [
+        "EVL-189"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-186",
+      "chain": "payments",
+      "branch": "codex/payments/evl-186",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-123",
+      "chain": "payments",
+      "branch": "codex/payments/evl-123",
+      "baseBranch": "codex/payments/evl-186",
+      "requires": [
+        "EVL-186",
+        "EVL-122",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-187",
+      "chain": "payments",
+      "branch": "codex/payments/evl-187",
+      "baseBranch": "codex/payments/evl-123",
+      "requires": [
+        "EVL-123",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-125",
+      "chain": "payments",
+      "branch": "codex/payments/evl-125",
+      "baseBranch": "codex/payments/evl-187",
+      "requires": [
+        "EVL-187",
+        "EVL-129"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-128",
+      "chain": "inventory",
+      "branch": "codex/inventory/evl-128",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-126",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-129",
+      "chain": "inventory",
+      "branch": "codex/inventory/evl-129",
+      "baseBranch": "codex/inventory/evl-128",
+      "requires": [
+        "EVL-128",
+        "EVL-122"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-153",
+      "chain": "inventory",
+      "branch": "codex/inventory/evl-153",
+      "baseBranch": "codex/inventory/evl-129",
+      "requires": [
+        "EVL-129"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-157",
+      "chain": "inventory",
+      "branch": "codex/inventory/evl-157",
+      "baseBranch": "codex/inventory/evl-153",
+      "requires": [
+        "EVL-153",
+        "EVL-126",
+        "EVL-158"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-130",
+      "chain": "reports",
+      "branch": "codex/reports/evl-130",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-125",
+        "EVL-135",
+        "EVL-153"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-127",
+      "chain": "reports",
+      "branch": "codex/reports/evl-127",
+      "baseBranch": "codex/reports/evl-130",
+      "requires": [
+        "EVL-130",
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-135",
+      "chain": "customers",
+      "branch": "codex/customers/evl-135",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-123",
+        "EVL-126",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-136",
+      "chain": "customers",
+      "branch": "codex/customers/evl-136",
+      "baseBranch": "codex/customers/evl-135",
+      "requires": [
+        "EVL-135"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-117",
+      "chain": "hardware",
+      "branch": "codex/hardware/evl-117",
+      "baseBranch": "main",
+      "requires": [],
+      "stage": "awaiting_input",
+      "agent": null,
+      "commits": [
+        "066905c",
+        "f77bb83",
+        "955094c"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/3",
+      "checks": [
+        "Root Chrome CSS/layout inspection passed",
+        "git diff --check"
+      ],
+      "review": "passed_after_fixes",
+      "blockers": [
+        "Exact device/host information and witnessed physical print/drawer/terminal/tip validation pending; merge pending."
+      ],
+      "nextAction": "Use reviewed register for implementation; collect physical evidence when hardware is available.",
+      "artifactsReady": true
+    },
+    {
+      "id": "EVL-124",
+      "chain": "hardware",
+      "branch": "codex/hardware/evl-124",
+      "baseBranch": "codex/hardware/evl-117",
+      "requires": [
+        "EVL-117",
+        "EVL-121",
+        "EVL-123"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-133",
+      "chain": "hardware",
+      "branch": "codex/hardware/evl-133",
+      "baseBranch": "codex/hardware/evl-124",
+      "requires": [
+        "EVL-124",
+        "EVL-132"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-131",
+      "chain": "pilot",
+      "branch": "codex/pilot/evl-131",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-112",
+        "EVL-115",
+        "EVL-124",
+        "EVL-127",
+        "EVL-135",
+        "EVL-125"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-132",
+      "chain": "pilot",
+      "branch": "codex/pilot/evl-132",
+      "baseBranch": "codex/pilot/evl-131",
+      "requires": [
+        "EVL-131"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-134",
+      "chain": "public",
+      "branch": "codex/public/evl-134",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-120",
+        "EVL-126",
+        "EVL-158"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-138",
+      "chain": "public",
+      "branch": "codex/public/evl-138",
+      "baseBranch": "codex/public/evl-134",
+      "requires": [
+        "EVL-134",
+        "EVL-122"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-139",
+      "chain": "bluetooth",
+      "branch": "codex/bluetooth/evl-139",
+      "baseBranch": "codex/foundation/evl-114",
+      "requires": [
+        "EVL-114"
+      ],
+      "stage": "awaiting_input",
+      "agent": null,
+      "commits": [
+        "2e67b39",
+        "b7c7e4a",
+        "8723a7e",
+        "dee392a",
+        "11c1185",
+        "c2a5af6"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/6",
+      "checks": [
+        "20 codec/domain tests passed after114rebase",
+        "git diff --check passed"
+      ],
+      "review": "bounded_discovery_codec_fixed_rereviewed_reconciled114",
+      "blockers": [
+        "Actualdeviceinventory and two-devicepairing/transport/crypto/range/battery acceptancepending; productionpermissions/durabilityintegrationopen."
+      ],
+      "nextAction": "DraftdiscoveryPR6published; do notmark139complete orstart140withoutnativeplatformdecisionandphysicalproof."
+    },
+    {
+      "id": "EVL-140",
+      "chain": "bluetooth",
+      "branch": "codex/bluetooth/evl-140",
+      "baseBranch": "codex/bluetooth/evl-139",
+      "requires": [
+        "EVL-139",
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    }
+  ],
+  "sessionCheckpoint": {
+    "manualResume": true,
+    "reason": "User authorized manual continuation after allowance reset",
+    "runningAgents": 3,
+    "integration": "876808e",
+    "mainMerged": false,
+    "nextIssue": "EVL-116",
+    "resumeDocument": "docs/execution/RESUME.md",
+    "status": "resumed"
+  }
+}
