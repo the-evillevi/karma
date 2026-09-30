@@ -1,0 +1,829 @@
+{
+  "version": 1,
+  "baseline": "ef10819184c1fe7769b316c8a259f00c4391d79e",
+  "createdAt": "2026-09-29",
+  "delivery": "draft_pr_stacks_no_main_merges",
+  "agent": {
+    "model": "gpt-6-luna",
+    "reasoningEffort": "high",
+    "maxConcurrent": 3
+  },
+  "coordinatorModel": "gpt-6.1-sol",
+  "integration": {
+    "branch": "codex/karma-integration",
+    "worktree": "/Users/evillevi/.codex/worktrees/karma-integration/karma"
+  },
+  "decisions": {
+    "moveMerge": "deferred",
+    "reprint": "owner_manager_with_reason",
+    "credit": "before_pilot_owner_approved_limits",
+    "historicalBackup": "manual_user_retention"
+  },
+  "chains": [
+    {
+      "name": "foundation",
+      "issues": [
+        "EVL-113",
+        "EVL-114",
+        "EVL-116",
+        "EVL-118",
+        "EVL-126"
+      ],
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-foundation/karma"
+    },
+    {
+      "name": "design",
+      "issues": [
+        "EVL-154",
+        "EVL-156",
+        "EVL-158",
+        "EVL-115"
+      ],
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-design/karma"
+    },
+    {
+      "name": "catalog",
+      "issues": [
+        "EVL-112",
+        "EVL-119",
+        "EVL-120",
+        "EVL-121"
+      ],
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-catalog/karma"
+    },
+    {
+      "name": "orders",
+      "issues": [
+        "EVL-185",
+        "EVL-188",
+        "EVL-122",
+        "EVL-189",
+        "EVL-155"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "payments",
+      "issues": [
+        "EVL-186",
+        "EVL-123",
+        "EVL-187",
+        "EVL-125"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "inventory",
+      "issues": [
+        "EVL-128",
+        "EVL-129",
+        "EVL-153",
+        "EVL-157"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "reports",
+      "issues": [
+        "EVL-130",
+        "EVL-127"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "customers",
+      "issues": [
+        "EVL-135",
+        "EVL-136"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "hardware",
+      "issues": [
+        "EVL-117",
+        "EVL-124",
+        "EVL-133"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "pilot",
+      "issues": [
+        "EVL-131",
+        "EVL-132"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "public",
+      "issues": [
+        "EVL-134",
+        "EVL-138"
+      ],
+      "worktree": null
+    },
+    {
+      "name": "bluetooth",
+      "issues": [
+        "EVL-139",
+        "EVL-140"
+      ],
+      "worktree": null
+    }
+  ],
+  "issues": [
+    {
+      "id": "EVL-113",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-113",
+      "baseBranch": "main",
+      "requires": [],
+      "stage": "implementing",
+      "agent": "implement_foundation",
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Agent implements bounded first issue; coordinator review follows."
+    },
+    {
+      "id": "EVL-114",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-114",
+      "baseBranch": "codex/foundation/evl-113",
+      "requires": [
+        "EVL-113"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-116",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-116",
+      "baseBranch": "codex/foundation/evl-114",
+      "requires": [
+        "EVL-114"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-118",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-118",
+      "baseBranch": "codex/foundation/evl-116",
+      "requires": [
+        "EVL-116"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-126",
+      "chain": "foundation",
+      "branch": "codex/foundation/evl-126",
+      "baseBranch": "codex/foundation/evl-118",
+      "requires": [
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-154",
+      "chain": "design",
+      "branch": "codex/design/evl-154",
+      "baseBranch": "main",
+      "requires": [],
+      "stage": "implementing",
+      "agent": "implement_design",
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Agent implements bounded first issue; coordinator review follows."
+    },
+    {
+      "id": "EVL-156",
+      "chain": "design",
+      "branch": "codex/design/evl-156",
+      "baseBranch": "codex/design/evl-154",
+      "requires": [
+        "EVL-154",
+        "EVL-116"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-158",
+      "chain": "design",
+      "branch": "codex/design/evl-158",
+      "baseBranch": "codex/design/evl-156",
+      "requires": [
+        "EVL-156"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-115",
+      "chain": "design",
+      "branch": "codex/design/evl-115",
+      "baseBranch": "codex/design/evl-158",
+      "requires": [
+        "EVL-158",
+        "EVL-121",
+        "EVL-124"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-112",
+      "chain": "catalog",
+      "branch": "codex/catalog/evl-112",
+      "baseBranch": "main",
+      "requires": [],
+      "stage": "implementing",
+      "agent": "implement_catalog",
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Agent implements bounded first issue; coordinator review follows."
+    },
+    {
+      "id": "EVL-119",
+      "chain": "catalog",
+      "branch": "codex/catalog/evl-119",
+      "baseBranch": "codex/catalog/evl-112",
+      "requires": [
+        "EVL-112",
+        "EVL-116"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-120",
+      "chain": "catalog",
+      "branch": "codex/catalog/evl-120",
+      "baseBranch": "codex/catalog/evl-119",
+      "requires": [
+        "EVL-119",
+        "EVL-113"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-121",
+      "chain": "catalog",
+      "branch": "codex/catalog/evl-121",
+      "baseBranch": "codex/catalog/evl-120",
+      "requires": [
+        "EVL-120",
+        "EVL-122",
+        "EVL-123",
+        "EVL-158"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-185",
+      "chain": "orders",
+      "branch": "codex/orders/evl-185",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-188",
+      "chain": "orders",
+      "branch": "codex/orders/evl-188",
+      "baseBranch": "codex/orders/evl-185",
+      "requires": [
+        "EVL-185",
+        "EVL-113",
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-122",
+      "chain": "orders",
+      "branch": "codex/orders/evl-122",
+      "baseBranch": "codex/orders/evl-188",
+      "requires": [
+        "EVL-188",
+        "EVL-120",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-189",
+      "chain": "orders",
+      "branch": "codex/orders/evl-189",
+      "baseBranch": "codex/orders/evl-122",
+      "requires": [
+        "EVL-122"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-155",
+      "chain": "orders",
+      "branch": "codex/orders/evl-155",
+      "baseBranch": "codex/orders/evl-189",
+      "requires": [
+        "EVL-189"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-186",
+      "chain": "payments",
+      "branch": "codex/payments/evl-186",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-123",
+      "chain": "payments",
+      "branch": "codex/payments/evl-123",
+      "baseBranch": "codex/payments/evl-186",
+      "requires": [
+        "EVL-186",
+        "EVL-122",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-187",
+      "chain": "payments",
+      "branch": "codex/payments/evl-187",
+      "baseBranch": "codex/payments/evl-123",
+      "requires": [
+        "EVL-123",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-125",
+      "chain": "payments",
+      "branch": "codex/payments/evl-125",
+      "baseBranch": "codex/payments/evl-187",
+      "requires": [
+        "EVL-187",
+        "EVL-129"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-128",
+      "chain": "inventory",
+      "branch": "codex/inventory/evl-128",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-126",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-129",
+      "chain": "inventory",
+      "branch": "codex/inventory/evl-129",
+      "baseBranch": "codex/inventory/evl-128",
+      "requires": [
+        "EVL-128",
+        "EVL-122"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-153",
+      "chain": "inventory",
+      "branch": "codex/inventory/evl-153",
+      "baseBranch": "codex/inventory/evl-129",
+      "requires": [
+        "EVL-129"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-157",
+      "chain": "inventory",
+      "branch": "codex/inventory/evl-157",
+      "baseBranch": "codex/inventory/evl-153",
+      "requires": [
+        "EVL-153",
+        "EVL-126",
+        "EVL-158"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-130",
+      "chain": "reports",
+      "branch": "codex/reports/evl-130",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-125",
+        "EVL-135",
+        "EVL-153"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-127",
+      "chain": "reports",
+      "branch": "codex/reports/evl-127",
+      "baseBranch": "codex/reports/evl-130",
+      "requires": [
+        "EVL-130",
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-135",
+      "chain": "customers",
+      "branch": "codex/customers/evl-135",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-123",
+        "EVL-126",
+        "EVL-118"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-136",
+      "chain": "customers",
+      "branch": "codex/customers/evl-136",
+      "baseBranch": "codex/customers/evl-135",
+      "requires": [
+        "EVL-135"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-117",
+      "chain": "hardware",
+      "branch": "codex/hardware/evl-117",
+      "baseBranch": "main",
+      "requires": [],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-124",
+      "chain": "hardware",
+      "branch": "codex/hardware/evl-124",
+      "baseBranch": "codex/hardware/evl-117",
+      "requires": [
+        "EVL-117",
+        "EVL-121",
+        "EVL-123"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-133",
+      "chain": "hardware",
+      "branch": "codex/hardware/evl-133",
+      "baseBranch": "codex/hardware/evl-124",
+      "requires": [
+        "EVL-124",
+        "EVL-132"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-131",
+      "chain": "pilot",
+      "branch": "codex/pilot/evl-131",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-112",
+        "EVL-115",
+        "EVL-124",
+        "EVL-127",
+        "EVL-135",
+        "EVL-125"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-132",
+      "chain": "pilot",
+      "branch": "codex/pilot/evl-132",
+      "baseBranch": "codex/pilot/evl-131",
+      "requires": [
+        "EVL-131"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-134",
+      "chain": "public",
+      "branch": "codex/public/evl-134",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-120",
+        "EVL-126",
+        "EVL-158"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-138",
+      "chain": "public",
+      "branch": "codex/public/evl-138",
+      "baseBranch": "codex/public/evl-134",
+      "requires": [
+        "EVL-134",
+        "EVL-122"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-139",
+      "chain": "bluetooth",
+      "branch": "codex/bluetooth/evl-139",
+      "baseBranch": "main",
+      "requires": [
+        "EVL-114"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    },
+    {
+      "id": "EVL-140",
+      "chain": "bluetooth",
+      "branch": "codex/bluetooth/evl-140",
+      "baseBranch": "codex/bluetooth/evl-139",
+      "requires": [
+        "EVL-139",
+        "EVL-126"
+      ],
+      "stage": "queued",
+      "agent": null,
+      "commits": [],
+      "pr": null,
+      "checks": [],
+      "review": "pending",
+      "blockers": [],
+      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+    }
+  ]
+}
