@@ -17,3 +17,5 @@ Reviewed new migration SHA256:38527549de19c9f19db43b79dcdc24f690c524df6c01e7cadf
 ## Acceptance limits
 
 Only order.opened, line add/change/remove and details are supported. Discount/cancel/preparation/split/checkout/refund and authoritative catalog/tax are explicitly rejected or unavailable. No UI wiring, durable-sale or production-readiness claim. The read is a live scoped feed; consumers merge highest revision by orderId, and future multi-aggregate changes need additional sequence/pagination proof. Full EVL-126 acceptance remains open.
+
+Root applied exactly the reviewed SHA to isolated karma-pos (`vwvlsayxsunefeehiavt`) successfully; hosted8case proof is running. Applied file is now immutable. Full acceptance and POS wiring remain open.
