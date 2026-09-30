@@ -713,14 +713,20 @@
       "branch": "codex/reports/evl-127",
       "baseBranch": "codex/reports/recovery-base",
       "requires": ["EVL-130", "EVL-126"],
-      "stage": "implementing",
-      "agent": "orders_xhigh",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Truthful recovery/sync status and protected CSV with explicit restore limits; no unsafe whole-state import or invented acknowledgements."
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": ["a7e598d", "e6c79ab", "6934f79", "5daa9fb"],
+      "pr": "https://github.com/the-evillevi/karma/pull/35",
+      "checks": [
+        "Root43focused+43affected integration screens and5audit domain passed; scopedPosApp/reports0medium+.",
+        "Combined check155domain/146screens/10Edge/1PWA/7phase1journal/5operationsjournal; format/lint/types/bothbuilds/credentialscans PASS with explicit Demo PWA scenario.",
+        "PR35 quality CI36791573885 passed at6934f79."
+      ],
+      "review": "fixed_and_rereviewed_full_integration_pass",
+      "blockers": [
+        "EVL-126 complete operation families/recoverable views and real runtime journal/receipts/retry/full backup/restore remain open. CSV is a partial financial export."
+      ],
+      "nextAction": "Truthful local recovery/status slice reviewed, published and integrated. Implement complete durable recovery after126; no whole-state import or invented acknowledgements."
     },
     {
       "id": "EVL-135",
@@ -757,8 +763,8 @@
       "branch": "codex/customers/evl-136",
       "baseBranch": "codex/customers/evl-135",
       "requires": ["EVL-135"],
-      "stage": "prepared",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "orders_xhigh",
       "commits": ["74e7313"],
       "pr": null,
       "checks": [],
@@ -766,7 +772,7 @@
       "blockers": [
         "No atomic customer/sale redemption transaction; no fake benefit button."
       ],
-      "nextAction": "Prepared optional birthday/owner policy contract on135; transfer exclusive customers WT to orders_xhigh after127 candidate release. Atomic redemption remains126gate."
+      "nextAction": "Optional audited birthday/profile and owner-configured disabled-default eligibility policy; root review/fixes before publication. Atomic checkout redemption remains126gate."
     },
     {
       "id": "EVL-117",
@@ -933,11 +939,11 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "4424c30",
+    "integration": "7b0d967",
     "mainMerged": false,
-    "nextIssue": "126lifecycle;127truthful-recovery",
+    "nextIssue": "126lifecycle;136birthday-policy",
     "resumeDocument": "docs/execution/RESUME.md",
-    "status": "active_lifecycle_and_truthful_recovery",
+    "status": "active_lifecycle_and_birthday",
     "usage": {
       "primaryUsedPercent": 35,
       "weeklyUsedPercent": 21,
@@ -947,6 +953,6 @@
     "preparedWorktrees": {
       "customers": "74e7313"
     },
-    "verification": "Normal full check PASS at15044a6:150domain,131screens,10Edge,1PWA,7phase1journal,5operationsjournal,format/lint/types/builds/secret scans. Screen concurrency capped2; no timeout/coverage relaxation."
+    "verification": "Combined checkPASS atdbfa7cd:155domain,146screens,10Edge,1PWA,7phase1journal,5operationsjournal,format/lint/types/bothbuilds/credential scans; explicitDemo PWA build because private local proof defaultssecure."
   }
 }
