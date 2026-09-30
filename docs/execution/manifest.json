@@ -139,14 +139,19 @@
       "branch": "codex/foundation/evl-113",
       "baseBranch": "main",
       "requires": [],
-      "stage": "implementing",
+      "stage": "fixing",
       "agent": "implement_foundation",
-      "commits": [],
+      "commits": [
+        "69fabf0",
+        "ad93ebf"
+      ],
       "pr": null,
       "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Agent implements bounded first issue; coordinator review follows."
+      "review": "fixes_in_progress",
+      "blockers": [
+        "Root re-review: preserve closed refund state on duplicate payment; deep-clone duplicate receipt."
+      ],
+      "nextAction": "Finish two re-review fixes; root verifies and publishes before EVL-114."
     },
     {
       "id": "EVL-114",
@@ -303,12 +308,17 @@
       "requires": [],
       "stage": "implementing",
       "agent": "implement_catalog",
-      "commits": [],
+      "commits": [
+        "17a0f25",
+        "06ac089"
+      ],
       "pr": null,
       "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Agent implements bounded first issue; coordinator review follows."
+      "review": "reconciliation_and_re_review_pending",
+      "blockers": [
+        "Carlos approval and source photos pending; runtime seed-loader integration remains open."
+      ],
+      "nextAction": "Inspect two local source workbooks privately, reconcile source coverage, then root re-review."
     },
     {
       "id": "EVL-119",
