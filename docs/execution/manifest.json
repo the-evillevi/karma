@@ -239,13 +239,14 @@
       "commits": [
         "d1b3b1c",
         "9bea334",
-        "a0bdb8b"
+        "a0bdb8b",
+        "dec7ff9"
       ],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Serialize owner continuity before migration apply; secure client/RPC fixtures continue."
+      "nextAction": "Reviewed exact44d521migration authorized only newproject oncecompatibleRPCfixtures ready; securePOS/PIN/roles incomplete."
     },
     {
       "id": "EVL-126",
@@ -330,20 +331,29 @@
       "id": "EVL-158",
       "chain": "design",
       "branch": "codex/design/evl-158",
-      "baseBranch": "codex/design/evl-156",
+      "baseBranch": "codex/design/base",
       "requires": [
         "EVL-156"
       ],
-      "stage": "reviewing",
-      "agent": "implement_design",
+      "stage": "awaiting_input",
+      "agent": null,
       "commits": [
-        "ddf2a93"
+        "ddf2a93",
+        "705dd91",
+        "8bf3782"
       ],
-      "pr": null,
-      "checks": [],
-      "review": "fixing_root_visual_findings",
-      "blockers": [],
-      "nextAction": "Root combined viewport/PWA and visual review in progress."
+      "pr": "https://github.com/the-evillevi/karma/pull/14",
+      "checks": [
+        "Root22combinedcomponents5responsive2previewroutes passed",
+        "Rootdesktop/tablet/narrowphone/landscapevisual reviewed",
+        "Finaltablekeyboardboundarytargetedregressionpassed"
+      ],
+      "review": "fixed_and_rereviewed_responsive_visual_slice",
+      "blockers": [
+        "Humanoperator/softwarekeyboard/zoomcontrastacceptance andremaining156mappings pending."
+      ],
+      "nextAction": "Draft responsive stack; preserve visual evidence and production foundation gates.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-115",
@@ -516,14 +526,14 @@
         "EVL-113",
         "EVL-126"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "preparing",
+      "agent": "implement_design",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Actual immutable captured price/modifier/reopen fix on185;118/126productiongates stayopen."
     },
     {
       "id": "EVL-122",
@@ -586,14 +596,21 @@
       "requires": [
         "EVL-126"
       ],
-      "stage": "implementing",
-      "agent": "implement_catalog",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Actual tender/change/net and report reconciliation; production126 gate stays open."
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "74a8cd3"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/13",
+      "checks": [
+        "Root20componenttests60unitnoskipsfourentrybuildpassed"
+      ],
+      "review": "fixed_and_rereviewed_net_payment_actual_app",
+      "blockers": [
+        "Real Excel export130 and trusted118/durable126 remain open."
+      ],
+      "nextAction": "Draft bounded cash net fix; export and production foundation acceptance remain open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-123",
@@ -605,14 +622,16 @@
         "EVL-122",
         "EVL-118"
       ],
-      "stage": "queued",
-      "agent": null,
-      "commits": [],
+      "stage": "reviewing",
+      "agent": "implement_catalog",
+      "commits": [
+        "cd2562e"
+      ],
       "pr": null,
       "checks": [],
-      "review": "pending",
+      "review": "fixing_manual_status_history_visibility",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Preserve manual-unverified status in reopened report detail, then root combined review."
     },
     {
       "id": "EVL-187",
@@ -985,9 +1004,9 @@
     "manualResume": true,
     "reason": "User authorized manual continuation after allowance reset",
     "runningAgents": 3,
-    "integration": "bf79fc4",
+    "integration": "d8f6f53",
     "mainMerged": false,
-    "nextIssue": "EVL-118/158/186",
+    "nextIssue": "EVL-118/123/188",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed"
   }

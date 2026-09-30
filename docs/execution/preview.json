@@ -8,7 +8,7 @@
   "reachableVerified": true,
   "productionReady": false,
   "localProof": "Preview build/bundle scan and demo-labelled POS/kitchen round-trip browser regression passed",
-  "verifiedCommit": "4515b9b",
-  "workflowRun": "36669834771",
-  "hostedProof": "Root browser: demo notice, published demo login, kitchen route and return to restored station"
+  "verifiedCommit": "b937a8a",
+  "workflowRun": "36673925738",
+  "hostedProof": "Root fresh browser client: demo notice, shared Sidebar and SalesStation, kitchen route and return to preserved demo session. Visual station indicators/sidebar offset findings remain pending158 fixes."
 }
