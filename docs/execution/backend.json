@@ -22,9 +22,23 @@
       "sha256": "44d5214315b9a16261bf6ec66eb0a4c002c4e6515df3bd6bb6fec1bf3b056406",
       "method": "CLI linked exact file query + migration repair",
       "verification": "Root confirmed approved project ref and only EVL-114 prior history, applied immutable hash, verified session/RPC/direct-insert grant and 12/12 real hosted proofs with unique isolated synthetic identities on 2026-09-30."
+    },
+    {
+      "version": "20260930000100",
+      "issue": "EVL-126",
+      "sha256": "38527549de19c9f19db43b79dcdc24f690c524df6c01e7cadfa2f8a34a973cab",
+      "method": "Root exact reviewed file via linked Management API; migration history repair",
+      "verification": "Independent localSQL/hostedprivateACL-RLS proof passed; hosted7/8 initially exposed business40001 retryloop; corrected via immutable forward20260930000200, then8/8 actual hosted passed in20seconds."
+    },
+    {
+      "version": "20260930000200",
+      "issue": "EVL-126",
+      "sha256": "8fef21b96d7881ea801e0f056cf1d1fbd8127d2a105093c21782030de034b140",
+      "method": "Root exact reviewed forward file via linked Management API; migrationhistory repair",
+      "verification": "Root independent local PostgreSQL stale-conflict unchanged-state and late rollback/retry passed;8/8 actual hosted no skips passed20seconds, including PT409/HTTP409 one-winner staleedit race. Immutable after application."
     }
   ],
-  "schemaScope": "EVL-114 command proof and EVL-118 access policy applied; actual POS storage integration and production enrollment/recovery remain pending",
+  "schemaScope": "114command proof,118access and126open-order-only server boundary applied; no POS operational UI sync integration or durable-sale claim",
   "deployedFunctions": [
     {
       "slug": "owner-provision-user",
