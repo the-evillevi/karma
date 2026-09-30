@@ -60,21 +60,21 @@ function validTableCount(value) {
 }
 
 function inventoryOperatorError(error) {
-  const messages = {
-    invalid_quantity: 'Captura una cantidad válida con hasta tres decimales.',
-    fractional_base_unit: 'La cantidad debe respetar la unidad mínima de inventario; las piezas no admiten fracciones.',
-    unit_mismatch: 'La unidad seleccionada no corresponde a este artículo.',
-    unsafe_quantity: 'La cantidad está fuera del rango permitido.',
-    unsafe_balance: 'El saldo quedaría fuera del rango permitido.',
-    negative_balance: 'El movimiento no puede dejar existencias negativas.',
-    stale_revision: 'El artículo cambió desde que abriste el formulario. Revisa el saldo y vuelve a intentarlo.',
-    command_conflict: 'Este identificador ya se usó para otros datos. Revisa el historial antes de continuar.',
-    unknown_item: 'El artículo ya no está disponible. Revisa el inventario y vuelve a intentarlo.',
-    invalid_command: 'Revisa el artículo, cantidad, unidad y motivo capturados.',
-    invalid_record: 'Revisa los datos capturados antes de guardar.',
-    invalid_state: 'El registro local requiere revisión. No se aplicó el movimiento.',
-  };
-  return messages[error?.code] || 'No se pudo guardar el movimiento. Revisa el inventario e intenta de nuevo.';
+  const messages = new Map([
+    ['invalid_quantity', 'Captura una cantidad válida con hasta tres decimales.'],
+    ['fractional_base_unit', 'La cantidad debe respetar la unidad mínima de inventario; las piezas no admiten fracciones.'],
+    ['unit_mismatch', 'La unidad seleccionada no corresponde a este artículo.'],
+    ['unsafe_quantity', 'La cantidad está fuera del rango permitido.'],
+    ['unsafe_balance', 'El saldo quedaría fuera del rango permitido.'],
+    ['negative_balance', 'El movimiento no puede dejar existencias negativas.'],
+    ['stale_revision', 'El artículo cambió desde que abriste el formulario. Revisa el saldo y vuelve a intentarlo.'],
+    ['command_conflict', 'Este identificador ya se usó para otros datos. Revisa el historial antes de continuar.'],
+    ['unknown_item', 'El artículo ya no está disponible. Revisa el inventario y vuelve a intentarlo.'],
+    ['invalid_command', 'Revisa el artículo, cantidad, unidad y motivo capturados.'],
+    ['invalid_record', 'Revisa los datos capturados antes de guardar.'],
+    ['invalid_state', 'El registro local requiere revisión. No se aplicó el movimiento.'],
+  ]);
+  return messages.get(error?.code) || 'No se pudo guardar el movimiento. Revisa el inventario e intenta de nuevo.';
 }
 
 function textField(value, maxLength = 160) {

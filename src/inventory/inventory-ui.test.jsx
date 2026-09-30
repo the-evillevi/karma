@@ -248,3 +248,17 @@ it('synchronizes newer saved POS records before a later ordinary save', async ()
   expect(saved.orderSettings).toEqual({ tableCount: 5 });
   expect(saved.folioSeq).toBe(4000);
 });
+
+
+it('keeps a corrupt saved ledger intact and disables writes instead of reseeding it', async () => {
+  const broken = { schemaVersion: 1, revision: 99, items: [], entries: [] };
+  const storage = memoryStorage({ session: 'u1', inventoryState: broken });
+  const user = userEvent.setup();
+  mount();
+  await user.click(await screen.findByRole('button', { name: 'Inventario' }));
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect(screen.getByRole('button', { name: '+ Entrada' }).disabled).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Reintentar carga de inventario' }));
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).inventoryState).toEqual(broken);
+  expect(screen.getByRole('button', { name: '+ Entrada' }).disabled).toBe(true);
+});
