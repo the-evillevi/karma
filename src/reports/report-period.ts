@@ -29,6 +29,20 @@ export function recordedUtcInstant(value: unknown): string | null {
   const iso = new Date(value).toISOString();
   return iso.slice(0, 19) === value.slice(0, 19) ? iso : null;
 }
+/** Cancellation counts use the actual cancellation instant when available. */
+export function reportSaleInstant(sale: {
+  status?: string | null;
+  occurredAt?: unknown;
+  cancelledAt?: unknown;
+  cancelledBy?: { occurredAt?: unknown };
+}): string | null {
+  return sale.status === "cancelada"
+    ? (recordedUtcInstant(sale.cancelledAt) ??
+        recordedUtcInstant(sale.cancelledBy?.occurredAt) ??
+        recordedUtcInstant(sale.occurredAt))
+    : recordedUtcInstant(sale.occurredAt);
+}
+
 function formatter(timeZone: string) {
   if (typeof timeZone !== "string" || !timeZone || timeZone.length > 100)
     throw new ReportPeriodError("invalid_time_zone");
@@ -216,7 +230,7 @@ export function buildSalesPeriodReport(
     unknownRefundDateCount = 0,
     unknownStatusCount = 0;
   snapshot.sales.forEach((sale, index) => {
-    const at = recordedUtcInstant(sale.occurredAt);
+    const at = reportSaleInstant(sale);
     if (at === null) unknownDateIndexes.push(index);
     if (inPeriod(at, period)) {
       selectedIndexes.push(index);
@@ -263,6 +277,8 @@ export function buildSalesPeriodReport(
         continue;
       }
       if (!inPeriod(refundedAt, period)) continue;
+      if (sale.status === "cancelada")
+        throw new ReportPeriodError("refund_on_unpaid_cancellation");
       if (event.kind !== "refund" && event.kind !== "void")
         throw new ReportPeriodError("invalid_refund_kind");
       refundEvents.push({

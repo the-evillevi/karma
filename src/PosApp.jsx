@@ -5,6 +5,7 @@ import {
   customReportPeriod,
   presetReportPeriod,
   recordedUtcInstant,
+  reportSaleInstant,
 } from './reports/report-period.ts';
 import { css } from './css.js';
 import { Button } from '@/components/ui/button';
@@ -140,6 +141,7 @@ function reportPeriodError(error) {
     ['invalid_tip', 'Hay una propina mayor que el total de venta. Revisa el historial.'],
     ['invalid_payment_total', 'Los pagos capturados no coinciden con el total de una venta. Revisa el historial.'],
     ['invalid_refund_allocation', 'Las devoluciones capturadas no coinciden con su importe. Revisa el historial.'],
+    ['refund_on_unpaid_cancellation', 'Hay una devolución asociada a una cuenta cancelada sin cobro. Revisa el historial antes de calcular el corte.'],
     ['invalid_refund_kind', 'Hay un tipo de devolución no reconocido. Revisa el historial.'],
   ]);
   return messages.get(error?.code) || 'No se pudo calcular el periodo. Revisa la información guardada.';
@@ -2399,7 +2401,7 @@ export default class PosApp extends React.Component {
     V.setReportStart = event => this.setState({ reportStartLocal: event.target.value, repSel: null });
     V.setReportEnd = event => this.setState({ reportEndLocal: event.target.value, repSel: null });
     V.setReportRepeatedChoice = event => this.setState({ reportRepeatedChoice: event.target.value, repSel: null });
-    const reportProjection = this.currentReportProjection();
+    const reportProjection = V.mRep ? this.currentReportProjection() : { period: null, data: null, error: '' };
     const periodReport = reportProjection.data;
     V.reportPeriodLabel = reportProjection.period
       ? `${reportProjection.period.label} · UTC ${reportProjection.period.startUtc} — ${reportProjection.period.endUtcExclusive} (final excluido)`
@@ -2462,12 +2464,12 @@ export default class PosApp extends React.Component {
       try { return new Intl.DateTimeFormat('es-MX', { timeZone: s.reportTimeZone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(at)); }
       catch { return 'Fecha real sin dato'; }
     };
-    const saleRow = x => ({ folio: x.folio, fecha: branchDate(x.occurredAt), tipo: typeof x.tipo === 'string' ? x.tipo : 'Tipo sin dato', user: typeof x.cobro === 'string' ? x.cobro : 'Usuario sin dato', total: Number.isFinite(x.total) ? this.fmt(x.total) : '—', statusLabel: compensationLabel(x), statusVariant: (stTags[x.status] || ['Estado no identificado', 'outline'])[1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronización sin confirmar', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) });
+    const saleRow = x => ({ folio: x.folio, fecha: branchDate(reportSaleInstant(x)), tipo: typeof x.tipo === 'string' ? x.tipo : 'Tipo sin dato', user: typeof x.cobro === 'string' ? x.cobro : 'Usuario sin dato', total: Number.isFinite(x.total) ? this.fmt(x.total) : '—', statusLabel: compensationLabel(x), statusVariant: (stTags[x.status] || ['Estado no identificado', 'outline'])[1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronización sin confirmar', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) });
     V.repSales = rs.filter(x => x && typeof x.folio === 'string').map(saleRow);
-    V.unknownDateSales = storedSales.filter(sale => sale && typeof sale === 'object' && typeof sale.folio === 'string' && recordedUtcInstant(sale.occurredAt) === null).map(sale => ({ folio: sale.folio, label: typeof sale.fecha === 'string' ? sale.fecha : 'Etiqueta histórica sin fecha', type: typeof sale.tipo === 'string' ? sale.tipo : 'Tipo sin dato', status: compensationLabel(sale), open: () => this.setState({ repSel: sale.folio }) }));
+    V.unknownDateSales = storedSales.filter(sale => sale && typeof sale === 'object' && typeof sale.folio === 'string' && reportSaleInstant(sale) === null).map(sale => ({ folio: sale.folio, label: typeof sale.fecha === 'string' ? sale.fecha : 'Etiqueta histórica sin fecha', type: typeof sale.tipo === 'string' ? sale.tipo : 'Tipo sin dato', status: compensationLabel(sale), open: () => this.setState({ repSel: sale.folio }) }));
     V.periodReturns = periodReport ? periodReport.refundEvents.map(event => {
       const source = storedSales[event.saleIndex];
-      const original = Array.isArray(source?.compensations) ? source.compensations.find(item => item.commandId === event.commandId && item.occurredAt === event.occurredAt) : null;
+      const original = Array.isArray(source?.compensations) ? source.compensations.find(item => item.commandId === event.commandId && recordedUtcInstant(item.occurredAt) === event.occurredAt) : null;
       return { kind: event.kind === 'void' ? 'Anulación' : 'Reembolso', folio: typeof source?.folio === 'string' ? source.folio : 'Folio sin dato', date: branchDate(event.occurredAt), amount: this.fmt(centsToMoney(event.amountCents)), reason: typeof original?.reason === 'string' ? original.reason : 'Motivo sin dato', actor: typeof original?.actorName === 'string' ? original.actorName : 'Usuario sin dato' };
     }) : [];
     V.unknownDateReturns = storedSales.flatMap(sale => Array.isArray(sale?.compensations) ? sale.compensations.filter(event => event && ['refund', 'void'].includes(event.kind) && recordedUtcInstant(event.occurredAt) === null).map(event => ({ kind: event.kind === 'void' ? 'Anulación' : 'Reembolso', folio: typeof sale.folio === 'string' ? sale.folio : 'Folio sin dato', label: typeof event.fecha === 'string' ? event.fecha : 'Sin fecha real', amount: Number.isSafeInteger(event.amountCents) && event.amountCents >= 0 ? this.fmt(centsToMoney(event.amountCents)) : 'Importe sin validar' })) : []);
@@ -2476,7 +2478,7 @@ export default class PosApp extends React.Component {
     V.hasRepSel = !!sel && this.can('viewReports');
     if (sel) {
       V.dFolio = sel.folio; V.dStatusLabel = compensationLabel(sel); V.dStatusVariant = (stTags[sel.status] || ['Estado no identificado', 'outline'])[1];
-      V.dMeta = branchDate(sel.occurredAt) + ' · ' + textField(sel.tipo) + ' — creó ' + textField(sel.creo) + ' · cobró ' + textField(sel.cobro) + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'estado local');
+      V.dMeta = branchDate(reportSaleInstant(sel)) + ' · ' + textField(sel.tipo) + ' — creó ' + textField(sel.creo) + ' · cobró ' + textField(sel.cobro) + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'estado local');
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
       V.dItems = (Array.isArray(sel.items) ? sel.items : []).filter(i => i && typeof i === 'object').map(i => ({ qty: Number.isFinite(i.qty) ? i.qty : '—', name: textField(i.name), mods: textField(i.mods), hasMods: !!i.mods, total: Number.isFinite(i.total) ? this.fmt(i.total) : '—' }));
       const isExternalPayment = payment => {

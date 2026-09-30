@@ -91,7 +91,7 @@ it('uses local custom boundaries, keeps unknown dates separate, and exports only
   expect(csv).toContain('Legado sin fecha real; separado del periodo');
 });
 it('shows and exports a refund by its event date without importing the older receipt into today', async () => {
-  const now = new Date().toISOString();
+  const now = new Date().toISOString().slice(0, 19) + 'Z';
   const zone = 'America/Mexico_City';
   const today = presetReportPeriod('hoy', now, zone);
   const old = {
@@ -149,4 +149,24 @@ it('denies a captured export callback after role loss and creates no download fr
   act(() => ref.current.setState({ sales: [{ ...sale(), payments: [{ ...sale().payments[0], netAmountCents: 5100 }] }] }));
   act(() => ref.current.exportSales()); expect(dl.create).not.toHaveBeenCalled();
   expect(ref.current.state.toasts.at(-1).msg).toMatch(/^No se pudo calcular el periodo/);
+});
+
+
+it('shows a cancellation with its saved UTC cancellation time and no receipt', async () => {
+  const now = new Date().toISOString();
+  memory({ session: 'u1', sales: [{ ...sale('A-CANCELED'), status: 'cancelada', occurredAt: undefined, cancelledAt: now, fecha: 'Hoy · 09:00', payments: [] }] });
+  const user = userEvent.setup();
+  render(<PosApp />);
+  await user.click(await screen.findByRole('button', { name: 'Reportes' }));
+  expect(screen.getByRole('button', { name: 'Abrir detalle de venta A-CANCELED' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Abrir historial heredado A-CANCELED' })).toBeNull();
+});
+
+it('does not replay the financial report while an operator is typing a POS order', () => {
+  memory({ session: 'u1', sales: [] });
+  const ref = React.createRef();
+  render(<PosApp ref={ref} />);
+  const projection = vi.spyOn(ref.current, 'currentReportProjection');
+  act(() => ref.current.setState({ loading: false, order: { ...ref.current.state.order, name: 'Captura' } }));
+  expect(projection).not.toHaveBeenCalled();
 });

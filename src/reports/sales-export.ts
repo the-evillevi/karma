@@ -2,7 +2,11 @@ import {
   adaptPosStateToCompatibleSnapshot,
   type PosCompatibleSnapshotInput,
 } from "../offline-sync/pos-compatible-snapshot.ts";
-import { recordedUtcInstant, type ReportPeriod } from "./report-period.ts";
+import {
+  recordedUtcInstant,
+  reportSaleInstant,
+  type ReportPeriod,
+} from "./report-period.ts";
 
 /** Local recorded evidence only. No upload receipt or historical date is inferred. */
 export interface SalesExportOptions extends PosCompatibleSnapshotInput {
@@ -111,7 +115,7 @@ export function createSalesCsv(
   let unknownDateCount = 0;
   let periodSaleCount = 0;
   for (const sale of snapshot.sales) {
-    const saleAt = realDate(sale.occurredAt);
+    const saleAt = reportSaleInstant(sale);
     const unknownSaleDate = saleAt === null;
     const includeSale =
       !period || inPeriod(saleAt) || (period !== undefined && unknownSaleDate);
@@ -129,7 +133,7 @@ export function createSalesCsv(
         "venta",
         sale.folio,
         null,
-        ...dateCells(sale.occurredAt),
+        ...dateCells(saleAt ?? sale.occurredAt),
         ...base,
         money(sale.money.totalCents),
         money(sale.money.tipCents),
@@ -155,7 +159,7 @@ export function createSalesCsv(
         "pago",
         sale.folio,
         payment.paymentId,
-        ...dateCells(sale.occurredAt),
+        ...dateCells(saleAt ?? sale.occurredAt),
         ...base,
         null,
         null,
@@ -202,6 +206,10 @@ export function createSalesCsv(
         continue;
       }
       if (eventAt === null || (period && !inPeriod(eventAt))) continue;
+      if (sale.status === "cancelada")
+        throw new TypeError(
+          "Refund on an unpaid cancellation requires reconciliation",
+        );
       if (event.allocations.length === 0) {
         rows.push([
           event.kind,

@@ -1,0 +1,24 @@
+{
+  "reports": {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"success\":true,\"issueCount\":0,\"issues\":null}"
+        }
+      ]
+    }
+  },
+  "PosApp": {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"success\":true,\"issueCount\":0,\"issues\":null}"
+        }
+      ]
+    }
+  }
+}

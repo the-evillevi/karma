@@ -29,6 +29,7 @@ it('records a refund offline once, keeps sale/payment snapshots and displays gro
   confirm(callback);
   expect(read().sales[0]).toMatchObject({ status: 'completada', total: 50, payments: sale.payments, items: sale.items, compensations: [{ kind: 'refund', amountCents: 2000, actorId: 'u1', reason: 'Corrección autorizada' }] });
   expect(read().pending).toHaveLength(1);
+  act(() => app.setState({ module: 'reportes' }));
   expect(app.renderVals()).toMatchObject({ repVentas: '$50.00', repRefunds: '$20.00', repNet: '$30.00' });
   confirm(callback);
   expect(read().sales[0].compensations).toHaveLength(1);
@@ -68,6 +69,7 @@ it('fully voids manually without removing a closed sale or reopening a chargeabl
   expect(read().sales[0]).toMatchObject({ status: 'completada', total: 50, compensations: [{ kind: 'void', amountCents: 5000 }] });
   expect(read().open).toHaveLength(0);
   expect(read().kitchenTickets).toHaveLength(0);
+  act(() => app.setState({ module: 'reportes' }));
   expect(app.renderVals()).toMatchObject({ repVentas: '$50.00', repRefunds: '$50.00', repNet: '$0.00', repVoids: 1 });
 });
 it('exposes the actual report refund flow with a required reason', async () => {

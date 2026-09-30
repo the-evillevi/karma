@@ -153,3 +153,53 @@ test("unknown date and payment facts remain explicit; tips and cancelled capture
   assert.ok(result.unknownPaymentCount > 0);
   assert.deepEqual(source, before);
 });
+
+test("actual cancellation instants determine cancellation counts without inventing legacy dates", () => {
+  const period = presetReportPeriod(
+    "hoy",
+    metadata.capturedAt,
+    "America/Mexico_City",
+  );
+  const canceled = {
+    ...sale("Hoy · 09:00"),
+    status: "cancelada",
+    cancelledAt: "2026-09-30T11:00:00Z",
+    payments: [],
+  };
+  const before = structuredClone(canceled);
+  const result = buildSalesPeriodReport([canceled], period, metadata);
+  assert.deepEqual(result.selectedIndexes, [0]);
+  assert.deepEqual(result.unknownDateIndexes, []);
+  assert.equal(result.cancelledCount, 1);
+  assert.equal(result.grossReceiptsCents, 0);
+  assert.deepEqual(canceled, before);
+});
+
+test("a refund attached to an unpaid cancellation cannot reduce period receipts", () => {
+  const canceled = {
+    ...sale("2026-09-30T09:00:00Z"),
+    status: "cancelada",
+    payments: [],
+    compensations: [
+      {
+        commandId: "invalid-return",
+        kind: "refund",
+        amountCents: 1000,
+        actorName: "Encargado",
+        actorId: "manager",
+        occurredAt: "2026-09-30T11:00:00Z",
+        reason: "Revisar",
+        allocations: [],
+      },
+    ],
+  };
+  assert.throws(
+    () =>
+      buildSalesPeriodReport(
+        [canceled],
+        presetReportPeriod("hoy", metadata.capturedAt, "America/Mexico_City"),
+        metadata,
+      ),
+    { code: "refund_on_unpaid_cancellation" },
+  );
+});
