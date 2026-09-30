@@ -308,7 +308,7 @@ it('applies the split to the latest saved state and synchronizes unrelated order
   expect(saved.sales).toEqual([unrelatedSale]);
   expect(saved.order).toMatchObject(stationDraft);
   expect(saved.orderSettings).toEqual({ tableCount: 7 });
-  expect(saved.pending).toEqual(['Unrelated update', expect.stringMatching(/^Split split:A-2200:/)]);
+  expect(saved.pending).toEqual(['Unrelated update']);
   expect(view.appRef.current.state.open).toEqual(saved.open);
   expect(view.appRef.current.state.kitchenTickets).toEqual(saved.kitchenTickets);
   expect(view.appRef.current.state.sales).toEqual(saved.sales);

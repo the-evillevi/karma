@@ -685,7 +685,7 @@ describe('manual checkout tips and offline tender capture', () => {
     const pos = render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
 
     await screen.findByRole('button', { name: 'Punto de venta' });
-    await user.click(screen.getByRole('button', { name: 'Simular pérdida de conexión' }));
+    await user.click(screen.getByRole('button', { name: 'Simular pérdida de red' }));
     await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
     await user.click((await screen.findAllByRole('button', { name: 'Cobrar' }))[0]);
     await user.click(await screen.findByRole('button', { name: 'Continuar al pago' }));
