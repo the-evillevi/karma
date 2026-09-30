@@ -1,0 +1,11 @@
+{
+  "provider": "supabase",
+  "name": "karma-pos",
+  "projectRef": "vwvlsayxsunefeehiavt",
+  "region": "us-east-1",
+  "dashboard": "https://supabase.com/dashboard/project/vwvlsayxsunefeehiavt",
+  "createdAt": "2026-09-29",
+  "schemaDeployed": false,
+  "productionReady": false,
+  "credentials": "Stored privately outside the public repository; never commit keys or passwords."
+}
