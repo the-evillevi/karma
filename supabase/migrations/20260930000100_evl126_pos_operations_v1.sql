@@ -105,13 +105,14 @@ begin
   if pg_catalog.jsonb_typeof(p_value) is distinct from 'object' then
     raise exception 'Invalid % object' , p_label using errcode = '22023';
   end if;
+  -- Whitelist keys in both modes; exact mode also requires each listed key.
   if exists (
     select 1 from pg_catalog.jsonb_object_keys(p_value) as supplied(key)
     where not (supplied.key = any(p_keys))
   ) or (p_exact and exists (
     select 1 from pg_catalog.unnest(p_keys) as required(key)
     where not (p_value ? required.key)
-  )) or (p_exact and pg_catalog.jsonb_object_length(p_value) <> pg_catalog.cardinality(p_keys)) then
+  )) then
     raise exception 'Invalid % fields' , p_label using errcode = '22023';
   end if;
 end;
@@ -191,16 +192,22 @@ set search_path = ''
 as $$
 declare
   v_text text;
+  v_instant timestamptz;
 begin
   v_text := pos_private.require_text(p_value, p_label, 40, false, true, false);
   if v_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?Z$' then
     raise exception 'Invalid %' , p_label using errcode = '22023';
   end if;
   begin
-    perform v_text::timestamptz;
+    v_instant := v_text::timestamptz;
   exception when others then
     raise exception 'Invalid %' , p_label using errcode = '22023';
   end;
+  if (pg_catalog.to_char(v_instant at time zone 'UTC', 'YYYY-MM-DD') || 'T' ||
+      pg_catalog.to_char(v_instant at time zone 'UTC', 'HH24:MI:SS'))
+    is distinct from pg_catalog.substr(v_text, 1, 19) then
+    raise exception 'Invalid %' , p_label using errcode = '22023';
+  end if;
   return v_text;
 end;
 $$;
@@ -666,7 +673,7 @@ begin
       perform pos_private.require_object_keys(v_payload, 'order.details-changed payload', array[
         'orderId', 'tableId', 'customer'
       ], false);
-      if pg_catalog.jsonb_object_length(v_payload) < 2 then
+      if not (v_payload ? 'tableId' or v_payload ? 'customer') then
         raise exception 'A details change must change a field' using errcode = '22023';
       end if;
       if v_payload ? 'tableId' then

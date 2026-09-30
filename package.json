@@ -23,6 +23,7 @@
     "test:pos-journal:e2e": "playwright test --config scripts/offline-sync/pos-journal.playwright.config.js",
     "test:pos-operations-journal:e2e": "playwright test --config scripts/offline-sync/pos-operations-journal.playwright.config.js",
     "test:pos-operations-server:e2e": "playwright test --config scripts/offline-sync/pos-operations-server-v126.playwright.config.js",
+    "test:pos-operations-server:local": "bash scripts/offline-sync/run-pos-operations-server-v126-local-smoke.sh",
     "check:client-bundle": "node scripts/ci/check-client-bundle.mjs",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:domain && pnpm test:components && pnpm test:edge-access && pnpm build && pnpm check:client-bundle && pnpm build:pwa && pnpm test:pwa:e2e && pnpm test:pos-journal:e2e && pnpm test:pos-operations-journal:e2e && pnpm check:client-bundle",
     "test:components": "vitest run",

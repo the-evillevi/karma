@@ -6,6 +6,8 @@ The candidate forward migration `20260930000100_evl126_pos_operations_v1.sql` an
 
 The hosted lane is `pnpm test:pos-operations-server:e2e` and stays skipped unless `SUPABASE_V126_TESTS_ENABLED=1` is explicitly set. It reads only the approved private fixture's URL, anon key, and synthetic user credentials; it never uses the service-role key. Root will run that lane only after reviewing and applying the exact migration candidate to the isolated project.
 
+`pnpm test:pos-operations-server:local` applies immutable migrations 114/118 and the candidate to a disposable, network-isolated Supabase PostgreSQL 17.6.1.166 container, then checks private-table ACL/RLS, RPC grants, supported order open/edit/read, strict payload validation, exact retry, and late transaction rollback/retry. It never connects to a hosted project and removes its own container on exit.
+
 The sections below describe the applied baseline, candidate boundary, and remaining contract gates. No remote writes or deployment were performed for this checkpoint.
 
 ## Current boundary
@@ -57,6 +59,12 @@ Then add, separately test and review: discount/cancel; preparation and shared li
 ## Sanitized read boundary
 
 Keep the command log, heads, and full projections private. Add dedicated session-bound read functions that recheck current actor/session/device/role on every request and derive branch scope from the verified session, not a caller-supplied branch or cursor. A preparation work view can return only ticket/order IDs, line/modifier labels, notes, preparation status, and bounded transition metadata; exclude customer name/phone/address, totals, prices, discounts, payment/refund data, raw commands, roster/PINs, and credentials. A cash work view may return the account/contact/table/line/price facts the role needs, but not staff secrets. Report/history access remains Dueña/Encargado. Use an opaque or validated branch-scoped sequence cursor with bounded page sizes; cross-branch, stale-session, malformed cursor, and revoked identity cases fail closed. Do not broaden EVL-118 raw-command RLS.
+
+The candidate cash read RPC is a live change feed, not a point-in-time snapshot spanning multiple pages. It orders visible aggregate updates by the branch sequence, whose row lock serializes sequence allocation through commit. Therefore an operation committed after a page snapshot receives a sequence above that page's cursor and remains eligible on a later request. A concurrent update can also cause an order returned on one page to reappear later with a newer revision; consumers must merge by `orderId` and keep the highest revision. The hosted proof races an append against a page read and continues from the returned cursor to verify the new order is not skipped.
+
+The current server allowlist changes one order aggregate per command, so a server sequence cannot be split across multiple order rows by a page limit. Before enabling a multi-aggregate server action, change pagination to a composite `(sequence, aggregate_id)` cursor or return every row sharing the boundary sequence before advancing the cursor; otherwise one page could skip a second aggregate from the same command.
+
+The server timestamp parser is stricter than JavaScript date parsing: it accepts only the bounded UTC `Z` syntax and rejects calendar/time values that PostgreSQL would normalize, including `24:00`, leap seconds, and invalid calendar days. It compares the parsed UTC date and whole-second time back to the original prefix, then retains the original timestamp string so equivalent fractional spellings such as `.0Z` and `.000Z` stay byte-for-byte distinct command facts. The local reducer's parser is not evidence that every such timestamp will pass this server boundary.
 
 ## Acceptance proof before UI integration
 

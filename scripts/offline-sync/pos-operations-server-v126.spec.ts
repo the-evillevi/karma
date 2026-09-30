@@ -545,6 +545,42 @@ test.describe("EVL-126 server order operations v1", () => {
       "22023",
     );
 
+    const missingRequiredField = structuredClone(base);
+    if (missingRequiredField.action === "order.opened")
+      delete (
+        missingRequiredField.payload as unknown as Record<string, unknown>
+      ).tableId;
+    expect(
+      (await append(owner.client, session, missingRequiredField)).error?.code,
+    ).toBe("22023");
+
+    const detailsWithoutChange = detailsChanged(
+      owner.actorId,
+      deviceId,
+      `v126-order-${randomUUID()}`,
+      1,
+      null,
+    );
+    if (detailsWithoutChange.action === "order.details-changed")
+      delete (detailsWithoutChange.payload as Record<string, unknown>).tableId;
+    expect(
+      (await append(owner.client, session, detailsWithoutChange)).error?.code,
+    ).toBe("22023");
+
+    const detailsWithExtraField = detailsChanged(
+      owner.actorId,
+      deviceId,
+      `v126-order-${randomUUID()}`,
+      1,
+      null,
+    );
+    if (detailsWithExtraField.action === "order.details-changed")
+      (detailsWithExtraField.payload as Record<string, unknown>).projection =
+        {};
+    expect(
+      (await append(owner.client, session, detailsWithExtraField)).error?.code,
+    ).toBe("22023");
+
     const catalogClaim = structuredClone(base);
     if (catalogClaim.action === "order.opened") {
       catalogClaim.payload.lines[0]!.priceEvidence = "catalog-versioned";
@@ -567,6 +603,18 @@ test.describe("EVL-126 server order operations v1", () => {
     expect((await append(owner.client, session, fractional)).error?.code).toBe(
       "22023",
     );
+
+    for (const timestamp of [
+      "2026-09-30T24:00:00.000Z",
+      "2026-09-30T23:59:60.000Z",
+      "2026-02-30T12:00:00.000Z",
+    ]) {
+      const nonCanonicalTime = structuredClone(base);
+      nonCanonicalTime.occurredAt = timestamp;
+      expect(
+        (await append(owner.client, session, nonCanonicalTime)).error?.code,
+      ).toBe("22023");
+    }
     const validAfterRejectedPayload = await append(owner.client, session, base);
     expect(validAfterRejectedPayload.error?.code ?? null).toBeNull();
     expect(validAfterRejectedPayload.data?.[0]?.outcome).toBe("inserted");
@@ -683,7 +731,49 @@ test.describe("EVL-126 server order operations v1", () => {
     expect(["TABLE-A", "TABLE-B"]).toContain(persisted?.tableId);
   });
 
-  test("scopes ordinary reads to the creator and does not expose private command tables", async () => {
+  test("continues the live cursor across an order appended during pagination", async () => {
+    const owner = await signIn("OWNER");
+    const session = await bind(owner.client);
+    const firstPage = await readOrders(owner.client, session, 0, 1);
+    expect(firstPage.error?.code ?? null).toBeNull();
+    expect(firstPage.data?.[0]).toBeDefined();
+    let cursor = firstPage.data![0]!.server_cursor as number;
+
+    const orderId = `v126-order-${randomUUID()}`;
+    const command = opened(
+      owner.actorId,
+      orderId,
+      env.SUPABASE_CASH_DEVICE_ID!,
+    );
+    const [write, racingPage] = await Promise.all([
+      append(owner.client, session, command),
+      readOrders(owner.client, session, cursor, 1),
+    ]);
+    expect(write.error?.code ?? null).toBeNull();
+    expect(racingPage.error?.code ?? null).toBeNull();
+
+    const firstRacingResult = racingPage.data?.[0];
+    expect(firstRacingResult).toBeDefined();
+    let orders = firstRacingResult?.orders as
+      Array<Record<string, unknown>> | undefined;
+    let observed = orders?.some((order) => order.orderId === orderId) ?? false;
+    cursor = firstRacingResult!.server_cursor as number;
+
+    for (let pageNumber = 0; pageNumber < 100 && !observed; pageNumber += 1) {
+      const nextPage = await readOrders(owner.client, session, cursor, 1);
+      expect(nextPage.error?.code ?? null).toBeNull();
+      const result = nextPage.data?.[0];
+      expect(result).toBeDefined();
+      orders = result?.orders as Array<Record<string, unknown>> | undefined;
+      observed = orders?.some((order) => order.orderId === orderId) ?? false;
+      const nextCursor = result!.server_cursor as number;
+      expect(nextCursor).toBeGreaterThanOrEqual(cursor);
+      cursor = nextCursor;
+    }
+    expect(observed).toBe(true);
+  });
+
+  test("scopes ordinary reads to the creator", async () => {
     const cashier = await signIn("CASHIER");
     const cashierSession = await bind(cashier.client);
     const cashierOrderId = `v126-order-${randomUUID()}`;
@@ -733,12 +823,6 @@ test.describe("EVL-126 server order operations v1", () => {
     expect(
       await findVisibleOrder(owner.client, ownerSession, cashierOrderId),
     ).toBeDefined();
-
-    const directRead = await owner.client
-      .from("pos_operation_commands")
-      .select("command_id")
-      .limit(1);
-    expect(directRead.error).not.toBeNull();
   });
 
   test("known membership revocation prevents an exact retry and is restored for the fixture", async () => {
