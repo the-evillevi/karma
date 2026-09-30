@@ -80,7 +80,7 @@ export default class ComandaApp extends React.Component {
   render() {
     const V = this.renderVals();
     return (
-      <div style={css('min-height:100vh;display:flex;justify-content:center;padding:24px 12px')}>
+      <div style={css('min-height:var(--karma-viewport-height,100vh);display:flex;justify-content:center;padding:24px 12px')}>
         <div style={css('width:390px;max-width:100%;background:#f0eee6;border-radius:24px;overflow:hidden;display:flex;flex-direction:column;min-height:760px')}>
           <div style={css('background:#faf9f5;border-bottom:1px solid #e2e0d6;padding:18px 18px 14px;display:flex;flex-direction:column;gap:12px;position:sticky;top:0;z-index:10')}>
             <div style={css('display:flex;align-items:baseline;gap:10px')}>

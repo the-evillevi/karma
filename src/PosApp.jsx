@@ -691,7 +691,7 @@ export default class PosApp extends React.Component {
       <>
 
 {(V.loading) && (<>
-<div style={css("height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px")}>
+<div style={css("height:var(--karma-viewport-height,100vh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px")}>
 <div style={css("font-family:Georgia,serif;font-style:italic;font-size:36px")}>Karma</div>
 <div style={css("width:22px;height:22px;border:2px solid #e2e0d6;border-top-color:#836953;border-radius:50%;animation:spin .8s linear infinite")}></div>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cargando estación</div>
@@ -699,7 +699,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.isLogin) && (<>
-<div style={css("min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px")}>
+<div style={css("min-height:var(--karma-viewport-height,100vh);display:flex;align-items:center;justify-content:center;padding:32px")}>
 <div style={css("width:420px;max-width:100%;display:flex;flex-direction:column;gap:24px;animation:rise .35s ease")}>
 <div style={css("text-align:center")}>
 <div style={css("font-family:Georgia,serif;font-style:italic;font-size:42px;line-height:1")}>Karma</div>
@@ -731,7 +731,7 @@ export default class PosApp extends React.Component {
 </>)}
 
 {(V.isApp) && (<>
-<div style={css("display:flex;height:100vh;overflow:hidden")}>
+<div style={css("display:flex;height:var(--karma-viewport-height,100vh);overflow:hidden")}>
 <aside style={css("width:236px;flex:none;background:#faf9f5;border-right:1px solid #e2e0d6;display:flex;flex-direction:column;padding:20px 14px 16px;gap:4px;overflow-y:auto")}>
 <div style={css("padding:2px 10px 14px")}>
 <div style={css("font-family:Georgia,serif;font-style:italic;font-size:27px;line-height:1")}>Karma</div>

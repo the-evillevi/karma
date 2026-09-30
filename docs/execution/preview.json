@@ -1,0 +1,11 @@
+{
+  "provider": "github-pages",
+  "url": "https://the-evillevi.github.io/karma/",
+  "sourceBranch": "codex/karma-integration",
+  "environment": "karma-demo-preview",
+  "scope": "Public seeded UX demo; no real payments or private Supabase proof credentials",
+  "workflow": ".github/workflows/preview.yml",
+  "reachableVerified": false,
+  "productionReady": false,
+  "localProof": "Preview build/bundle scan and demo-labelled POS/kitchen round-trip browser regression passed"
+}

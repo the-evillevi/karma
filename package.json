@@ -22,7 +22,9 @@
     "test:pwa:e2e": "playwright test --config scripts/offline-sync/pwa.playwright.config.js",
     "check:client-bundle": "node scripts/ci/check-client-bundle.mjs",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:domain && pnpm test:components && pnpm build && pnpm check:client-bundle && pnpm build:pwa && pnpm test:pwa:e2e && pnpm check:client-bundle",
-    "test:components": "vitest run"
+    "test:components": "vitest run",
+    "build:preview": "node scripts/ci/build-preview.mjs",
+    "test:preview:e2e": "playwright test --config scripts/offline-sync/preview.playwright.config.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

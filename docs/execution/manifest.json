@@ -200,8 +200,8 @@
       "requires": [
         "EVL-114"
       ],
-      "stage": "checkpointed",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_foundation",
       "commits": [
         "c38a398",
         "741aaef"
@@ -287,8 +287,8 @@
         "EVL-154",
         "EVL-116"
       ],
-      "stage": "checkpointed",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_design",
       "commits": [
         "84d3d4a",
         "0505fa0",
@@ -442,14 +442,14 @@
         "EVL-123",
         "EVL-158"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_catalog",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Implement actual quick-sale station; recipe/BOM belongsEVL129, not121."
     },
     {
       "id": "EVL-185",
@@ -945,11 +945,12 @@
   ],
   "sessionCheckpoint": {
     "manualResume": true,
-    "reason": "Preserve rate-limit buffer for review and durable handoff",
-    "runningAgents": 0,
+    "reason": "User authorized manual continuation after allowance reset",
+    "runningAgents": 3,
     "integration": "ac4a163",
     "mainMerged": false,
     "nextIssue": "EVL-116",
-    "resumeDocument": "docs/execution/RESUME.md"
+    "resumeDocument": "docs/execution/RESUME.md",
+    "status": "resumed"
   }
 }
