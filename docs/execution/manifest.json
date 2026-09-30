@@ -200,14 +200,24 @@
       "requires": [
         "EVL-114"
       ],
-      "stage": "implementing",
-      "agent": "implement_foundation",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "LunaHigh implementing quality/PWA/envdiagnostics/migrations; root hostingpreview after codeproof."
+      "stage": "checkpointed",
+      "agent": null,
+      "commits": [
+        "c38a398",
+        "741aaef"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/10",
+      "checks": [
+        "Root pnpm check passed: scopedformat/lint/types,14Node,builds,bundlescan,PWAoffline restart",
+        "Rootstrengthenedlogin/pageerrorofflineproofpassed",
+        "Agent /karma/ subpath buildverified",
+        "Remote CI and actualpreview URL stillpending"
+      ],
+      "review": "bounded_foundation_fixed_rereviewed",
+      "blockers": [
+        "Fulllegacyqualitycoverage, safeupdateUI, componentCIintegration andhostedpreview stillimplementationwork."
+      ],
+      "nextAction": "Manuallyresume116remaininggates; reconcilewithreviewed156integrationall4entriesbeforemerge. No118startyet."
     },
     {
       "id": "EVL-118",
@@ -277,23 +287,25 @@
         "EVL-154",
         "EVL-116"
       ],
-      "stage": "preparing",
-      "agent": "implement_design",
+      "stage": "checkpointed",
+      "agent": null,
       "commits": [
         "84d3d4a",
         "0505fa0",
-        "69c8d46"
+        "69c8d46",
+        "4f0446f",
+        "26cbb43"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/9",
       "checks": [
         "Initialcheckpointroot4tests/3buildpass",
         "Rootcomponentdemo desktop1280/mobile390visual andactualPOSdesktopstartup/loginpass"
       ],
-      "review": "first_checkpoint_fixed_rereviewed_second_batch_pending",
+      "review": "two_batches_fixed_rereviewed",
       "blockers": [
-        "EVL-116 integration and desktop/mobile visual verification pending."
+        "Remainingmodulemappingandwiderflowregression; reviewed116configurationintegrationpending."
       ],
-      "nextAction": "Review69c8d46; remainingmodulemappingsand116integrationopen. Do notmarkcomplete."
+      "nextAction": "Resumecheckout/menu/inventory/reports/configuration/editormapping; fullflowregression and116integrationpending."
     },
     {
       "id": "EVL-158",
@@ -930,5 +942,14 @@
       "blockers": [],
       "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
     }
-  ]
+  ],
+  "sessionCheckpoint": {
+    "manualResume": true,
+    "reason": "Preserve rate-limit buffer for review and durable handoff",
+    "runningAgents": 0,
+    "integration": "ac4a163",
+    "mainMerged": false,
+    "nextIssue": "EVL-116",
+    "resumeDocument": "docs/execution/RESUME.md"
+  }
 }
