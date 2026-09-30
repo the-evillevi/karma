@@ -46,8 +46,14 @@ import {
   inventorySummary,
   validateInventoryState,
 } from './inventory/inventory-ledger.mjs';
+import {
+  createRecipeCatalog,
+  publishRecipe,
+  validateRecipeCatalog,
+} from './inventory/recipe-ledger.mjs';
 
 const compensationMethodLabels = new Map([['cash', 'Efectivo'], ['card', 'Tarjeta'], ['transfer', 'Transferencia']]);
+const RecipeConfigurationPanel = React.lazy(() => import('./inventory/RecipeConfigurationPanel.jsx'));
 const DEFAULT_TABLE_COUNT = 12;
 const MAX_TABLE_COUNT = 50;
 
@@ -215,6 +221,9 @@ export default class PosApp extends React.Component {
   constructor(props) {
     super(props);
     this._dialogReturnFocus = null;
+    this.onRecipeEditorChange = recipeEditorOpen => {
+      if (recipeEditorOpen !== this.state.recipeEditorOpen) this.setState({ recipeEditorOpen });
+    };
     const D = window.KARMA;
     this._secureStorage = props.accessMode === 'secure';
     this._storageKey = this._secureStorage ? (props.accessStorageKey || 'karma-pos-secure-v1:unconfigured:unconfigured') : 'karma-pos-v1';
@@ -225,6 +234,12 @@ export default class PosApp extends React.Component {
     if (Object.prototype.hasOwnProperty.call(sv, 'inventoryState')) {
       try { inventoryState = validateInventoryState(sv.inventoryState); }
       catch { inventoryError = 'El registro guardado de inventario no es válido. No se aplicaron saldos ni movimientos.'; }
+    }
+    let recipeCatalog = createRecipeCatalog();
+    let recipeError = '';
+    if (Object.prototype.hasOwnProperty.call(sv, 'recipeCatalog')) {
+      try { recipeCatalog = validateRecipeCatalog(sv.recipeCatalog); }
+      catch { recipeCatalog = null; recipeError = 'El historial guardado de recetas no es válido. No se aplicaron cambios.'; }
     }
     this._folio = sv.folioSeq || 1051;
     const savedOrder = sv.order || this.blank();
@@ -247,11 +262,12 @@ export default class PosApp extends React.Component {
       prods: sv.prods || D.products.map(p => ({ ...p })),
       usersX: this._secureStorage ? [] : sv.usersX || D.users.map(u => ({ ...u })),
       movs: D.movements.slice(),
-      inventoryState, inventoryError,
+      inventoryState, inventoryError, recipeCatalog, recipeError,
       ed: null, dlg: null, ck: null,
       cat: 'concafe', search: '',
       admCat: 'all', admSearch: '', admSel: null, admForm: null,
       invTab: 'stock', invSearch: '', invLow: false,
+      recipeEditorOpen: false,
       range: 'hoy', repSel: null,
       cfgTab: 'usuarios', selUser: null, suForm: null, createdCredential: null,
       flags: sv.flags || { autoprint: true, fpEfectivo: true, fpTarjeta: true, fpTransfer: true, propCustom: true, cancelMotivo: true, cancelAut: true }
@@ -299,6 +315,10 @@ export default class PosApp extends React.Component {
               try { return { inventoryState: validateInventoryState(v.inventoryState), inventoryError: '' }; }
               catch { return { inventoryState: null, inventoryError: 'El registro guardado de inventario no es válido. No se aplicaron saldos ni movimientos.' }; }
             })() : {}),
+            ...(Object.prototype.hasOwnProperty.call(v, 'recipeCatalog') ? (() => {
+              try { return { recipeCatalog: validateRecipeCatalog(v.recipeCatalog), recipeError: '' }; }
+              catch { return { recipeCatalog: null, recipeError: 'El historial guardado de recetas no es válido. No se aplicaron cambios.' }; }
+            })() : {}),
           });
         } catch (_) {}
       }
@@ -319,7 +339,7 @@ export default class PosApp extends React.Component {
     if (s.loading) return report({ status: 'unknown', reason: 'La estación todavía está cargando.' });
     if (this._secureStorage && this.role() === 'duena' && s.createdCredential?.ownerUserId === this.accessContext()?.userId) return report({ status: 'blocked', reason: 'Hay una contraseña inicial visible. Entrégala a la persona y ciérrala con «Listo, cerrar credencial» antes de actualizar.' });
     if (s.module === 'checkout' && s.ck) return report({ status: 'blocked', reason: 'Hay un cobro abierto. Termina el cobro o vuelve a la orden antes de actualizar.' });
-    if (s.dlg || s.ed) return report({ status: 'blocked', reason: 'Hay un diálogo o edición abierta. Ciérrala y revisa los cambios antes de actualizar.' });
+    if (s.dlg || s.ed || s.recipeEditorOpen) return report({ status: 'blocked', reason: 'Hay un diálogo o edición abierta. Ciérrala y revisa los cambios antes de actualizar.' });
     if (s.admSel || s.admForm || s.selUser || s.suForm || s.repSel || s.pin) return report({ status: 'blocked', reason: 'Hay una edición, detalle o captura abierta. Ciérrala y revisa los cambios antes de actualizar.' });
     const order = s.order || this.blank();
     const dirty = !!(order.folio || order.items?.length || order.name?.trim() || order.mesa?.trim() || order.discount || order.type !== 'local');
@@ -334,6 +354,7 @@ export default class PosApp extends React.Component {
       open: s.open, kitchenTickets: s.kitchenTickets,
       sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq,
       ...(s.inventoryState ? { inventoryState: s.inventoryState } : {}),
+      ...(s.recipeCatalog ? { recipeCatalog: s.recipeCatalog } : {}),
     };
   }
   writePersistedState(s = this.state, folioSeq = this._folio) {
@@ -344,6 +365,7 @@ export default class PosApp extends React.Component {
       if (raw !== null) {
         const latest = JSON.parse(raw);
         if (latest && typeof latest === 'object' && Object.prototype.hasOwnProperty.call(latest, 'inventoryState')) outgoing.inventoryState = latest.inventoryState;
+        if (latest && typeof latest === 'object' && Object.prototype.hasOwnProperty.call(latest, 'recipeCatalog')) outgoing.recipeCatalog = latest.recipeCatalog;
       }
       localStorage.setItem(key, JSON.stringify(outgoing));
       return true;
@@ -367,6 +389,13 @@ export default class PosApp extends React.Component {
       }
       patch.orderSettings = persisted.orderSettings;
     } else patch.orderSettings = this.state.orderSettings;
+    if (Object.prototype.hasOwnProperty.call(persisted, 'recipeCatalog')) {
+      patch.recipeCatalog = validateRecipeCatalog(persisted.recipeCatalog);
+      patch.recipeError = '';
+    } else {
+      patch.recipeCatalog = this.state.recipeCatalog;
+      patch.recipeError = this.state.recipeError;
+    }
     if (Object.prototype.hasOwnProperty.call(persisted, 'prods')) {
       if (!Array.isArray(persisted.prods) || persisted.prods.some(product => !product || typeof product !== 'object' || Array.isArray(product)
         || typeof product.id !== 'string' || typeof product.name !== 'string')) throw new TypeError('saved products are invalid');
@@ -1342,6 +1371,73 @@ export default class PosApp extends React.Component {
       return 'keep';
     }
   }
+  async confirmRecipePublication(command) {
+    if (!this.requireAction('adjustInventory', command?.reason || ''))
+      return { ok: false, message: 'Tu acceso actual no permite publicar cambios de receta.' };
+    try {
+      const { default: currentProductCatalog } = await import('../catalog/catalog.json');
+      if (!this.requireAction('adjustInventory', command?.reason || ''))
+        return { ok: false, message: 'Tu acceso actual no permite publicar cambios de receta.' };
+      const actor = this.user();
+      if (!actor)
+        return { ok: false, message: 'Tu identidad ya no está disponible. Revisa el acceso y vuelve a abrir la receta.' };
+      const key = this._storageKey || 'karma-pos-v1';
+      const raw = localStorage.getItem(key);
+      const persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted))
+        throw Object.assign(new Error('invalid persisted record'), { code: 'invalid_record' });
+      const currentRecipeCatalog = Object.prototype.hasOwnProperty.call(persisted, 'recipeCatalog')
+        ? validateRecipeCatalog(persisted.recipeCatalog)
+        : createRecipeCatalog();
+      if (!Object.prototype.hasOwnProperty.call(persisted, 'inventoryState'))
+        throw Object.assign(new Error('inventory ledger missing'), { code: 'invalid_inventory' });
+      const currentInventory = validateInventoryState(persisted.inventoryState);
+      const operational = this.latestOperationalState(persisted);
+      const currentActor = { actorId: actor.id, role: actor.role };
+      const publishCommand = {
+        ...command,
+        actorId: actor.id,
+        actorName: actor.name,
+        roleSnapshot: actor.role,
+      };
+      const result = publishRecipe(
+        currentRecipeCatalog,
+        publishCommand,
+        currentActor,
+        currentProductCatalog,
+        currentInventory,
+      );
+      if (result.changed) {
+        try {
+          localStorage.setItem(key, JSON.stringify({ ...persisted, recipeCatalog: result.catalog }));
+        } catch {
+          return { ok: false, message: 'No se pudo guardar la receta. El formulario sigue abierto para reintentar.' };
+        }
+      }
+      if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0)
+        this._folio = Math.max(this._folio, persisted.folioSeq);
+      this.setState({ ...operational, recipeCatalog: result.catalog, recipeError: '' });
+      this.toast(result.duplicate ? 'Esta revisión ya estaba guardada; no se duplicó.' : 'Receta guardada en el historial local · sincronización pendiente.');
+      return { ok: true, duplicate: result.duplicate };
+    } catch (error) {
+      const messages = new Map([
+        ['invalid_recipe_catalog', 'El historial de recetas requiere revisión. No se aplicaron cambios.'],
+        ['invalid_recipe_history', 'El historial de recetas requiere revisión. No se aplicaron cambios.'],
+        ['invalid_inventory', 'El historial de inventario requiere revisión. No se aplicaron cambios.'],
+        ['invalid_product_catalog', 'El catálogo del menú requiere revisión.'],
+        ['stale_source_revision', 'Cambió el catálogo o el inventario. Actualiza la configuración antes de publicar.'],
+        ['stale_recipe_revision', 'Otra persona publicó una versión nueva. Actualiza la configuración antes de continuar.'],
+        ['stale_preview', 'La vista previa quedó desactualizada. Revísala de nuevo antes de publicar.'],
+        ['command_conflict', 'Este identificador ya se usó para otros datos. Actualiza la configuración antes de continuar.'],
+        ['not_authorized', 'Tu acceso actual no permite publicar cambios de receta.'],
+        ['invalid_recipe', 'Revisa la clasificación, los artículos y las cantidades capturados.'],
+        ['invalid_quantity', 'Captura una cantidad positiva con hasta tres decimales.'],
+        ['fractional_base_unit', 'La cantidad debe respetar la unidad mínima del inventario.'],
+        ['ambiguous_substitution', 'Para una sustitución, el grupo debe permitir elegir una sola opción.'],
+      ]);
+      return { ok: false, message: messages.get(error?.code) || 'No se pudo guardar la receta. Revisa los datos e intenta de nuevo.' };
+    }
+  }
   openInventoryDialog(kind, itemId = null) {
     if (!this.requireAction('adjustInventory')) return;
     const state = this.state.inventoryState;
@@ -1939,6 +2035,16 @@ export default class PosApp extends React.Component {
     V.movs = [...stockEvents, ...catalogRows].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
     V.legacyMovs = s.movs.map(movement => ({ item: movement.item, qty: movement.qty, user: movement.user, date: movement.date, motivo: movement.motivo }));
     V.recs = D.recipes.map(r => ({ product: r.product, items: r.items.map(([name, use, conv]) => ({ name, use, conv })) }));
+    V.recipeConfiguration = <React.Suspense fallback={<Card className="p-4 text-sm text-muted-foreground">Cargando configuración de recetas…</Card>}><RecipeConfigurationPanel
+      inventoryState={s.inventoryState}
+      recipeCatalog={s.recipeCatalog}
+      canManage={this.can('adjustInventory')}
+      actorKey={me ? `${me.id}:${me.role}:${me.name}` : ''}
+      storageError={s.recipeError || ''}
+      createCommandId={() => this.inventoryCommandId('recipe')}
+      onPublish={command => this.confirmRecipePublication(command)}
+      onEditingChange={this.onRecipeEditorChange}
+    /></React.Suspense>;
     V.regEntrada = () => this.openInventoryDialog('entry');
     V.regMerma = () => this.openInventoryDialog('waste');
     V.regAjuste = () => this.openInventoryDialog('adjustment');
@@ -2552,6 +2658,8 @@ export default class PosApp extends React.Component {
 </Table></Card>
 </>)}
 {(V.tRec) && (<>
+{V.recipeConfiguration}
+<p role="note" className="m-0 text-xs text-muted-foreground">Ejemplos ilustrativos de demostración · no están ligados al inventario ni causan descuentos de existencias.</p>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px")}>
 {(V.recs).map((r, rI) => (<React.Fragment key={rI}>
 <Card className="gap-2 p-4">
