@@ -273,6 +273,18 @@ export interface PosOperationsState extends PosOperationsScope {
 export interface PosOperationResult {
   state: PosOperationsState;
   duplicate: boolean;
+  /** Aggregates whose persisted revision actually advances in this transition. */
+  changedAggregates: ExpectedAggregateRevision[];
+}
+
+export interface PosOperationReplayStep {
+  command: PosOperationCommand;
+  changedAggregates: ExpectedAggregateRevision[];
+}
+
+export interface PosOperationReplayResult {
+  state: PosOperationsState;
+  steps: PosOperationReplayStep[];
 }
 
 export class PosOperationError extends Error {
@@ -412,10 +424,33 @@ export function applyPosOperation(
   candidate: unknown,
   authority: PosOperationAuthority,
 ): PosOperationResult {
+  const command = authorizePosOperationCommand(candidate, authority);
+  return applyValidatedOperation(current, command);
+}
+
+/** Validate a new append/retry against the current verified caller context. */
+export function authorizePosOperationCommand(
+  candidate: unknown,
+  authority: PosOperationAuthority,
+): PosOperationCommand {
   const command = validatePosOperationCommand(candidate);
   validateAuthority(command, authority);
   authorize(command, authority);
-  return applyValidatedOperation(current, command);
+  return command;
+}
+
+/**
+ * Local-journal adapter entry point for a freshly reconstructed component that
+ * it owns and will discard if the reducer throws. This avoids cloning the
+ * complete immutable command history and unrelated aggregates on every append.
+ */
+export function applyPosOperationToOwnedState(
+  ownedState: PosOperationsState,
+  candidate: unknown,
+  authority: PosOperationAuthority,
+): PosOperationResult {
+  const command = authorizePosOperationCommand(candidate, authority);
+  return applyValidatedOperation(ownedState, command, true);
 }
 
 /**
@@ -427,24 +462,100 @@ export function replayPosOperations(
   scope: PosOperationsScope,
   history: readonly unknown[],
 ): PosOperationsState {
+  return replayPosOperationsWithChanges(scope, history).state;
+}
+
+/** Replay immutable history and report only aggregates whose revisions advance. */
+export function replayPosOperationsWithChanges(
+  scope: PosOperationsScope,
+  history: readonly unknown[],
+): PosOperationReplayResult {
   if (!Array.isArray(history)) throw new TypeError("history must be an array.");
-  let state = createPosOperationsState(scope);
-  for (const candidate of history) {
-    const command = validatePosOperationCommand(candidate);
-    const result = applyValidatedOperation(state, command);
-    if (result.duplicate)
+  const commands = history.map(validatePosOperationCommand);
+  const seen = new Set<string>();
+  for (const command of commands) {
+    if (seen.has(command.commandId))
       throw new PosOperationError(
         "OPERATION_DUPLICATE_HISTORY",
         "Committed history contains a duplicate command ID.",
       );
-    state = result.state;
+    seen.add(command.commandId);
   }
-  return state;
+
+  // Independent order/preparation/sale components can be replayed separately.
+  // This keeps one branch's many unrelated tickets out of each transition.
+  const parent = new Map<string, string>();
+  const root = (key: string): string => {
+    const current = parent.get(key);
+    if (!current) {
+      parent.set(key, key);
+      return key;
+    }
+    if (current === key) return key;
+    const resolved = root(current);
+    parent.set(key, resolved);
+    return resolved;
+  };
+  const union = (left: string, right: string) => {
+    const leftRoot = root(left);
+    const rightRoot = root(right);
+    if (leftRoot !== rightRoot) parent.set(rightRoot, leftRoot);
+  };
+  for (const command of commands) {
+    const keys = command.expectedRevisions.map(
+      (ref) => `${ref.kind}\u0000${ref.id}`,
+    );
+    for (const key of keys) root(key);
+    for (let index = 1; index < keys.length; index += 1)
+      union(keys[0]!, keys[index]!);
+  }
+
+  const groups = new Map<string, PosOperationCommand[]>();
+  for (const command of commands) {
+    const first = command.expectedRevisions[0];
+    if (!first)
+      throw new PosOperationError(
+        "OPERATION_AGGREGATE_SET_MISMATCH",
+        "Every POS command must guard at least one aggregate.",
+      );
+    const key = root(`${first.kind}\u0000${first.id}`);
+    const group = groups.get(key) ?? [];
+    group.push(command);
+    groups.set(key, group);
+  }
+
+  const state = createPosOperationsState(scope);
+  const changedByCommand = new Map<string, ExpectedAggregateRevision[]>();
+  for (const componentCommands of groups.values()) {
+    const component = createPosOperationsState(scope);
+    for (const command of componentCommands) {
+      const result = applyValidatedOperation(component, command, true, true);
+      changedByCommand.set(command.commandId, result.changedAggregates);
+    }
+    state.orders.push(...component.orders);
+    state.preparations.push(...component.preparations);
+    state.sales.push(...component.sales);
+  }
+  state.orders.sort((left, right) => compareId(left.orderId, right.orderId));
+  state.preparations.sort((left, right) =>
+    compareId(left.preparationId, right.preparationId),
+  );
+  state.sales.sort((left, right) => compareId(left.saleId, right.saleId));
+  state.commands = commands;
+  return {
+    state,
+    steps: commands.map((command) => ({
+      command,
+      changedAggregates: changedByCommand.get(command.commandId) ?? [],
+    })),
+  };
 }
 
 function applyValidatedOperation(
   current: PosOperationsState,
   command: PosOperationCommand,
+  ownsState = false,
+  knownUnique = false,
 ): PosOperationResult {
   if (
     current.branchId !== command.branchId ||
@@ -454,16 +565,20 @@ function applyValidatedOperation(
       "OPERATION_SCOPE_MISMATCH",
       "Command branch or device does not match this local operations state.",
     );
-  const prior = current.commands.find(
-    (item) => item.commandId === command.commandId,
-  );
+  const prior = knownUnique
+    ? undefined
+    : current.commands.find((item) => item.commandId === command.commandId);
   if (prior) {
     if (stableJson(prior) !== stableJson(command))
       throw new PosOperationError(
         "OPERATION_COMMAND_ID_CONFLICT",
         "Command ID was reused with different immutable content.",
       );
-    return { state: structuredClone(current), duplicate: true };
+    return {
+      state: ownsState ? current : structuredClone(current),
+      duplicate: true,
+      changedAggregates: [],
+    };
   }
   const refs = expectedTouchedAggregates(current, command);
   assertExpectedSet(command.expectedRevisions, refs);
@@ -475,10 +590,30 @@ function applyValidatedOperation(
     if (actualRevision !== expected.revision)
       throw new PosOperationRevisionConflict(expected, actualRevision);
   }
-  const next = structuredClone(current);
+  const next = ownsState ? current : structuredClone(current);
   reduceOperationTransition(next, command);
-  next.commands = [...next.commands, structuredClone(command)];
-  return { state: next, duplicate: false };
+  next.commands.push(structuredClone(command));
+  const changedAggregates: ExpectedAggregateRevision[] = [];
+  for (const ref of refs) {
+    const nextRevision = aggregateRevision(next, ref.kind, ref.id);
+    if (nextRevision === ref.revision) continue;
+    if (nextRevision !== ref.revision + 1)
+      throw new PosOperationError(
+        "OPERATION_REVISION_STEP_INVALID",
+        "An operation must advance each changed aggregate by exactly one revision.",
+      );
+    changedAggregates.push({
+      kind: ref.kind,
+      id: ref.id,
+      revision: nextRevision,
+    });
+  }
+  if (changedAggregates.length === 0)
+    throw new PosOperationError(
+      "OPERATION_NO_STATE_CHANGE",
+      "An operational command must advance at least one aggregate revision.",
+    );
+  return { state: next, duplicate: false, changedAggregates };
 }
 
 function reduceOperationTransition(
@@ -609,10 +744,11 @@ function reduceOrderLineChange(
     ...order,
     revision: order.revision + 1,
     lines,
-    history: [...order.history, historyEvent(command)],
+    history: order.history,
   };
   validateOrderMoney(updated);
   synchronizeActivePreparation(state, order, lines);
+  order.history.push(historyEvent(command));
   state.orders = replaceById(state.orders, updated, "orderId");
 }
 
@@ -665,8 +801,9 @@ function reduceOrderDetails(
       ? command.payload.tableId!
       : order.tableId,
     customer: customer ? structuredClone(customer) : null,
-    history: [...order.history, historyEvent(command)],
+    history: order.history,
   };
+  order.history.push(historyEvent(command));
   state.orders = replaceById(state.orders, updated, "orderId");
 }
 
@@ -693,11 +830,13 @@ function reduceDiscount(
     actorId: command.actorId,
     occurredAt: command.occurredAt,
   };
+  order.discounts.push(entry);
+  order.history.push(historyEvent(command));
   const updated = {
     ...order,
     revision: order.revision + 1,
-    discounts: [...order.discounts, entry],
-    history: [...order.history, historyEvent(command)],
+    discounts: order.discounts,
+    history: order.history,
   };
   validateOrderMoney(updated);
   state.orders = replaceById(state.orders, updated, "orderId");
@@ -745,8 +884,9 @@ function reducePreparationSent(
     ...order,
     revision: order.revision + 1,
     preparationId: preparation.preparationId,
-    history: [...order.history, historyEvent(command)],
+    history: order.history,
   };
+  order.history.push(historyEvent(command));
   state.orders = replaceById(state.orders, updatedOrder, "orderId");
   state.preparations = sortedById(
     [...state.preparations, preparation],
@@ -777,18 +917,16 @@ function reducePreparationChange(
     ...preparation,
     revision: preparation.revision + 1,
     status: nextStatus,
-    history: [
-      ...preparation.history,
-      {
-        commandId: command.commandId,
-        actorId: command.actorId,
-        occurredAt: command.occurredAt,
-        from: preparation.status,
-        to: nextStatus,
-        reason: command.reason,
-      },
-    ],
+    history: preparation.history,
   };
+  preparation.history.push({
+    commandId: command.commandId,
+    actorId: command.actorId,
+    occurredAt: command.occurredAt,
+    from: preparation.status,
+    to: nextStatus,
+    reason: command.reason,
+  });
   state.preparations = replaceById(
     state.preparations,
     updated,
@@ -809,8 +947,9 @@ function reduceOrderCancellation(
     closedAt: command.occurredAt,
     cancellationReason: command.reason,
     cancelledByActorId: command.actorId,
-    history: [...order.history, historyEvent(command)],
+    history: order.history,
   };
+  order.history.push(historyEvent(command));
   state.orders = replaceById(state.orders, updated, "orderId");
 }
 
@@ -980,8 +1119,8 @@ function reduceOrderSplit(
     revision: source.revision + 1,
     lines: remainingLines,
     discounts: sourceDiscounts,
-    splitOperations: [...source.splitOperations, splitOperation],
-    history: [...source.history, historyEvent(command)],
+    splitOperations: source.splitOperations,
+    history: source.history,
   };
   const child: PosOperationOrder = {
     orderId: command.payload.childOrderId,
@@ -1018,6 +1157,9 @@ function reduceOrderSplit(
     throw new RangeError(
       "split does not conserve subtotal, discount, and due.",
     );
+
+  source.splitOperations.push(splitOperation);
+  source.history.push(historyEvent(command));
 
   state.orders = sortedById(
     [
@@ -1123,8 +1265,9 @@ function reduceCheckout(
     revision: order.revision + 1,
     status: "closed",
     closedAt: command.occurredAt,
-    history: [...order.history, historyEvent(command)],
+    history: order.history,
   };
+  order.history.push(historyEvent(command));
   state.orders = replaceById(state.orders, closedOrder, "orderId");
   state.sales = sortedById([...state.sales, sale], "saleId");
 }
@@ -1192,13 +1335,10 @@ function reduceSaleRefund(
     occurredAt: command.occurredAt,
     commandId: command.commandId,
   };
+  sale.refunds.push(refund);
   state.sales = replaceById(
     state.sales,
-    {
-      ...sale,
-      revision: sale.revision + 1,
-      refunds: [...sale.refunds, refund],
-    },
+    { ...sale, revision: sale.revision + 1, refunds: sale.refunds },
     "saleId",
   );
 }
