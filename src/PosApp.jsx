@@ -1,6 +1,8 @@
 import React from 'react';
 import { css } from './css.js';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -269,9 +271,7 @@ export default class PosApp extends React.Component {
     const pu = s.usersX.find(u => u.id === s.pick) || s.usersX[0];
     V.isLogin = !s.loading && !s.session;
     V.loginUsers = s.usersX.map(u => ({
-      name: u.name.split(' ')[0], roleLabel: D.roleLabels[u.role],
-      style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '10px 14px', borderRadius: 10, cursor: 'pointer', border: '1px solid ' + (u.id === s.pick ? acc : line), background: u.id === s.pick ? tint : paper, color: ink, opacity: u.active ? 1 : 0.45 },
-      subStyle: { fontSize: 11.5, color: u.id === s.pick ? acc : mut },
+      name: u.name.split(' ')[0], roleLabel: D.roleLabels[u.role], active: u.id === s.pick, enabled: u.active,
       pick: () => this.up({ pick: u.id, pin: '', pinErr: u.active ? '' : 'Acceso desactivado — contacta a la dueña' })
     }));
     V.pickName = pu ? pu.name.split(' ')[0] : '';
@@ -303,8 +303,7 @@ export default class PosApp extends React.Component {
     V.navItems = mods.map(([id, label]) => {
       const active = s.module === id; const allowed = this.navAllowed(id);
       return {
-        label, hasBadge: id === 'ordenes' && s.open.length > 0, badge: s.open.length,
-        style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: active ? 500 : 400, background: active ? tint : 'transparent', color: allowed ? (active ? acc : ink) : '#a8a69c' },
+        label, active, allowed, hasBadge: id === 'ordenes' && s.open.length > 0, badge: s.open.length,
         go: () => allowed ? this.up({ module: id, ck: null, repSel: null }) : this.notAllowed('abrir «' + label + '»')
       };
     });
@@ -351,7 +350,7 @@ export default class PosApp extends React.Component {
     // ---- current order
     const o = s.order; const ot = this.orderTotals(o);
     V.hasFolio = !!o.folio; V.orderFolio = o.folio || '';
-    V.typeBtns = [['local', 'En local'], ['mesa', 'Mesa'], ['llevar', 'Llevar'], ['domicilio', 'Domicilio'], ['recoger', 'Recoger']].map(([id, label]) => ({ label, style: chipSm(o.type === id), pick: () => this.up({ order: { ...o, type: id } }) }));
+    V.typeBtns = [['local', 'En local'], ['mesa', 'Mesa'], ['llevar', 'Llevar'], ['domicilio', 'Domicilio'], ['recoger', 'Recoger']].map(([id, label]) => ({ label, active: o.type === id, pick: () => this.up({ order: { ...o, type: id } }) }));
     V.showMesa = o.type === 'mesa';
     V.mesa = o.mesa; V.setMesa = e => this.up({ order: { ...this.state.order, mesa: e.target.value } });
     V.orderName = o.name; V.setOrderName = e => this.up({ order: { ...this.state.order, name: e.target.value } });
@@ -431,8 +430,8 @@ export default class PosApp extends React.Component {
       const pt = prepTags[oo.prep] || prepTags['en-cola']; const st2 = syncTags[oo.sync] || syncTags.sincronizada;
       return {
         folio: oo.folio, total: this.fmt(total),
-        prepLabel: pt[0], prepStyle: tag(pt[1], pt[2]),
-        syncLabel: st2[0], syncStyle: tag(st2[1], st2[2]),
+        prepLabel: pt[0], prepVariant: oo.prep === 'listo' ? 'success' : oo.prep === 'preparando' ? 'pending' : 'outline',
+        syncLabel: st2[0], syncVariant: oo.sync === 'pendiente' ? 'pending' : oo.sync === 'conflicto' ? 'conflict' : 'outline',
         meta: this.typeLabel(oo.type) + ' · ' + oo.ref + ' · ' + oo.time + ' · ' + oo.user,
         itemsText: oo.items.map(l => l.qty + '× ' + l.name).join(' · '),
         conflict: oo.sync === 'conflicto',
@@ -710,7 +709,7 @@ export default class PosApp extends React.Component {
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500;margin-bottom:10px")}>¿Quién abre la estación?</div>
 <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
 {(V.loginUsers).map((u, uI) => (<React.Fragment key={uI}>
-<button style={u.style} onClick={u.pick}><span style={css("font-weight:500;font-size:13.5px")}>{u.name}</span><span style={u.subStyle}>{u.roleLabel}</span></button>
+<Button variant="outline" aria-pressed={u.active} aria-disabled={!u.enabled} className={`h-auto min-h-14 items-start flex-col px-3 py-2 ${u.active ? 'bg-accent text-accent-foreground' : ''} ${!u.enabled ? 'opacity-50' : ''}`} onClick={u.pick}><span className="font-medium text-sm">{u.name}</span><span className="text-xs text-muted-foreground">{u.roleLabel}</span></Button>
 </React.Fragment>))}
 </div>
 </div>
@@ -738,9 +737,9 @@ export default class PosApp extends React.Component {
 <div style={css("font-family:Georgia,serif;font-style:italic;font-size:27px;line-height:1")}>Karma</div>
 <div style={css("margin-top:6px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Abboth · Centro</div>
 </div>
-<button onClick={V.goPos} style={css("margin:0 4px 12px;padding:11px 14px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:13.5px;font-weight:500;cursor:pointer;text-align:left")}>+ Nueva venta</button>
+<Button className="mx-1 mb-3 justify-start" onClick={V.goPos}>+ Nueva venta</Button>
 {(V.navItems).map((n, nI) => (<React.Fragment key={nI}>
-<button style={n.style} onClick={n.go}><span>{n.label}</span>{(n.hasBadge) && (<><span style={css("background:#f6e5df;color:#836953;font-size:11px;font-weight:500;padding:2px 8px;border-radius:999px")}>{n.badge}</span></>)}</button>
+<Button variant="ghost" aria-current={n.active ? 'page' : undefined} aria-disabled={!n.allowed} className={`w-full justify-between text-left ${n.active ? 'bg-accent text-accent-foreground' : ''} ${!n.allowed ? 'opacity-50' : ''}`} onClick={n.go}><span>{n.label}</span>{(n.hasBadge) && (<Badge variant="pending" aria-label={`${n.badge} órdenes abiertas`}>{n.badge}</Badge>)}</Button>
 </React.Fragment>))}
 <div style={css("margin-top:auto;border-top:1px solid #e2e0d6;padding:14px 10px 0;display:flex;flex-direction:column;gap:12px")}>
 <div style={css("display:flex;align-items:center;gap:9px")}>
@@ -748,14 +747,14 @@ export default class PosApp extends React.Component {
 <div style={css("flex:1;min-width:0")}><div style={css("font-size:13px;font-weight:500")}>{V.connLabel}</div><div style={css("font-size:11.5px;color:#6b6a63")}>{V.connSub}</div></div>
 </div>
 {(V.showSyncBtn) && (<>
-<button onClick={V.syncNow} style={css("padding:8px 12px;background:#f6e5df;color:#836953;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;text-align:left")}>Sincronizar ahora ({V.pendingCount})</button>
+<Button variant="secondary" className="justify-start" onClick={V.syncNow}>Sincronizar ahora ({V.pendingCount})</Button>
 </>)}
-<button onClick={V.toggleOnline} style={css("padding:8px 12px;background:transparent;border:1px solid #e2e0d6;border-radius:8px;font-size:12px;color:#6b6a63;cursor:pointer;text-align:left")}>{V.connToggleLabel}</button>
+<Button variant="outline" className="justify-start text-left" onClick={V.toggleOnline}>{V.connToggleLabel}</Button>
 <a href="/comanda.html" style={css("font-size:12.5px;padding:0 2px")}>Ver comanda de cocina →</a>
 <div style={css("display:flex;align-items:center;gap:9px;border-top:1px solid #e2e0d6;padding-top:12px")}>
 <span style={css("width:32px;height:32px;border-radius:50%;background:#f6e5df;color:#836953;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex:none")}>{V.userInitials}</span>
 <div style={css("flex:1;min-width:0")}><div style={css("font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{V.userName}</div><div style={css("font-size:11.5px;color:#6b6a63")}>{V.userRoleLabel}</div></div>
-<button onClick={V.switchUser} style={css("border:none;background:transparent;color:#836953;font-size:12px;cursor:pointer;padding:2px")}>Salir</button>
+<Button variant="link" size="sm" className="h-11 px-1" onClick={V.switchUser}>Salir</Button>
 </div>
 </div>
 </aside>
@@ -794,7 +793,7 @@ export default class PosApp extends React.Component {
 </div>
 <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
 {(V.typeBtns).map((t, tI) => (<React.Fragment key={tI}>
-<button style={t.style} onClick={t.pick}>{t.label}</button>
+<Button size="sm" variant={t.active ? 'default' : 'outline'} className="rounded-[var(--radius-pill)]" aria-pressed={t.active} onClick={t.pick}>{t.label}</Button>
 </React.Fragment>))}
 </div>
 {(V.showMesa) && (<>
@@ -808,19 +807,19 @@ export default class PosApp extends React.Component {
 {(V.lines).map((l, lI) => (<React.Fragment key={lI}>
 <div style={css("display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid #e2e0d6")}>
 <div style={css("display:flex;align-items:center;gap:2px;flex:none")}>
-<button onClick={l.dec} style={css("width:24px;height:24px;border:1px solid #e2e0d6;background:#faf9f5;border-radius:6px;cursor:pointer;font-size:13px;line-height:1;color:#141413")}>−</button>
+<Button variant="outline" size="icon" aria-label={`Disminuir ${l.name}`} onClick={l.dec}>−</Button>
 <span style={css("min-width:22px;text-align:center;font-size:13.5px;font-weight:500")}>{l.qty}</span>
-<button onClick={l.inc} style={css("width:24px;height:24px;border:1px solid #e2e0d6;background:#faf9f5;border-radius:6px;cursor:pointer;font-size:13px;line-height:1;color:#141413")}>+</button>
+<Button variant="outline" size="icon" aria-label={`Aumentar ${l.name}`} onClick={l.inc}>+</Button>
 </div>
 <div style={css("flex:1;min-width:0")}>
 <div style={css("font-size:13.5px;font-weight:500;line-height:1.3")}>{l.name}</div>
 {(l.hasMods) && (<><div style={css("font-size:12px;color:#6b6a63;margin-top:2px")}>{l.modsText}</div></>)}
 {(l.hasNotes) && (<><div style={css("font-size:12px;color:#836953;margin-top:2px")}>“{l.notes}”</div></>)}
-<button onClick={l.edit} style={css("border:none;background:transparent;color:#836953;font-size:12px;cursor:pointer;padding:2px 0 0")}>Editar</button>
+<Button variant="link" size="sm" className="h-11 justify-start px-0" onClick={l.edit}>Editar</Button>
 </div>
 <div style={css("flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px")}>
 <span style={css("font-size:13.5px")}>{l.total}</span>
-<button onClick={l.remove} style={css("border:none;background:transparent;color:#6b6a63;font-size:15px;cursor:pointer;line-height:1;padding:2px")} title="Eliminar">×</button>
+<Button variant="ghost" size="icon" aria-label={`Eliminar ${l.name}`} title="Eliminar" onClick={l.remove}>×</Button>
 </div>
 </div>
 </React.Fragment>))}
@@ -858,11 +857,11 @@ export default class PosApp extends React.Component {
 </>)}
 <div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px")}>
 {(V.orders).map((o, oI) => (<React.Fragment key={oI}>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px")}>
+<Card className="gap-3 p-4">
 <div style={css("display:flex;align-items:center;gap:8px")}>
 <span style={css("font-size:14px;font-weight:500")}>{o.folio}</span>
-<span style={o.prepStyle}>{o.prepLabel}</span>
-<span style={o.syncStyle}>{o.syncLabel}</span>
+<Badge variant={o.prepVariant}>{o.prepLabel}</Badge>
+<Badge variant={o.syncVariant}>{o.syncLabel}</Badge>
 <span style={css("margin-left:auto;font-size:15px;font-weight:500")}>{o.total}</span>
 </div>
 <div style={css("font-size:12.5px;color:#6b6a63")}>{o.meta}</div>
@@ -870,19 +869,19 @@ export default class PosApp extends React.Component {
 {(o.conflict) && (<>
 <div style={css("background:#f6e5df;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px")}>
 <span style={css("font-size:12px;color:#836953;flex:1")}>Conflicto de sincronización: esta cuenta cambió en otro dispositivo.</span>
-<button onClick={o.resolve} style={css("border:none;background:#836953;color:#faf9f5;border-radius:6px;font-size:11.5px;font-weight:500;padding:6px 10px;cursor:pointer")}>Resolver</button>
+<Button size="sm" onClick={o.resolve}>Resolver</Button>
 </div>
 </>)}
 <div style={css("display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid #e2e0d6;padding-top:10px")}>
-<button onClick={o.resume} style={css("padding:7px 11px;background:#836953;color:#faf9f5;border:none;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer")}>Abrir</button>
-<button onClick={o.charge} style={css("padding:7px 11px;background:#f6e5df;color:#836953;border:none;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer")}>Cobrar</button>
-<button onClick={o.reprint} style={css("padding:7px 11px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:7px;font-size:12px;cursor:pointer;color:#141413")}>Comanda</button>
-<button onClick={o.move} style={css("padding:7px 11px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:7px;font-size:12px;cursor:pointer;color:#141413")}>Mover</button>
-<button onClick={o.split} style={css("padding:7px 11px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:7px;font-size:12px;cursor:pointer;color:#141413")}>Dividir</button>
-<button onClick={o.merge} style={css("padding:7px 11px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:7px;font-size:12px;cursor:pointer;color:#141413")}>Unir</button>
-<button onClick={o.cancel} style={css("padding:7px 11px;background:transparent;border:none;font-size:12px;cursor:pointer;color:#6b6a63;margin-left:auto")}>Cancelar</button>
+<Button size="sm" onClick={o.resume}>Abrir</Button>
+<Button size="sm" variant="secondary" onClick={o.charge}>Cobrar</Button>
+<Button size="sm" variant="outline" onClick={o.reprint}>Comanda</Button>
+<Button size="sm" variant="outline" onClick={o.move}>Mover</Button>
+<Button size="sm" variant="outline" onClick={o.split}>Dividir</Button>
+<Button size="sm" variant="outline" onClick={o.merge}>Unir</Button>
+<Button size="sm" variant="ghost" className="ml-auto" onClick={o.cancel}>Cancelar</Button>
 </div>
-</div>
+</Card>
 </React.Fragment>))}
 </div>
 </div>
