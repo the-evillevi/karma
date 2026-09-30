@@ -105,11 +105,19 @@ export function validateProtocolMessage(message, expected = {}) {
     requireBoundedString(message.body.deviceId, "deviceId", 100);
     requireBoundedString(message.body.leaseId, "leaseId", 100);
     if (message.body.deviceId !== message.senderDeviceId) throw protocolError("AUTH_FAILED", "HELLO deviceId must match senderDeviceId");
+    for (const field of ["branchId", "leaseId"]) {
+      if (expected[field] !== undefined && message.body[field] !== expected[field]) {
+        throw protocolError("COORDINATOR_CONFLICT", `HELLO ${field} does not match expected authority`);
+      }
+    }
     if (!Array.isArray(message.body.supportedVersions) || !message.body.supportedVersions.includes(BLUETOOTH_PROTOCOL)) {
       throw protocolError("UNSUPPORTED_VERSION", "HELLO must list a supported karma-ble protocol version");
     }
   } else if (message.kind === "COMMAND_BATCH") {
     validateCommandBatch(message.body.commandBatch);
+    if (expected.branchId !== undefined && message.body.commandBatch.branchId !== expected.branchId) {
+      throw protocolError("COORDINATOR_CONFLICT", "command batch belongs to a different branch");
+    }
   } else if (message.kind === "ACK") {
     requireNonEmptyString(message.body.commandId, "commandId");
     requireNonEmptyString(message.body.contentDigest, "contentDigest");

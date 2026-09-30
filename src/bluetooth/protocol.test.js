@@ -163,6 +163,8 @@ test("message schemas reject invalid ACK and unsupported protocol versions", () 
     body: { branchId: "branch-1", deviceId: "device-a", leaseId: "lease-1", supportedVersions: ["karma-ble/1"] },
   };
   assert.equal(validateProtocolMessage(hello), true);
+  assert.throws(() => validateProtocolMessage(hello, { branchId: 'another-branch' }), { code: 'COORDINATOR_CONFLICT' });
+  assert.throws(() => validateProtocolMessage(hello, { leaseId: 'another-lease' }), { code: 'COORDINATOR_CONFLICT' });
   assert.throws(() => validateProtocolMessage({ ...hello, body: { ...hello.body, deviceId: "other" } }), { code: "AUTH_FAILED" });
 });
 
