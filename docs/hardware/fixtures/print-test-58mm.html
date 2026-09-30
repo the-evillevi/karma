@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Karma · fixture de impresión EVL-117</title>
+  <style>
+    @page {
+      size: 58mm auto;
+      margin: 2mm;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eee;
+      color: #111;
+      font: 13px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .instructions {
+      max-width: 640px;
+      margin: 24px auto;
+      padding: 16px;
+      background: white;
+      font: 15px/1.5 system-ui, sans-serif;
+    }
+    .receipt {
+      width: 52mm;
+      margin: 12mm auto;
+      padding: 2mm;
+      background: white;
+      overflow-wrap: anywhere;
+    }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .rule { border-top: 1px dashed #111; margin: 3mm 0; }
+    .row { display: flex; justify-content: space-between; gap: 2mm; }
+    .label { font-weight: 700; }
+    .test-stamp {
+      border: 1px solid #111;
+      padding: 1mm;
+      margin: 2mm 0;
+      text-align: center;
+      font-weight: 700;
+    }
+    .page-break { break-before: page; page-break-before: always; }
+    @media print {
+      body { background: white; font-size: 10pt; }
+      .instructions { display: none; }
+      .receipt { margin: 0; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="instructions">
+    <strong>EVL-117 print fixture · prueba solamente</strong>
+    <p>Abre este archivo en el host POS, elige la cola real y usa tamaño real / 100% si el controlador lo permite. Está preparado para rollo de 58 mm con contenido de 52 mm. Comprueba preview y papel: un preview correcto no demuestra conectividad física.</p>
+    <p>Los datos son sintéticos y esta hoja no tiene valor fiscal ni prueba el cálculo de IVA. Para la aceptación, confirma el importe de desglose con la configuración fiscal aprobada. No uses este fixture para cobrar a clientes.</p>
+    <p>Imprime también la segunda página como comanda. Registra host, navegador, modelo/interfaz, papel, resultado, clipping, acentos, reimpresión y evidencia redactada según <code>docs/hardware/compatibility-matrix.md</code>.</p>
+  </aside>
+
+  <main class="receipt" aria-label="Ticket sintético para probar impresión">
+    <div class="center label">AB B O T H</div>
+    <div class="center">EVL-117 · TICKET DE PRUEBA</div>
+    <div class="test-stamp">SIN VALOR · NO ENTREGAR</div>
+    <div class="row"><span>Folio</span><span>EVL117-T01</span></div>
+    <div class="row"><span>Mesa</span><span>4</span></div>
+    <div class="row"><span>Fecha</span><span>2026-09-29 12:34</span></div>
+    <div class="rule"></div>
+    <div>1 × Latte chai</div>
+    <div class="row"><span>   Leche de avena +$10</span><span>$85.00</span></div>
+    <div>   Nota: extra caliente, sin azúcar</div>
+    <div class="rule"></div>
+    <div class="row"><span>Precios con IVA</span><span>$85.00</span></div>
+    <div class="row"><span>Desglose IVA (demo)</span><span>$XX.XX</span></div>
+    <div class="row"><span>Propina tarjeta · 10%</span><span>$8.50</span></div>
+    <div class="rule"></div>
+    <div class="row label"><span>TOTAL</span><span>$93.50</span></div>
+    <div class="row"><span>Tarjeta (demo)</span><span>$93.50</span></div>
+    <div class="rule"></div>
+    <div class="center">ÁÉÍÓÚ ñ · acentos</div>
+    <div class="center">Prueba de corte y final de papel</div>
+
+    <section class="page-break" aria-label="Comanda sintética de cocina">
+      <div class="center label">AB B O T H</div>
+      <div class="center">COMANDA · PRUEBA</div>
+      <div class="test-stamp">NO PREPARAR</div>
+      <div class="row"><span>Folio</span><span>EVL117-T01</span></div>
+      <div class="row"><span>Mesa</span><span>4</span></div>
+      <div class="row"><span>Hora</span><span>12:34</span></div>
+      <div class="rule"></div>
+      <div class="label">1 × LATTE CHAI</div>
+      <div>Leche de avena +$10</div>
+      <div>NOTA: EXTRA CALIENTE, SIN AZÚCAR</div>
+      <div class="rule"></div>
+      <div>Prueba de ajuste de líneas largas para medir lectura sin recorte ni pérdida de caracteres.</div>
+      <div class="rule"></div>
+      <div class="center">FIN DE COMANDA SINTÉTICA</div>
+    </section>
+  </main>
+</body>
+</html>
