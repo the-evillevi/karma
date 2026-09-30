@@ -27,11 +27,11 @@ export function adaptCatalogForRuntime(catalog, existingRuntime = {}) {
       active: product.active,
     };
   });
-  const modGroups = Object.fromEntries(catalog.modifierGroups.map((group) => [group.id, {
+  const modGroups = Object.fromEntries([...catalog.modifierGroups].sort(byOrderAndId).map((group) => [group.id, {
     label: group.name,
     min: group.selection.min,
     max: group.selection.max,
-    options: group.options.map((option) => {
+    options: [...group.options].sort(byOrderAndId).map((option) => {
       const price = option.priceEffect.amountCents / 100;
       if (!Number.isFinite(price)) {
         throw new Error(`Modifier ${group.id}/${option.id} cannot be represented exactly in the legacy peso-number runtime`);
