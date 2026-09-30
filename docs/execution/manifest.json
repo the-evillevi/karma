@@ -261,7 +261,8 @@
         "2026-09-30 root exact reviewed migration applied to isolated karma-pos; 12/12 real hosted RPC/RLS/browser proofs passed, synthetic owners restored after concurrency proof.",
         "Root 14/14 hosted cases no skips: actual secure POS and deployed owner provisioning; zero new scoped security findings; full build/secret and demo PWA restart checks passed.",
         "69 combined component cases covered: prior67 plus2 root secure actor/current-role regressions. 73 domain and10 Edge cases passed.",
-        "CI deterministic fake-client setup repair published; rerun pending"
+        "CI deterministic fake-client setup repair published; rerun pending",
+        "GitHub quality rerun PASSED after deterministic fixture repair;118run36740648986,126run36740649771 including Edge/journal lanes"
       ],
       "review": "fixed_and_rereviewed_actual_pos_and_hosted_provisioning",
       "blockers": [
@@ -290,7 +291,8 @@
       "pr": "https://github.com/the-evillevi/karma/pull/23",
       "checks": [
         "Root7/7 Chromium journal proof and0medium+ journal scan; combinedformat/lint/types/domain86/86 and7/7 Chromium passed",
-        "CI repaired missing deterministic access fixture and added Edge/journal lanes; rerun pending"
+        "CI repaired missing deterministic access fixture and added Edge/journal lanes; rerun pending",
+        "GitHub quality rerun PASSED after deterministic fixture repair;118run36740648986,126run36740649771 including Edge/journal lanes"
       ],
       "review": "phase1_fixed_and_rereviewed_compat_adapter_in_progress",
       "blockers": [
@@ -1098,7 +1100,7 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "a67e8f2",
+    "integration": "ed4cafb",
     "mainMerged": false,
     "nextIssue": "EVL-126 compatible snapshot contract and EVL-128 typed manual ledger",
     "resumeDocument": "docs/execution/RESUME.md",
