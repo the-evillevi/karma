@@ -276,7 +276,7 @@
       "requires": [
         "EVL-118"
       ],
-      "stage": "fixing_review",
+      "stage": "fixing",
       "agent": "foundation_xhigh",
       "commits": [
         "9580c5a"
@@ -632,14 +632,16 @@
       "requires": [
         "EVL-189"
       ],
-      "stage": "implementing",
+      "stage": "fixing",
       "agent": "orders_xhigh",
-      "commits": [],
+      "commits": [
+        "0006f0b"
+      ],
       "pr": null,
       "checks": [],
-      "review": "pending",
+      "review": "retry_identity_fix_pending",
       "blockers": [],
-      "nextAction": "GPT-6 Luna xhigh implementing operator selected split quantities; root review with fixes follows."
+      "nextAction": "Reject same split operation ID with changed operator allocation; root rerereview follows."
     },
     {
       "id": "EVL-186",
@@ -728,14 +730,21 @@
         "EVL-187",
         "EVL-129"
       ],
-      "stage": "implementing",
-      "agent": "root",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Root finishing manual refund/void evidence, scoped authority and saved-state guards; durable126/inventory129 remain gates."
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "07cf51b"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/21",
+      "checks": [
+        "Full payment-stack check:77 domain,77 component,10 Edge; final5 domain/8 actual POS; combined41 refund/split/cancel/access cases"
+      ],
+      "review": "fixed_and_rereviewed_manual_compensation",
+      "blockers": [
+        "Durable126 transaction/versioning and inverse recorded inventory129 remain open; manual external financial evidence and exports130 require follow-on proof."
+      ],
+      "nextAction": "Complete durable actor-bound compensation and inverse consumption after126/129; manual reviewed draft slice published.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-128",
@@ -1074,7 +1083,7 @@
     "runningAgents": 2,
     "integration": "15ea82b",
     "mainMerged": false,
-    "nextIssue": "EVL-126 review fixes, EVL-155 operator controls, EVL-125 refund/void review",
+    "nextIssue": "EVL-126 lifecycle/integrity fixes and EVL-155 retry identity review; integrate durable POS contracts next",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed"
   }
