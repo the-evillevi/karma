@@ -70,6 +70,14 @@ class ReconcileSourceHelpersTests(unittest.TestCase):
                 write_private_json(directory, link.name, {"private": "source data"})
             self.assertEqual(destination.read_text(), "sentinel")
 
+    def test_private_directory_refuses_other_git_worktrees(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            checkout = Path(temporary) / 'another-checkout'
+            checkout.mkdir()
+            (checkout / '.git').write_text('gitdir: synthetic')
+            with self.assertRaisesRegex(ValueError, 'outside the repository'):
+                resolve_private_directory(checkout / 'source-dump', REPOSITORY_ROOT)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -212,7 +212,7 @@ def resolve_private_directory(path: Path, repository_root: Path) -> Path:
     candidate = path.expanduser().absolute()
     root = repository_root.resolve()
     resolved = candidate.resolve(strict=False)
-    if within(resolved, root):
+    if within(resolved, root) or any((ancestor / '.git').exists() for ancestor in (resolved, *resolved.parents)):
         raise ValueError("private output directory must be outside the repository checkout")
     resolved.mkdir(parents=True, exist_ok=True, mode=0o700)
     resolved = resolved.resolve(strict=True)
