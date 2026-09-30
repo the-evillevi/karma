@@ -24,12 +24,25 @@ export default class ComandaApp extends React.Component {
     this._online = true;
     return (window.KARMA ? window.KARMA.seedOrders : []).map(o => ({ ...o }));
   }
-  save(tickets) {
+  advanceTicket(folio, expectedStatus) {
     try {
+      // Re-read and validate at click time: the card may have been rendered
+      // before another caja/comanda tab cancelled or changed this ticket.
       const v = JSON.parse(localStorage.getItem('karma-pos-v1')) || {};
-      v.kitchenTickets = tickets;
+      const tickets = Array.isArray(v.kitchenTickets) ? v.kitchenTickets : (Array.isArray(v.open) ? v.open : []);
+      const fresh = advanceKitchenTicket(tickets, folio, expectedStatus);
+      const before = tickets.find(ticket => ticket.folio === folio);
+      const after = fresh.find(ticket => ticket.folio === folio);
+      if (!before || !after || before.prep === after.prep) {
+        this.setState({ tickets, online: v.online !== false });
+        return;
+      }
+      v.kitchenTickets = fresh;
       localStorage.setItem('karma-pos-v1', JSON.stringify(v));
-    } catch (e) {}
+      this.setState({ tickets: fresh, online: v.online !== false });
+    } catch (e) {
+      this.setState({ tickets: this.load(), online: this._online });
+    }
   }
   componentDidMount() {
     this._l = e => { if (e.key === 'karma-pos-v1') this.setState({ tickets: this.load(), online: this._online }); };
@@ -70,11 +83,7 @@ export default class ComandaApp extends React.Component {
           hasAction: !!nx,
           actionLabel: nx ? nx[1] : '',
           actionVariant: o.prep === 'preparando' ? 'default' : 'outline',
-          advance: () => {
-            const tickets = advanceKitchenTicket(this.state.tickets, o.folio, o.prep);
-            this.setState({ tickets });
-            this.save(tickets);
-          }
+          advance: () => this.advanceTicket(o.folio, o.prep)
         };
       }),
       footNote: visible.length + ' comandas activas — se actualiza sola desde la caja'

@@ -176,6 +176,7 @@ export default class PosApp extends React.Component {
     return o.folio;
   }
   startCheckout(folio, lines, discount, type, fromStation) {
+    const sourceSnapshot = this.checkoutSourceSnapshot({ folio, fromStation }, this.state);
     const sub = lines.reduce((a, l) => a + (l.unit != null ? l.unit : this.lineUnit(l)) * l.qty, 0);
     const disc = Math.min(discount || 0, sub);
     const base = sub - disc;
@@ -184,12 +185,17 @@ export default class PosApp extends React.Component {
     this.up({
       module: 'checkout',
       ck: {
-        folio, fromStation, type, step: 'review', ok: null, error: '', change: 0,
+        folio, fromStation, sourceSnapshot, type, step: 'review', ok: null, error: '', change: 0,
         lines: lines.map(l => ({ name: l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, modsText: l.modsText != null ? l.modsText : this.modsText(l), unit: l.unit != null ? l.unit : this.lineUnit(l) })),
         sub, disc, tipSel, tipCustom: '',
         pays: [{ id: 1, method: 'efectivo', amount: (base + tipAmt).toFixed(2) }]
       }
     });
+  }
+  checkoutSourceSnapshot(checkout, state) {
+    if (checkout.fromStation) return JSON.stringify({ kind: 'station', record: state.order || null });
+    if (checkout.folio) return JSON.stringify({ kind: 'open', record: state.open.find(o => o.folio === checkout.folio) || null });
+    return JSON.stringify({ kind: 'new', record: null });
   }
   ckMath(ck) {
     const base = ck.sub - ck.disc;
@@ -210,8 +216,7 @@ export default class PosApp extends React.Component {
     const m = this.ckMath(ck);
     if (!m.valid) return;
     const folio = ck.folio || this.nf();
-    const sourceAccount = !ck.fromStation && ck.folio ? s.open.find(o => o.folio === ck.folio) : null;
-    const sourceSnapshot = sourceAccount ? JSON.stringify(sourceAccount) : null;
+    const sourceSnapshot = ck.sourceSnapshot;
     this.setCk({ folio, step: 'processing' });
     setTimeout(() => {
       const st = this.state;
@@ -222,7 +227,10 @@ export default class PosApp extends React.Component {
         return;
       }
       if (st.sales.some(sale => sale.folio === folio && sale.status === 'completada')) return;
-      if (!ck.fromStation && ck.folio && (!sourceSnapshot || JSON.stringify(st.open.find(o => o.folio === folio) || null) !== sourceSnapshot)) {
+      let persisted = {};
+      try { persisted = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
+      const persistedState = { ...st, open: Array.isArray(persisted.open) ? persisted.open : [], order: persisted.order || this.blank() };
+      if (!sourceSnapshot || this.checkoutSourceSnapshot(ck, st) !== sourceSnapshot || this.checkoutSourceSnapshot(ck, persistedState) !== sourceSnapshot) {
         this.setCk({ step: 'result', ok: false, error: 'La cuenta cambió mientras se confirmaba el cobro. Revisa la cuenta antes de volver a intentar.' });
         return;
       }
