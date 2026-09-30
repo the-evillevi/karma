@@ -14,6 +14,9 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
     },
   },
+  test: {
+    include: ['src/components/ui/**/*.test.jsx'],
+  },
   build: {
     rollupOptions: {
       input: {
