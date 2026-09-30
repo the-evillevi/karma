@@ -413,23 +413,106 @@ export default class PosApp extends React.Component {
       }, () => this.toast('Sincronización completa — ' + 0 + ' operaciones pendientes'));
     }, 1600);
   }
-  cancelOpen(folio) {
-    if (!this.can('cancelar')) { this.notAllowed('cancelar cuentas abiertas'); return; }
-    this.setState({
-      dlg: {
-        title: 'Cancelar ' + folio, body: 'La cuenta se cerrará sin cobro y quedará registrada como cancelada en los reportes.', needReason: true, danger: true, confirmLabel: 'Cancelar cuenta',
-        onConfirm: d => {
-          if (!this.can('cancelar')) { this.notAllowed('cancelar cuentas abiertas'); return 'keep'; }
-          if (!d.reason || !d.reason.trim()) { this.toast('Captura el motivo de cancelación', 'warn'); return 'keep'; }
-          const s = this.state; const o = s.open.find(x => x.folio === folio); if (!o) return;
-          const actor = this.user().name; const occurredAt = new Date().toISOString();
-          const sale = { folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: o.user, cobro: '—', tipo: o.ref, items: o.items.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })), payments: [], tip: 0, total: o.items.reduce((a, l) => a + l.unit * l.qty, 0), status: 'cancelada', sync: s.online ? 'sincronizada' : 'pendiente', motivo: d.reason.trim(), audit: [[occurredAt, 'Cancelada · ' + d.reason.trim(), actor]] };
-          const kitchenTickets = cancelKitchenTicket(s.kitchenTickets, folio, actor, occurredAt, d.reason);
-          this.up({ open: s.open.filter(x => x.folio !== folio), kitchenTickets, sales: [sale, ...s.sales], order: s.order.folio === folio ? this.blank() : s.order });
-          this.toast(folio + ' cancelada');
-        }
-      }
-    });
+  cancelOpen(folio) { this.openCancellation({ folio, fromStation: false }); }
+  openCancellation({ folio, fromStation }) {
+    if (!this.can('cancelar')) { this.notAllowed('cancelar cuentas'); return; }
+    const source = fromStation ? this.state.order : this.state.open.find(x => x.folio === folio);
+    if (source?.sync === 'conflicto') { this.toast('La cuenta tiene un conflicto pendiente. Revísalo antes de cancelar.', 'warn'); return; }
+    if (!source || !Array.isArray(source.items) || (!source.items.length && !source.folio)) { this.toast('No hay orden que cancelar', 'warn'); return; }
+    const target = { folio: source.folio || folio, fromStation };
+    const expectedSource = this.checkoutSourceSnapshot(target, this.state);
+    const commandId = globalThis.crypto.randomUUID();
+    this.setState({ dlg: {
+      title: fromStation ? 'Cancelar orden actual' : 'Cancelar ' + folio,
+      body: 'La cuenta quedará registrada como cancelada con su motivo y responsable.',
+      needReason: true, danger: true, confirmLabel: fromStation ? 'Cancelar orden' : 'Cancelar cuenta',
+      onConfirm: d => this.confirmCancellation(target, expectedSource, commandId, d.reason)
+    } });
+  }
+  confirmCancellation(target, expectedSource, commandId, reason) {
+    // Recheck the current identity when the action executes, including stale dialogs.
+    if (typeof this.requireAction === 'function') {
+      if (!this.requireAction('cancelWithReason', reason)) return 'keep';
+    } else if (!this.can('cancelar')) { this.notAllowed('cancelar cuentas'); return 'keep'; }
+    if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 250) {
+      this.toast('Captura un motivo de cancelación de 1 a 250 caracteres', 'warn'); return 'keep';
+    }
+    const st = this.state;
+    let persisted;
+    try { persisted = JSON.parse(localStorage.getItem(this._storageKey || 'karma-pos-v1')) || {}; }
+    catch { this.toast('No se pudo leer el estado guardado. Revisa la cuenta antes de cancelar.', 'warn'); return 'keep'; }
+    if (persisted.order && (!Array.isArray(persisted.order.items) || typeof persisted.order !== 'object')) {
+      this.toast('La orden guardada requiere revisión antes de cancelar.', 'warn'); return 'keep';
+    }
+    const persistedState = {
+      ...st, ...persisted,
+      order: persisted.order ? {
+        ...persisted.order,
+        items: (persisted.order.items || []).map((item, index) => ({
+          ...item, lineId: item.lineId || `restored-${item.prodId || 'item'}-${index}`,
+        })),
+      } : st.order,
+      open: Array.isArray(persisted.open) ? persisted.open : st.open,
+      sales: Array.isArray(persisted.sales) ? persisted.sales : st.sales,
+      kitchenTickets: Array.isArray(persisted.kitchenTickets) ? persisted.kitchenTickets : st.kitchenTickets,
+    };
+    // Repeating an already committed confirmation never creates a second audit entry.
+    if (persistedState.sales.some(sale => sale.cancellationCommandId === commandId)) return;
+    if (target.folio && persistedState.sales.some(sale => sale.folio === target.folio && ['completada', 'cancelada'].includes(sale.status))) {
+      this.toast('La cuenta ya fue cobrada o cancelada. Revisa su historial.', 'warn'); return 'keep';
+    }
+    if (this.checkoutSourceSnapshot(target, st) !== expectedSource || this.checkoutSourceSnapshot(target, persistedState) !== expectedSource) {
+      this.toast('La cuenta cambió mientras confirmabas. Revísala y vuelve a cancelar.', 'warn'); return 'keep';
+    }
+    const source = target.fromStation ? st.order : st.open.find(x => x.folio === target.folio);
+    if (!source || !this.needCapturedPrices(source.items)) return 'keep';
+    if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > this._folio) this._folio = persisted.folioSeq;
+    let folio = source.folio;
+    if (!folio) {
+      do { folio = this.nf(); } while ([...persistedState.open, ...persistedState.sales, ...persistedState.kitchenTickets].some(record => record.folio === folio));
+    }
+    const actor = this.user();
+    if (!actor?.id || !actor?.name) { this.notAllowed('cancelar cuentas'); return 'keep'; }
+    const occurredAt = new Date().toISOString();
+    const origin = persistedState.kitchenTickets.find(ticket => ticket.folio === folio);
+    let subtotalCents; let totalCents;
+    try {
+      subtotalCents = source.items.reduce((sum, item) => {
+        if (!Number.isSafeInteger(item.qty) || item.qty < 1) throw new RangeError('invalid quantity');
+        const next = sum + moneyToCents(this.lineUnit(item)) * item.qty;
+        if (!Number.isSafeInteger(next)) throw new RangeError('invalid total');
+        return next;
+      }, 0);
+      totalCents = subtotalCents - Math.min(subtotalCents, moneyToCents(source.discount || 0));
+    } catch {
+      this.toast('Revisa cantidades y precios antes de cancelar.', 'warn'); return 'keep';
+    }
+    const trimmedReason = reason.trim();
+    const sale = {
+      folio, cancellationCommandId: commandId, day: 0, fecha: 'Hoy · ' + this.now(),
+      createdTime: source.time || origin?.time || null,
+      creo: source.responsible || source.user || origin?.user || actor.name,
+      cobro: '—', tipo: source.ref || this.refOf(source),
+      items: source.items.map(item => ({ ...item, name: item.capturedSnapshot?.name || item.productNameSnapshot || item.name,
+        qty: item.qty, mods: this.modsText(item), unit: this.lineUnit(item), total: this.lineUnit(item) * item.qty })),
+      payments: [], tip: 0, subtotalCents, discount: source.discount || 0,
+      total: centsToMoney(totalCents), status: 'cancelada', sync: st.online ? 'sincronizada' : 'pendiente',
+      motivo: trimmedReason, cancelledAt: occurredAt, cancelledBy: actor.name, cancelledById: actor.id,
+      audit: [[occurredAt, 'Cancelada · ' + trimmedReason, actor.name]]
+    };
+    const patch = {
+      open: persistedState.open.filter(account => account.folio !== folio),
+      kitchenTickets: cancelKitchenTicket(persistedState.kitchenTickets, folio, actor.name, occurredAt, trimmedReason),
+      sales: [sale, ...persistedState.sales],
+      order: target.fromStation || st.order.folio === folio ? this.blank() : st.order,
+      pending: st.online ? persistedState.pending || st.pending : [...(persistedState.pending || st.pending), 'Cancelación ' + folio],
+    };
+    // Store before announcing success or clearing the station; failed storage leaves it repairable.
+    try {
+      localStorage.setItem(this._storageKey || 'karma-pos-v1', JSON.stringify({ ...persisted, ...patch, folioSeq: this._folio }));
+    } catch { this.toast('No se pudo guardar la cancelación. La cuenta sigue abierta.', 'warn'); return 'keep'; }
+    this.setState(patch);
+    this.toast(folio + ' cancelada');
   }
   invDialog(tipo, label, needsPerm) {
     if (needsPerm && !this.can('ajuste')) { this.notAllowed('registrar ajustes de inventario'); return; }
@@ -577,20 +660,7 @@ export default class PosApp extends React.Component {
       this.toast('Comanda ' + f + ' enviada a cocina y barra' + (s.flags.autoprint ? ' · impresa' : ''));
     };
     V.goCharge = () => { if (!this.needItems()) return; const oo = this.state.order; this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + (oo.type === 'mesa' && oo.mesa ? ' ' + oo.mesa : ''), true); };
-    V.cancelOrder = () => {
-      if (!this.can('cancelar')) { this.notAllowed('cancelar la orden actual'); return; }
-      if (!o.items.length && !o.folio) { this.toast('No hay orden que cancelar', 'warn'); return; }
-      this.setState({ dlg: { title: 'Cancelar orden actual', body: 'Se vaciará la estación de venta. Si la cuenta ya estaba guardada, quedará registrada como cancelada.', needReason: true, danger: true, confirmLabel: 'Cancelar orden', onConfirm: d => {
-        if (!this.can('cancelar')) { this.notAllowed('cancelar la orden actual'); return 'keep'; }
-        if (!d.reason || !d.reason.trim()) { this.toast('Captura el motivo de cancelación', 'warn'); return 'keep'; }
-        const st = this.state; const folio = st.order.folio; const account = st.open.find(x => x.folio === folio);
-        const actor = this.user().name; const occurredAt = new Date().toISOString();
-        const kitchenTickets = folio ? cancelKitchenTicket(st.kitchenTickets, folio, actor, occurredAt, d.reason) : st.kitchenTickets;
-        const sale = account ? { folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: account.user, cobro: '—', tipo: account.ref, items: account.items.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })), payments: [], tip: 0, total: account.items.reduce((a, l) => a + l.unit * l.qty, 0), status: 'cancelada', sync: st.online ? 'sincronizada' : 'pendiente', motivo: d.reason.trim(), audit: [[occurredAt, 'Cancelada · ' + d.reason.trim(), actor]] } : null;
-        this.up({ order: this.blank(), open: st.open.filter(x => x.folio !== folio), kitchenTickets, ...(sale ? { sales: [sale, ...st.sales] } : {}) });
-        this.toast('Orden cancelada · ' + d.reason.trim());
-      } } });
-    };
+    V.cancelOrder = () => this.openCancellation({ folio: this.state.order.folio, fromStation: true });
 
     // ---- editor
     const ed = s.ed;
