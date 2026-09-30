@@ -30,10 +30,12 @@ import { saveMenuProduct } from './catalog/menu-products.mjs';
 import { toggleModifierSelection } from './catalog/sales-selection.mjs';
 import { sameCapturedModifiers } from './catalog/captured-modifiers.mjs';
 import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue.js';
+import { planSaleCompensation, compensationTotalCents, saleTotalCents } from './domain/sale-compensation.js';
 import { calculateTender, centsToMoney, moneyToCents, paymentMethodTotalsCents, paymentNetCents } from './domain/payment-tender.js';
 import { canPerform, resolveAccessAction, seededRoleToAccessRole } from './access/role-policy.ts';
 import { parseVerifiedAccessContext } from './access/offline-identity.ts';
 
+const compensationMethodLabels = new Map([['cash', 'Efectivo'], ['card', 'Tarjeta'], ['transfer', 'Transferencia']]);
 const DEFAULT_TABLE_COUNT = 12;
 const MAX_TABLE_COUNT = 50;
 
@@ -300,7 +302,7 @@ export default class PosApp extends React.Component {
       this.notAllowed(action);
       return false;
     }
-    const reasonRequired = ['cancelWithReason', 'cancelPreparationWithReason', 'discountWithReason', 'reprintWithReason', 'editMenu', 'adjustInventory'].includes(resolveAccessAction(action));
+    const reasonRequired = ['cancelWithReason', 'refundSaleWithReason', 'cancelPreparationWithReason', 'discountWithReason', 'reprintWithReason', 'editMenu', 'adjustInventory'].includes(resolveAccessAction(action));
     if (this.isSecureMode() && reasonRequired && reason !== undefined) {
       if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 250) {
         this.toast('Captura un motivo de entre 1 y 250 caracteres.', 'warn');
@@ -337,6 +339,7 @@ export default class PosApp extends React.Component {
     return (L[m] || []).includes(r);
   }
   notAllowed(what) {
+    if (what === 'refundSaleWithReason') what = 'registrar reembolsos o anular ventas';
     this.setState({ dlg: { title: 'Acción no permitida', body: 'Tu rol (' + this.roleLabel() + ') no tiene permiso para ' + what + '. Solicita apoyo a un encargado o a la dueña.', closeLabel: 'Entendido', onConfirm: null } });
   }
   lineUnit(l) {
@@ -790,6 +793,56 @@ export default class PosApp extends React.Component {
     } catch { this.toast('No se pudo guardar la cancelación. La cuenta sigue abierta.', 'warn'); return 'keep'; }
     this.setState(patch);
     this.toast(folio + ' cancelada');
+  }
+  openSaleCompensation(folio, kind) {
+    if (!this.requireAction('refundSaleWithReason')) return;
+    const sale = this.state.sales.find(record => record.folio === folio);
+    let remaining;
+    try { remaining = saleTotalCents(sale) - compensationTotalCents(sale); }
+    catch { this.toast('El historial de pagos requiere revisión antes de devolver dinero.', 'warn'); return; }
+    if (sale.status !== 'completada' || remaining <= 0 || (kind === 'void' && compensationTotalCents(sale) !== 0)) {
+      this.toast('Esta venta ya no admite la devolución propuesta.', 'warn'); return;
+    }
+    const expectedSnapshot = JSON.stringify(sale);
+    const commandId = globalThis.crypto.randomUUID();
+    this.setState({ repSel: null, dlg: {
+      title: kind === 'void' ? 'Anular venta ' + folio : 'Registrar reembolso de ' + folio,
+      body: 'Registra solo dinero ya devuelto manualmente. Se conservarán la venta y los pagos originales. La devolución externa y la compensación de inventario requieren verificación aparte.',
+      needReason: true, confirmLabel: kind === 'void' ? 'Registrar anulación manual' : 'Registrar reembolso manual',
+      ...(kind === 'refund' ? { refundPaymentOptions: (Array.isArray(sale.payments) ? sale.payments : []).filter(payment => payment && typeof payment === 'object').map((payment, index) => ({ id: payment.paymentId || `${sale.folio}:legacy-payment:${index}`, label: payment.methodLabel || compensationMethodLabels.get(payment.method) || payment.method })), fields: [{ key: 'monto', label: 'Importe devuelto', value: centsToMoney(remaining).toFixed(2) }] } : {}),
+      onConfirm: dialog => this.confirmSaleCompensation({ folio, kind, commandId, expectedSnapshot, paymentId: dialog.paymentId || null, amount: kind === 'void' ? centsToMoney(remaining).toFixed(2) : dialog.fields?.[0]?.value, reason: dialog.reason }),
+    } });
+  }
+  confirmSaleCompensation({ folio, kind, commandId, expectedSnapshot, paymentId, amount, reason }) {
+    if (!this.requireAction('refundSaleWithReason', reason)) return 'keep';
+    let persisted; let source; let planned;
+    try {
+      persisted = JSON.parse(localStorage.getItem(this._storageKey || 'karma-pos-v1')) || {};
+      if (!Array.isArray(persisted.sales)) throw new Error('missing history');
+      for (const key of ['open', 'kitchenTickets', 'pending', 'prods']) if (persisted[key] !== undefined && !Array.isArray(persisted[key])) throw new Error('invalid saved collection');
+      if (persisted.order !== undefined && (!persisted.order || typeof persisted.order !== 'object' || !Array.isArray(persisted.order.items))) throw new Error('invalid saved draft');
+      if (persisted.orderSettings !== undefined && (!persisted.orderSettings || typeof persisted.orderSettings !== 'object' || !Number.isInteger(persisted.orderSettings.tableCount) || persisted.orderSettings.tableCount < 1 || persisted.orderSettings.tableCount > MAX_TABLE_COUNT)) throw new Error('invalid table settings');
+      if (persisted.folioSeq !== undefined && (!Number.isSafeInteger(persisted.folioSeq) || persisted.folioSeq < 1)) throw new Error('invalid folio sequence');
+      source = persisted.sales.find(record => record.folio === folio);
+      const live = this.state.sales.find(record => record.folio === folio);
+      const duplicate = Array.isArray(source?.compensations) && source.compensations.some(event => event.commandId === commandId);
+      if (!duplicate && (JSON.stringify(source) !== expectedSnapshot || JSON.stringify(live) !== expectedSnapshot)) throw new Error('changed source');
+      const actor = this.user();
+      planned = planSaleCompensation(source, { commandId, kind, amount, paymentId, reason, actorId: actor.id, actorName: actor.name, occurredAt: new Date().toISOString() });
+    } catch {
+      this.toast('No se registró la devolución. Revisa importe, motivo, pagos capturados y cambios en el historial.', 'warn'); return 'keep';
+    }
+    if (!planned.changed) { this.toast('La devolución ya está registrada.'); return; }
+    const sales = persisted.sales.map(record => record.folio === folio ? planned.sale : record);
+    const oldPending = Array.isArray(persisted.pending) ? persisted.pending : this.state.pending;
+    const pending = [...oldPending, 'Devolución ' + commandId];
+    try { localStorage.setItem(this._storageKey || 'karma-pos-v1', JSON.stringify({ ...persisted, sales, pending })); }
+    catch { this.toast('No se pudo guardar la devolución. El historial sigue intacto; intenta de nuevo.', 'warn'); return 'keep'; }
+    const restored = { sales, pending, repSel: folio };
+    for (const key of ['open', 'kitchenTickets', 'prods', 'flags', 'orderSettings']) if (persisted[key] !== undefined) restored[key] = persisted[key];
+    if (persisted.order) restored.order = restoreStoredOrder(persisted.order);
+    this._folio = Math.max(this._folio, persisted.folioSeq || 0);
+    this.setState(restored, () => this.toast('Devolución manual registrada; verifica por separado dinero e inventario.'));
   }
   invDialog(tipo, label, needsPerm) {
     if (!this.requireAction('adjustInventory')) return;
@@ -1275,13 +1328,36 @@ export default class PosApp extends React.Component {
     V.topProds = Object.keys(tp).sort((a, b) => tp[b].a - tp[a].a).slice(0, 6).map(k => ({ name: k, qty: tp[k].q, amount: this.fmt(tp[k].a) }));
     const bu = {}; done.forEach(x => { bu[x.cobro] = bu[x.cobro] || { t: 0, a: 0 }; bu[x.cobro].t += 1; bu[x.cobro].a += x.total; });
     V.byUser = Object.keys(bu).map(k => ({ name: k, meta: bu[k].t + ' tickets', amount: this.fmt(bu[k].a) }));
+    let refundedCents = 0;
+    let voidCount = 0;
+    let refundCount = 0;
+    const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - lim);
+    for (const sale of s.sales) {
+      for (const event of Array.isArray(sale.compensations) ? sale.compensations : []) {
+        if (event && ['refund', 'void'].includes(event.kind) && Number.isSafeInteger(event.amountCents) && event.amountCents > 0 && Date.parse(event.occurredAt) >= start.getTime() && Date.parse(event.occurredAt) <= Date.now()) {
+          const next = refundedCents + event.amountCents;
+          if (Number.isSafeInteger(next)) refundedCents = next;
+          if (event.kind === 'void') voidCount += 1; else refundCount += 1;
+        }
+      }
+    }
+    V.repRefunds = this.fmt(centsToMoney(refundedCents)); V.repRefundCount = refundCount; V.repVoids = voidCount;
+    V.repNet = this.fmt(done.reduce((sum, sale) => sum + sale.total, 0) - centsToMoney(refundedCents));
     const stTags = { completada: ['Completada', 'success'], cancelada: ['Cancelada', 'destructive'], reembolsada: ['Reembolsada', 'outline'] };
-    V.repSales = rs.map(x => ({ folio: x.folio, fecha: x.fecha, tipo: x.tipo, user: x.cobro, total: this.fmt(x.total), statusLabel: stTags[x.status][0], statusVariant: stTags[x.status][1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronizada', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) }));
+    const compensationLabel = sale => {
+      if (!Array.isArray(sale.compensations) || !sale.compensations.length) return stTags[sale.status][0];
+      try {
+        const returned = compensationTotalCents(sale);
+        const suffix = sale.compensations.some(event => event.kind === 'void') ? 'anulada' : returned === saleTotalCents(sale) ? 'reembolsada' : 'reembolso parcial';
+        return stTags[sale.status][0] + ' · ' + suffix;
+      } catch { return stTags[sale.status][0] + ' · devoluciones por revisar'; }
+    };
+    V.repSales = rs.map(x => ({ folio: x.folio, fecha: x.fecha, tipo: x.tipo, user: x.cobro, total: this.fmt(x.total), statusLabel: compensationLabel(x), statusVariant: stTags[x.status][1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronizada', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) }));
     V.exportar = () => this.toast('ventas_abboth_' + s.range + '.xlsx exportado (simulado)');
     const sel = s.sales.find(x => x.folio === s.repSel);
     V.hasRepSel = !!sel;
     if (sel) {
-      V.dFolio = sel.folio; V.dStatusLabel = stTags[sel.status][0]; V.dStatusVariant = stTags[sel.status][1];
+      V.dFolio = sel.folio; V.dStatusLabel = compensationLabel(sel); V.dStatusVariant = stTags[sel.status][1];
       V.dMeta = sel.fecha + ' · ' + sel.tipo + ' — creó ' + sel.creo + ' · cobró ' + sel.cobro + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'sincronizada');
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
       V.dItems = sel.items.map(i => ({ qty: i.qty, name: i.name, mods: i.mods, hasMods: !!i.mods, total: this.fmt(i.total) }));
@@ -1306,9 +1382,15 @@ export default class PosApp extends React.Component {
         change: Number.isSafeInteger(p.changeCents) ? this.fmt(centsToMoney(p.changeCents)) : '',
       }));
       V.dTip = this.fmt(sel.tip); V.dTotal = this.fmt(sel.total);
+      V.dCompensations = (Array.isArray(sel.compensations) ? sel.compensations : []).map(event => ({ id: event.commandId, kind: event.kind === 'void' ? 'Anulación manual' : 'Reembolso manual', amount: this.fmt(centsToMoney(event.amountCents)), actor: event.actorName, date: event.occurredAt, reason: event.reason, allocations: (Array.isArray(event.allocations) ? event.allocations : []).map(entry => ({ label: compensationMethodLabels.get(entry.method) || 'Pago', amount: this.fmt(centsToMoney(entry.amountCents)) })) }));
+      let availableRefund = false; let availableVoid = false;
+      try { const refunded = compensationTotalCents(sel); availableRefund = refunded < saleTotalCents(sel); availableVoid = refunded === 0; } catch { /* Require reconciliation before any compensation. */ }
+      V.canRefundSale = this.can('refundSaleWithReason') && sel.status === 'completada' && availableRefund;
+      V.canVoidSale = V.canRefundSale && availableVoid;
+      V.refundSale = () => this.openSaleCompensation(sel.folio, 'refund'); V.voidSale = () => this.openSaleCompensation(sel.folio, 'void');
       V.dAudit = sel.audit.map(a => ({ t: a[0], e: a[1], u: a[2] }));
       V.closeDetail = () => this.setState({ repSel: null });
-    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPaymentVerificationMessage: '', dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
+    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPaymentVerificationMessage: '', dPays: [], dTip: '', dTotal: '', dAudit: [], dCompensations: [], canRefundSale: false, canVoidSale: false, refundSale: () => {}, voidSale: () => {}, closeDetail: () => {} }); }
 
     // ---- users & config
     V.cfgTabs = (this.isSecureMode() && !this.can('manageUsers') ? [['config', 'Configuración']] : [['usuarios', 'Usuarios'], ['config', 'Configuración']]).map(([id, label]) => ({ label, active: s.cfgTab === id, pick: () => this.setState({ cfgTab: id }) }));
@@ -1439,7 +1521,7 @@ export default class PosApp extends React.Component {
     const dg = s.dlg;
     V.dlg = !!dg;
     if (dg) {
-      V.dlgTitle = dg.title; V.dlgBody = dg.body;
+      V.dlgTitle = dg.title; V.dlgBody = dg.body; V.dlgRefundPayments = dg.refundPaymentOptions || []; V.dlgRefundPayment = dg.paymentId ? 'payment:' + dg.paymentId : '__all__'; V.setDlgRefundPayment = value => this.setState({ dlg: { ...this.state.dlg, paymentId: value === '__all__' ? null : value.slice(8) } });
       V.dlgFields = (dg.fields || []).map(f => ({ label: f.label, value: f.value, ph: f.ph || '', inputMode: f.key === 'monto' ? 'decimal' : undefined, set: e => this.setState({ dlg: { ...this.state.dlg, fields: this.state.dlg.fields.map(x => x.key === f.key ? { ...x, value: e.target.value } : x) } }) }));
       V.dlgNeedReason = !!dg.needReason && s.flags.cancelMotivo !== false || !!dg.needReason;
       V.dlgReason = dg.reason || ''; V.setDlgReason = e => this.setState({ dlg: { ...this.state.dlg, reason: e.target.value } });
@@ -1455,7 +1537,7 @@ export default class PosApp extends React.Component {
         const r = d.onConfirm && d.onConfirm(d);
         if (r !== 'keep') this.setState({ dlg: null });
       };
-    } else { Object.assign(V, { dlgTitle: '', dlgBody: '', dlgFields: [], dlgNeedReason: false, dlgReason: '', setDlgReason: () => {}, hasDlgErr: false, dlgErr: '', dlgHasConfirm: false, dlgCloseLabel: '', dlgConfirmLabel: '', dlgConfirmStyle: {}, dlgClose: () => {}, dlgConfirm: () => {} }); }
+    } else { Object.assign(V, { dlgTitle: '', dlgBody: '', dlgRefundPayments: [], dlgRefundPayment: '__all__', setDlgRefundPayment: () => {}, dlgFields: [], dlgNeedReason: false, dlgReason: '', setDlgReason: () => {}, hasDlgErr: false, dlgErr: '', dlgHasConfirm: false, dlgCloseLabel: '', dlgConfirmLabel: '', dlgConfirmStyle: {}, dlgClose: () => {}, dlgConfirm: () => {} }); }
 
     return V;
   }
@@ -1846,11 +1928,16 @@ export default class PosApp extends React.Component {
 <Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Ventas</div><div style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;margin-top:8px")}>{V.repVentas}</div></Card>
 <Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Tickets</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repTickets}</div></Card>
 <Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Propinas</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repProps}</div></Card>
-<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cancelaciones</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repCanc}</div></Card>
+<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cancelaciones de cuentas</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repCanc}</div></Card>
+</div>
+<div className="grid gap-3 sm:grid-cols-3" aria-label="Devoluciones y neto">
+<Card className="gap-2 p-4"><div>Reembolsos y anulaciones</div><strong>{V.repRefunds}</strong><span className="text-xs text-muted-foreground">{V.repRefundCount} reembolsos · {V.repVoids} anulaciones</span></Card>
+<Card className="gap-2 p-4"><div>Neto tras devoluciones</div><strong>{V.repNet}</strong></Card>
+<Card className="gap-2 p-4"><div className="text-xs text-muted-foreground">Los pagos originales se conservan. Las devoluciones manuales no confirman liquidación bancaria ni compensación de inventario.</div></Card>
 </div>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px")}>
 <Card className="gap-3 p-4">
-<div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Por forma de pago</div>
+<div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cobros originales por forma de pago</div>
 {(V.methods).map((m, mI) => (<React.Fragment key={mI}>
 <div style={css("display:flex;flex-direction:column;gap:4px")}>
 <div style={css("display:flex;justify-content:space-between;font-size:13px")}><span>{m.label}</span><span style={css("font-weight:500")}>{m.amount}</span></div>
@@ -2041,6 +2128,8 @@ export default class PosApp extends React.Component {
 <DialogTitle className="flex items-center gap-2">{V.dFolio}<Badge variant={V.dStatusVariant}>{V.dStatusLabel}</Badge></DialogTitle>
 <DialogDescription className="leading-relaxed">{V.dMeta}</DialogDescription>
 </DialogHeader>
+{V.canRefundSale && <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={V.refundSale}>Registrar reembolso</Button>{V.canVoidSale && <Button type="button" variant="outline" onClick={V.voidSale}>Anular venta</Button>}</div>}
+{V.dCompensations.map(event => <Card key={event.id} className="gap-1 p-3"><strong>{event.kind} · {event.amount}</strong><span>{event.actor} · {event.date}</span><span>{event.reason}</span>{event.allocations.map((payment, index) => <span key={index}>{payment.label} · {payment.amount}</span>)}<span className="text-xs text-muted-foreground">Registro manual · compensación de inventario pendiente</span></Card>)}
 {(V.dHasMotivo) && (<><div style={css("font-size:12.5px;color:#836953;background:#f6e5df;border-radius:8px;padding:8px 12px")}>Motivo: {V.dMotivo}</div></>)}
 {(V.dPaymentVerificationMessage) && (<div role="status" className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{V.dPaymentVerificationMessage}</div>)}
 <div style={css("display:flex;flex-direction:column")}>
@@ -2086,6 +2175,7 @@ export default class PosApp extends React.Component {
 <DialogTitle>{V.dlgTitle}</DialogTitle>
 <DialogDescription>{V.dlgBody}</DialogDescription>
 </DialogHeader>
+{V.dlgRefundPayments.length > 1 && <div className="flex flex-col gap-2"><Label htmlFor="refund-payment">Pago devuelto</Label><Select value={V.dlgRefundPayment} onValueChange={V.setDlgRefundPayment}><SelectTrigger id="refund-payment"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__all__">Devolución completa de todos los pagos</SelectItem>{V.dlgRefundPayments.map((payment, index) => <SelectItem key={payment.id} value={'payment:' + payment.id}>{payment.label} · pago {index + 1}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">Para un reembolso parcial, selecciona el pago que ya devolviste.</p></div>}
 {(V.dlgFields).map((f, fI) => (<React.Fragment key={fI}>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 <Label htmlFor={`dialog-field-${fI}`}>{f.label}</Label>

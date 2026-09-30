@@ -14,7 +14,8 @@ export type AccessAction =
   | "viewReports"
   | "manageUsers"
   | "prepareOrder"
-  | "configureTables";
+  | "configureTables"
+  | "refundSaleWithReason";
 
 const ACCESS_ACTIONS: readonly AccessAction[] = [
   "openOrder",
@@ -30,6 +31,7 @@ const ACCESS_ACTIONS: readonly AccessAction[] = [
   "manageUsers",
   "prepareOrder",
   "configureTables",
+  "refundSaleWithReason",
 ];
 
 export type LegacyAccessAction =
@@ -72,6 +74,7 @@ const permissions: Record<AccessRole, ReadonlySet<AccessAction>> = {
     "manageUsers",
     "prepareOrder",
     "configureTables",
+    "refundSaleWithReason",
   ]),
   encargado: new Set([
     "openOrder",
@@ -86,6 +89,7 @@ const permissions: Record<AccessRole, ReadonlySet<AccessAction>> = {
     "viewReports",
     "prepareOrder",
     "configureTables",
+    "refundSaleWithReason",
   ]),
   barra: new Set(["openOrder", "checkout", "viewStock", "prepareOrder"]),
   mesero: new Set(["openOrder", "viewStock", "prepareOrder"]),
