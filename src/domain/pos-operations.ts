@@ -2191,7 +2191,13 @@ function requireOpenOrder(order: PosOperationOrder): void {
 
 function validateOrderMoney(order: PosOperationOrder): void {
   const subtotal = lineSubtotal(order.lines);
-  if (subtotal !== null && discountTotal(order.discounts) > subtotal)
+  const discounts = discountTotal(order.discounts);
+  if (discounts > 0 && subtotal === null)
+    throw new PosOperationError(
+      "ORDER_PRICE_INCOMPLETE",
+      "An order with discounts must retain captured line totals.",
+    );
+  if (subtotal !== null && discounts > subtotal)
     throw new RangeError(
       "order discount cannot exceed its captured line subtotal.",
     );

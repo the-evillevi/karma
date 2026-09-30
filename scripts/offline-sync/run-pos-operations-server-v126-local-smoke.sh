@@ -53,6 +53,7 @@ psql_apply < "$repo_root/supabase/migrations/20260929000100_evl114_command_batch
 psql_apply < "$repo_root/supabase/migrations/20260929000200_evl118_access_control.sql"
 psql_apply < "$repo_root/supabase/migrations/20260930000100_evl126_pos_operations_v1.sql"
 psql_apply < "$repo_root/supabase/migrations/20260930000200_evl126_revision_conflicts.sql"
+psql_apply < "$repo_root/supabase/migrations/20260930000300_evl126_order_lifecycle.sql"
 psql_apply < "$script_dir/pos-operations-server-v126-local-smoke.sql"
 
 printf '%s\n' "EVL-126 local PostgreSQL smoke proof passed; disposable container removed."

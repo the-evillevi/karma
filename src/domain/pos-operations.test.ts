@@ -620,6 +620,93 @@ test("discounts and cancellation preserve reason and actor without mutating the 
   );
 });
 
+test("a discounted order cannot lose its captured subtotal or become over-discounted", () => {
+  const opened = applyPosOperation(
+    createPosOperationsState(scope),
+    openCommand(),
+    owner,
+  ).state;
+  const discounted = applyPosOperation(
+    opened,
+    operation(
+      "order.discounted",
+      { orderId: "order-1", amountCents: 4000 },
+      [revision("order", "order-1", 1)],
+      { reason: "Descuento autorizado" },
+    ),
+    owner,
+  ).state;
+
+  assert.throws(
+    () =>
+      applyPosOperation(
+        discounted,
+        operation(
+          "order.line-changed",
+          {
+            orderId: "order-1",
+            lineId: "line-1",
+            line: capturedLine("line-1", {
+              baseUnitPriceCents: 3000,
+              unitPriceCents: 3000,
+              lineTotalCents: 3000,
+            }),
+          },
+          [revision("order", "order-1", 2)],
+        ),
+        owner,
+      ),
+    /discount cannot exceed its captured line subtotal/,
+  );
+
+  const unknownLine = capturedLine("line-1", {
+    baseUnitPriceCents: null,
+    modifierTotalCents: null,
+    unitPriceCents: null,
+    lineTotalCents: null,
+    priceEvidence: "unknown",
+  });
+  assert.throws(
+    () =>
+      applyPosOperation(
+        discounted,
+        operation(
+          "order.line-changed",
+          { orderId: "order-1", lineId: "line-1", line: unknownLine },
+          [revision("order", "order-1", 2)],
+        ),
+        owner,
+      ),
+    { code: "ORDER_PRICE_INCOMPLETE" },
+  );
+  assert.throws(
+    () =>
+      applyPosOperation(
+        discounted,
+        operation(
+          "order.line-added",
+          {
+            orderId: "order-1",
+            line: capturedLine("line-unknown", {
+              baseUnitPriceCents: null,
+              modifierTotalCents: null,
+              unitPriceCents: null,
+              lineTotalCents: null,
+              priceEvidence: "unknown",
+            }),
+          },
+          [revision("order", "order-1", 2)],
+        ),
+        owner,
+      ),
+    { code: "ORDER_PRICE_INCOMPLETE" },
+  );
+
+  assert.equal(discounted.orders[0]?.revision, 2);
+  assert.equal(discounted.orders[0]?.lines[0]?.lineTotalCents, 6000);
+  assert.equal(discounted.orders[0]?.discounts[0]?.allocatedCents, 4000);
+});
+
 test("prep send, progress, split lineage, and checkout preserve unfinished kitchen work", () => {
   const twoLines = [
     capturedLine("line-1", { quantity: 2, lineTotalCents: 12000 }),
