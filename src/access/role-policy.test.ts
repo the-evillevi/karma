@@ -25,6 +25,8 @@ test("server role matrix supports the allowed work and denies every privileged o
   assert.equal(canPerform("mesero", "viewStock"), true);
   assert.equal(canPerform("mesero", "prepareOrder"), true);
   assert.equal(canPerform("duena", "viewCustomerAccounts"), true);
+  assert.equal(canPerform("duena", "manageCustomerBirthdayPolicy"), true);
+  assert.equal(canPerform("encargado", "manageCustomerBirthdayPolicy"), false);
   assert.equal(canPerform("encargado", "viewCustomerAccounts"), true);
   assert.equal(canPerform("encargado", "manageCustomerProfiles"), true);
   assert.equal(canPerform("encargado", "recordCustomerAccountPayment"), true);
@@ -34,6 +36,7 @@ test("server role matrix supports the allowed work and denies every privileged o
     "manageCustomerProfiles",
     "setCustomerCreditLimit",
     "recordCustomerAccountPayment",
+    "manageCustomerBirthdayPolicy",
   ] as const) {
     assert.equal(canPerform("barra", action), false, action);
     assert.equal(canPerform("mesero", action), false, action);

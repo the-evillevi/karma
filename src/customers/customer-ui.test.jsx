@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeAll, expect, it } from 'vitest';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PosApp from '../PosApp.jsx';
 import '../karma-data.js';
@@ -95,6 +95,11 @@ async function confirmDialog(user, label) {
   const reason = within(dialog).getByRole('textbox', { name: 'Motivo (obligatorio)' });
   if (!reason.value) await user.type(reason, 'Registro operativo revisado');
   await user.click(within(dialog).getByRole('button', { name: label }));
+}
+
+async function selectDialogOption(user, label, option) {
+  await user.click(screen.getByRole('combobox', { name: label }));
+  await user.click(await screen.findByRole('option', { name: option }));
 }
 
 function accountLedgerWithDebt() {
@@ -383,4 +388,107 @@ it('removes customer profile dialogs on identity changes and rejects their captu
   expect(screen.queryByRole('dialog', { name: 'Editar perfil de cliente' })).toBeNull();
   expect(screen.queryByDisplayValue('555-0100')).toBeNull();
   expect(JSON.parse(storage.getItem(key)).customerLedger).toEqual(before);
+});
+
+it('stores an optional birthday as a separate audited profile event without changing legacy profile payloads', async () => {
+  const storage = memoryStorage();
+  const user = userEvent.setup();
+  const view = mountDemo();
+  await openCustomers(user);
+  await user.click(screen.getByRole('button', { name: '+ Nuevo perfil' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Nuevo perfil de cliente' });
+  await user.type(within(dialog).getByRole('textbox', { name: 'Nombre para mostrar' }), 'María cumpleaños');
+  fireEvent.change(within(dialog).getByLabelText('Fecha de nacimiento (opcional)'), { target: { value: '1990-09-30' } });
+  await confirmDialog(user, 'Crear perfil');
+
+  const ledger = JSON.parse(storage.getItem('karma-pos-v1')).customerLedger;
+  expect(ledger.events.map(event => [event.kind, event.payload])).toEqual([
+    ['profile.create', { name: 'María cumpleaños', phone: null }],
+    ['profile.birthday.set.v1', { birthDate: '1990-09-30' }],
+  ]);
+  expect(ledger.events[1]).toMatchObject({ actorId: 'u1', roleSnapshot: 'duena', reason: 'Registro operativo revisado', revision: 2 });
+  expect(await screen.findByText(/nacimiento 1990-09-30/)).toBeTruthy();
+  expect(screen.getByRole('region', { name: 'Previsión de cumpleaños' }).textContent).toContain('no se reserva ni se aplica');
+  view.unmount();
+});
+
+it('lets only the owner save an audited birthday policy and shows an explanation-only preview', async () => {
+  const storage = memoryStorage();
+  const user = userEvent.setup();
+  const view = mountDemo();
+  await openCustomers(user);
+  await user.click(screen.getByRole('button', { name: '+ Nuevo perfil' }));
+  const profile = await screen.findByRole('dialog', { name: 'Nuevo perfil de cliente' });
+  await user.type(within(profile).getByRole('textbox', { name: 'Nombre para mostrar' }), 'Luz Regla');
+  fireEvent.change(within(profile).getByLabelText('Fecha de nacimiento (opcional)'), { target: { value: '1990-01-02' } });
+  await confirmDialog(user, 'Crear perfil');
+
+  await user.click(screen.getByRole('button', { name: 'Regla de cumpleaños' }));
+  const policy = await screen.findByRole('dialog', { name: 'Regla de cumpleaños' });
+  await selectDialogOption(user, 'Estado de la regla', 'Activada');
+  await user.type(within(policy).getByRole('textbox', { name: 'Zona horaria IANA de la sucursal' }), 'America/Mexico_City');
+  await selectDialogOption(user, 'Ventana de cumpleaños', 'Solo el día exacto');
+  await selectDialogOption(user, 'Cumpleaños del 29 de febrero', 'Usar 28 de febrero');
+  await selectDialogOption(user, 'Beneficio definido por Dueña', 'Tope de importe cubierto');
+  await user.type(within(policy).getByRole('textbox', { name: 'Tope cubierto (MXN)' }), '50.00');
+  await confirmDialog(user, 'Guardar regla');
+
+  const stored = JSON.parse(storage.getItem('karma-pos-v1'));
+  expect(stored.customerBirthdayPolicyLedger.events).toHaveLength(1);
+  expect(stored.customerBirthdayPolicyLedger.events[0]).toMatchObject({
+    kind: 'birthday.policy.set.v1', actorId: 'u1', roleSnapshot: 'duena',
+    payload: { enabled: true, timeZone: 'America/Mexico_City', leapDayRule: 'feb28', benefit: { kind: 'maximum_cents', maxCoveredCents: 5000 } },
+  });
+  expect(screen.getByText(/Activada · revisión 1/)).toBeTruthy();
+  expect(screen.getByText(/Último cambio: Marcela Ortiz/)).toBeTruthy();
+  expect(screen.getByRole('region', { name: 'Previsión de cumpleaños' }).textContent).toContain('La redención requiere cobro atómico');
+  view.unmount();
+});
+
+it('keeps policy writes retryable after a local failure and closes the capture when owner authority is lost', async () => {
+  const storage = memoryStorage();
+  const user = userEvent.setup();
+  const view = mountDemo();
+  await openCustomers(user);
+  await user.click(screen.getByRole('button', { name: 'Regla de cumpleaños' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Regla de cumpleaños' });
+  await user.type(within(dialog).getByRole('textbox', { name: 'Motivo (obligatorio)' }), 'Desactivación revisada');
+  const commandId = view.appRef.current.state.dlg.commandId;
+  storage.failNextWrites(1);
+  await user.click(within(dialog).getByRole('button', { name: 'Guardar regla' }));
+  expect(await screen.findByRole('dialog', { name: 'Regla de cumpleaños' })).toBeTruthy();
+  expect(view.appRef.current.state.dlg.commandId).toBe(commandId);
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).customerBirthdayPolicyLedger?.events || []).toEqual([]);
+  await user.click(within(screen.getByRole('dialog', { name: 'Regla de cumpleaños' })).getByRole('button', { name: 'Guardar regla' }));
+  await waitFor(() => expect(JSON.parse(storage.getItem('karma-pos-v1')).customerBirthdayPolicyLedger.events).toHaveLength(1));
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).customerBirthdayPolicyLedger.events[0].commandId).toBe(commandId);
+  view.unmount();
+
+  const secureView = mountSecure('duena');
+  await user.click(await screen.findByRole('button', { name: 'Clientes y cuentas' }));
+  await screen.findByRole('button', { name: 'Regla de cumpleaños' });
+  await user.click(screen.getByRole('button', { name: 'Regla de cumpleaños' }));
+  await screen.findByRole('dialog', { name: 'Regla de cumpleaños' });
+  const capturedDialog = secureView.appRef.current.state.dlg;
+  const capturedConfirm = capturedDialog.onConfirm;
+  secureView.rerender(<PosApp ref={secureView.appRef} {...secureProps('encargado')} />);
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Regla de cumpleaños' })).toBeNull());
+  expect(screen.queryByRole('button', { name: 'Regla de cumpleaños' })).toBeNull();
+  await act(async () => { capturedConfirm({ ...capturedDialog, reason: 'intento con permiso vencido' }); });
+  expect(JSON.parse(storage.getItem(secureView.storageKey)).customerBirthdayPolicyLedger?.events || []).toEqual([]);
+  secureView.unmount();
+});
+
+it('fails closed on a corrupt saved birthday policy without showing eligibility or replacing the record', async () => {
+  const broken = { schemaVersion: 2, events: [] };
+  const storage = memoryStorage({ session: 'u1', customerLedger: createCustomerLedger(), customerBirthdayPolicyLedger: broken });
+  const user = userEvent.setup();
+  const view = mountDemo();
+  await user.click(await screen.findByRole('button', { name: 'Clientes y cuentas' }));
+  await screen.findByRole('heading', { name: 'Clientes y cuentas' });
+  expect((await screen.findByRole('alert')).textContent).toContain('No se pudo cargar el registro local de clientes');
+  expect(screen.queryByRole('button', { name: 'Regla de cumpleaños' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Previsión de cumpleaños' })).toBeNull();
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).customerBirthdayPolicyLedger).toEqual(broken);
+  view.unmount();
 });

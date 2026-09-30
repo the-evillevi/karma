@@ -19,7 +19,8 @@ export type AccessAction =
   | "viewCustomerAccounts"
   | "manageCustomerProfiles"
   | "setCustomerCreditLimit"
-  | "recordCustomerAccountPayment";
+  | "recordCustomerAccountPayment"
+  | "manageCustomerBirthdayPolicy";
 
 const ACCESS_ACTIONS: readonly AccessAction[] = [
   "openOrder",
@@ -40,6 +41,7 @@ const ACCESS_ACTIONS: readonly AccessAction[] = [
   "manageCustomerProfiles",
   "setCustomerCreditLimit",
   "recordCustomerAccountPayment",
+  "manageCustomerBirthdayPolicy",
 ];
 
 export type LegacyAccessAction =
@@ -87,6 +89,7 @@ const permissions: Record<AccessRole, ReadonlySet<AccessAction>> = {
     "manageCustomerProfiles",
     "setCustomerCreditLimit",
     "recordCustomerAccountPayment",
+    "manageCustomerBirthdayPolicy",
   ]),
   encargado: new Set([
     "openOrder",
