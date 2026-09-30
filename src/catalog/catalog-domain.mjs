@@ -197,7 +197,7 @@ export function applyCatalogCommand(input, command) {
   const existing = input.auditEvents.find((event) => event.commandId === commandId);
   if (existing) {
     if (existing.fingerprint !== fingerprint) fail(`commandId ${commandId} was already used for a different command`);
-    return { catalog: input, replayed: true };
+    return { catalog: deepFreeze(clone(input)), replayed: true };
   }
   const catalog = clone(input);
   const event = { commandId, actorId, occurredAt, type, fingerprint };
@@ -217,6 +217,8 @@ export function applyCatalogCommand(input, command) {
     }
     case 'category.edit': {
       const target = category(command.categoryId); const changes = command.changes || {};
+      if (!isRecord(changes)) fail('category changes must be an object');
+      for (const field of Object.keys(changes)) if (!['name', 'sortOrder', 'active'].includes(field)) fail(`unsupported category edit field ${field}`);
       if ('id' in changes) fail('category id is immutable');
       if ('name' in changes) target.name = name(changes.name);
       if ('sortOrder' in changes) target.sortOrder = changes.sortOrder;
@@ -233,11 +235,14 @@ export function applyCatalogCommand(input, command) {
       if (value.price?.currency !== CURRENCY) fail(`price.currency must be ${CURRENCY}`);
       const modifierGroupIds = value.modifierGroupIds ?? [];
       if (!Array.isArray(modifierGroupIds) || modifierGroupIds.some((id) => !catalog.modifierGroups.some((group) => group.id === id))) fail('modifierGroupIds must reference existing modifier groups');
-      catalog.products.push({ id: value.id, name: name(value.name), categoryId: value.categoryId, sortOrder: value.sortOrder ?? catalog.products.length, price: { amountCents, currency: CURRENCY, provenance: value.price.provenance || 'operator-entered-unverified' }, active: value.active ?? true, available: value.available ?? true, modifierGroupIds: [...modifierGroupIds], stockControl: value.stockControl || { mode: 'unknown', evidence: 'Not classified by an approved stock mapping.', validated: false }, source: sourceEntry() });
+      catalog.products.push({ id: value.id, name: name(value.name), categoryId: value.categoryId, sortOrder: value.sortOrder ?? catalog.products.length, price: { amountCents, currency: CURRENCY, provenance: value.price.provenance || 'operator-entered-unverified' }, active: value.active ?? true, available: value.available ?? true, modifierGroupIds: [...modifierGroupIds], stockControl: clone(value.stockControl || { mode: 'unknown', evidence: 'Not classified by an approved stock mapping.', validated: false }), source: sourceEntry() });
       break;
     }
     case 'product.edit': {
       const target = product(command.productId); const changes = command.changes || {};
+      if (!isRecord(changes)) fail('product changes must be an object');
+      const editableFields = ['name', 'categoryId', 'sortOrder', 'active', 'available', 'price', 'modifierGroupIds', 'stockControl'];
+      for (const field of Object.keys(changes)) if (!editableFields.includes(field)) fail(`unsupported product edit field ${field}`);
       if ('id' in changes) fail('product id is immutable');
       if ('name' in changes) target.name = name(changes.name);
       if ('categoryId' in changes) {
@@ -256,6 +261,7 @@ export function applyCatalogCommand(input, command) {
         if (!Array.isArray(changes.modifierGroupIds) || changes.modifierGroupIds.some((id) => !catalog.modifierGroups.some((group) => group.id === id))) fail('modifierGroupIds must reference existing modifier groups');
         target.modifierGroupIds = [...changes.modifierGroupIds];
       }
+      if ('stockControl' in changes) target.stockControl = clone(changes.stockControl);
       break;
     }
     case 'product.reorder': product(command.productId).sortOrder = command.sortOrder; break;

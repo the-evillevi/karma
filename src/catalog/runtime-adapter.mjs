@@ -4,11 +4,14 @@ import { validateCatalog } from './catalog-domain.mjs';
 export function adaptCatalogForRuntime(catalog, existingRuntime = {}) {
   const { errors } = validateCatalog(catalog);
   if (errors.length) throw new Error(`Cannot adapt invalid catalog: ${errors.join('; ')}`);
-  const categories = catalog.categories.map((category) => ({ id: category.id, label: category.name, active: category.active }));
+  const byOrderAndId = (left, right) => left.sortOrder - right.sortOrder || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const categories = [...catalog.categories].sort(byOrderAndId).map((category) => ({ id: category.id, label: category.name, active: category.active }));
   const categoryById = new Map(catalog.categories.map((category) => [category.id, category]));
-  const products = catalog.products.map((product) => {
+  const products = [...catalog.products].sort(byOrderAndId).map((product) => {
+    // The integer centavo value remains authoritative. This is a compatibility
+    // number for the legacy demo UI, so do not test it with binary float equality.
     const pesos = product.price.amountCents / 100;
-    if (!Number.isFinite(pesos) || pesos * 100 !== product.price.amountCents) {
+    if (!Number.isFinite(pesos)) {
       throw new Error(`Product ${product.id} cannot be represented exactly in the legacy peso-number runtime`);
     }
     return {
@@ -30,7 +33,7 @@ export function adaptCatalogForRuntime(catalog, existingRuntime = {}) {
     max: group.selection.max,
     options: group.options.map((option) => {
       const price = option.priceEffect.amountCents / 100;
-      if (!Number.isFinite(price) || price * 100 !== option.priceEffect.amountCents) {
+      if (!Number.isFinite(price)) {
         throw new Error(`Modifier ${group.id}/${option.id} cannot be represented exactly in the legacy peso-number runtime`);
       }
       return { id: option.id, label: option.name, price, priceCents: option.priceEffect.amountCents, active: option.active };
