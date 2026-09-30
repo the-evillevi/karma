@@ -4,6 +4,7 @@ import {
   createCustomerLedger,
   customerAccounts,
   customerStatement,
+  customerLimitCents,
   planCustomerCommand,
   validateCustomerLedger,
   customerAmountCents,
@@ -47,6 +48,13 @@ const movement = (amountCents, saleId = null, paymentId = null) => ({
   saleId,
   paymentId,
 });
+const manualPayment = (amountCents, paymentId, paymentMethod = "cash") => ({
+  amountCents,
+  saleId: null,
+  paymentId,
+  paymentMethod,
+  receiptStatus: "operator_reported_unverified",
+});
 
 test("separates debt from prepaid and requires an owner limit before a credit charge", () => {
   let state = registered();
@@ -56,8 +64,16 @@ test("separates debt from prepaid and requires an owner limit before a credit ch
   );
   state = append(state, "credit.limit", { limitCents: 10000 });
   state = append(state, "debt.charge", movement(5000, "sale-1"));
-  state = append(state, "prepaid.deposit", movement(1200, null, "receipt-1"));
-  state = append(state, "debt.repayment", movement(2500, null, "receipt-2"));
+  state = append(
+    state,
+    "prepaid.deposit",
+    manualPayment(1200, "receipt-1", "transfer"),
+  );
+  state = append(
+    state,
+    "debt.repayment",
+    manualPayment(2500, "receipt-2", "cash"),
+  );
   assert.deepEqual(customerAccounts(state)[0], {
     customerId: "customer-1",
     name: "Ana",
@@ -68,8 +84,15 @@ test("separates debt from prepaid and requires an owner limit before a credit ch
     prepaidCents: 1200,
     revision: 5,
   });
+  assert.deepEqual(state.events[3].payload, {
+    amountCents: 1200,
+    saleId: null,
+    paymentId: "receipt-1",
+    paymentMethod: "transfer",
+    receiptStatus: "operator_reported_unverified",
+  });
   assert.throws(
-    () => append(state, "debt.repayment", movement(2501, null, "receipt-3")),
+    () => append(state, "debt.repayment", manualPayment(2501, "receipt-3")),
     /invalid_amount/,
   );
   assert.throws(
@@ -84,7 +107,7 @@ test("separates debt from prepaid and requires an owner limit before a credit ch
 
 test("preserves immutable history through linked partial reversals and blocks excess returns", () => {
   let state = registered();
-  state = append(state, "prepaid.deposit", movement(5000, null, "receipt-3"));
+  state = append(state, "prepaid.deposit", manualPayment(5000, "receipt-3"));
   const original = state.events.at(-1);
   state = append(state, "balance.reverse", {
     amountCents: 2000,
@@ -108,7 +131,7 @@ test("preserves immutable history through linked partial reversals and blocks ex
   assert.equal(customerAccounts(state)[0].archived, true);
   assert.equal(customerStatement(state, "customer-1").length, 5);
   assert.throws(
-    () => append(state, "prepaid.deposit", movement(1, null, "receipt-4")),
+    () => append(state, "prepaid.deposit", manualPayment(1, "receipt-4")),
     /invalid_history/,
   );
 });
@@ -175,14 +198,10 @@ test("prevents a second sale charge or reusing a received payment across debt an
     () => append(state, "debt.charge", movement(1000, "sale-unique")),
     /sale_already_linked/,
   );
-  state = append(
-    state,
-    "debt.repayment",
-    movement(500, null, "receipt-unique"),
-  );
+  state = append(state, "debt.repayment", manualPayment(500, "receipt-unique"));
   assert.throws(
     () =>
-      append(state, "prepaid.deposit", movement(500, null, "receipt-unique")),
+      append(state, "prepaid.deposit", manualPayment(500, "receipt-unique")),
     /payment_already_linked/,
   );
   assert.throws(
@@ -217,6 +236,15 @@ test("rejects corrupt/unsupported history, unsafe amounts, extra secrets and fra
     /invalid_amount/,
   );
   assert.equal(customerAmountCents("12.34"), 1234);
+  assert.equal(customerLimitCents("0.00"), 0);
   assert.throws(() => customerAmountCents("12.345"), /invalid_amount/);
   assert.throws(() => customerAmountCents("-1"), /invalid_amount/);
+  assert.throws(
+    () =>
+      append(state, "prepaid.deposit", {
+        ...manualPayment(100, "receipt-fake"),
+        receiptStatus: "verified",
+      }),
+    /invalid_record/,
+  );
 });

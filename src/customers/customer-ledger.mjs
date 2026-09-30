@@ -23,6 +23,7 @@ const managerKinds = new Set([
   "debt.repayment",
   "prepaid.deposit",
 ]);
+const manualPaymentMethods = new Set(["cash", "card", "transfer"]);
 const fields = [
   "commandId",
   "customerId",
@@ -110,15 +111,28 @@ function canonicalCommand(value) {
   } else if (command.kind === "credit.limit") {
     exact(payload, ["limitCents"]);
     integer(payload.limitCents);
+  } else if (["debt.repayment", "prepaid.deposit"].includes(command.kind)) {
+    exact(payload, [
+      "amountCents",
+      "saleId",
+      "paymentId",
+      "paymentMethod",
+      "receiptStatus",
+    ]);
+    integer(payload.amountCents, 1);
+    if (payload.saleId !== null) fail("invalid_record");
+    text(payload.paymentId);
+    if (!manualPaymentMethods.has(payload.paymentMethod))
+      fail("invalid_record");
+    if (payload.receiptStatus !== "operator_reported_unverified")
+      fail("invalid_record");
   } else if (financialKinds.has(command.kind)) {
     exact(payload, ["amountCents", "saleId", "paymentId"]);
     integer(payload.amountCents, 1);
     if (["debt.charge", "prepaid.apply"].includes(command.kind))
       text(payload.saleId);
-    else if (payload.saleId !== null) text(payload.saleId);
-    if (["debt.repayment", "prepaid.deposit"].includes(command.kind))
-      text(payload.paymentId);
-    else if (payload.paymentId !== null) text(payload.paymentId);
+    else fail("invalid_record");
+    if (payload.paymentId !== null) fail("invalid_record");
   } else {
     exact(payload, ["amountCents", "reversesCommandId"]);
     integer(payload.amountCents, 1);
@@ -293,4 +307,11 @@ export function planCustomerCommand(value, commandValue, currentAuthority) {
 }
 export function customerAmountCents(value) {
   return amount(value);
+}
+export function customerLimitCents(value) {
+  try {
+    return integer(moneyToCents(value));
+  } catch {
+    fail("invalid_amount");
+  }
 }
