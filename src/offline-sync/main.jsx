@@ -13,6 +13,10 @@ const failReceiptOnceFromUrl = new URLSearchParams(window.location.search).has("
 const branchId = import.meta.env.VITE_DEMO_BRANCH_ID || "karma-demo-branch";
 const deviceId = import.meta.env.VITE_DEMO_DEVICE_ID || "karma-demo-cash-register";
 
+function authorizationFailure(code) {
+  return Object.assign(new Error("The active register authorization could not be verified."), { code });
+}
+
 function isNetworkUnavailable(error) {
   return error instanceof TypeError || error?.name === "FetchError";
 }
@@ -70,10 +74,12 @@ function OfflineSyncDemo() {
         .eq("branch_id", branchId)
         .maybeSingle();
       if (leaseQuery.error) throw leaseQuery.error;
-      if (!deviceQuery.data || !leaseQuery.data || deviceQuery.data.owner_user_id !== user.id || deviceQuery.data.revoked_at || leaseQuery.data.device_id !== deviceId || leaseQuery.data.revoked_at || Date.now() >= Date.parse(leaseQuery.data.expires_at) || Date.now() < Date.parse(leaseQuery.data.valid_from)) {
+      const deviceRevoked = Boolean(deviceQuery.data?.revoked_at);
+      const invalidContext = !deviceQuery.data || !leaseQuery.data || deviceQuery.data.owner_user_id !== user.id || deviceRevoked || leaseQuery.data.device_id !== deviceId || leaseQuery.data.revoked_at || Date.now() >= Date.parse(leaseQuery.data.expires_at) || Date.now() < Date.parse(leaseQuery.data.valid_from);
+      if (invalidContext) {
         window.localStorage.removeItem(cachedContextKey);
         setDeviceContext(null);
-        throw new Error("Este dispositivo no tiene una autorización de caja activa.");
+        throw authorizationFailure(deviceRevoked ? "DEVICE_REVOKED" : "AUTHORIZATION_UNAVAILABLE");
       }
       const context = {
         actorId: user.id,

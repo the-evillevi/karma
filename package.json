@@ -13,7 +13,7 @@
     "preview:pwa": "vite preview --config vite.config.pwa.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/domain src/offline-sync src/pwa",
-    "format:check": "prettier --check vite.config.pwa.js eslint.config.js tsconfig.json src/domain/**/*.ts src/domain/order-domain.js src/offline-sync/**/*.ts src/offline-sync/command-sync.js src/offline-sync/sync-diagnostic.js src/offline-sync/sync-diagnostic.d.ts src/offline-sync/sync-diagnostic.test.js src/pwa/**/*.ts src/pwa/**/*.tsx scripts/ci/check-client-bundle.mjs scripts/ci/run-unit-tests.mjs scripts/offline-sync/pwa.playwright.config.js scripts/offline-sync/pwa-shell.spec.js docs/execution/EVL-116.md docs/execution/reviews/EVL-116.md",
+    "format:check": "prettier --check vite.config.pwa.js eslint.config.js tsconfig.json src/domain/**/*.ts src/domain/order-domain.js src/offline-sync/**/*.ts src/offline-sync/command-sync.js src/offline-sync/sync-diagnostic.js src/offline-sync/sync-diagnostic.d.ts src/offline-sync/sync-diagnostic.test.js src/pwa/**/*.ts src/pwa/**/*.tsx scripts/ci/check-client-bundle.mjs scripts/ci/run-unit-tests.mjs scripts/offline-sync/offline-sync.spec.js scripts/offline-sync/pwa.playwright.config.js scripts/offline-sync/pwa-shell.spec.js docs/execution/EVL-116.md docs/execution/reviews/EVL-116.md",
     "test:domain": "node scripts/ci/run-unit-tests.mjs",
     "test:typed": "tsx --test src/pwa/*.test.ts src/offline-sync/command-sync.test.ts",
     "test:pwa:e2e": "playwright test --config scripts/offline-sync/pwa.playwright.config.js",
