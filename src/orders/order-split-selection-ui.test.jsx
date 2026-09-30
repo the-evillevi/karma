@@ -142,6 +142,11 @@ it('blocks zero, whole-account, and malformed quantity selections in the actual 
   await user.type(quantity, '1.5');
   expect((await screen.findByRole('alert')).textContent).toContain('Captura cantidades enteras válidas dentro de las unidades disponibles.');
   expect(confirm.disabled).toBe(true);
+
+  await user.clear(quantity);
+  await user.type(quantity, '3');
+  expect((await screen.findByRole('alert')).textContent).toContain('Captura cantidades enteras válidas dentro de las unidades disponibles.');
+  expect(confirm.disabled).toBe(true);
   expect(storage.getItem('karma-pos-v1')).toBe(baseline);
   expect(JSON.parse(baseline).open).toEqual([source]);
 });

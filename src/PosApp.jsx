@@ -569,6 +569,17 @@ export default class PosApp extends React.Component {
       return 'keep';
     }
 
+    let expectedSource; let requestedPlan;
+    try {
+      if (typeof expectedSnapshot !== 'string') throw new TypeError('captured split source is missing');
+      expectedSource = JSON.parse(expectedSnapshot);
+      if (!expectedSource || expectedSource.folio !== sourceFolio) throw new TypeError('captured split source does not match its folio');
+      requestedPlan = planOrderSplit(expectedSource, selection);
+    } catch (error) {
+      this.toast('No se puede validar la división: ' + (error.message || 'revisa las cantidades seleccionadas.'), 'warn');
+      return 'keep';
+    }
+
     const stateSource = this.state.open.find(entry => entry.folio === sourceFolio);
     let persisted;
     try {
@@ -609,11 +620,30 @@ export default class PosApp extends React.Component {
     const stateOperations = Array.isArray(stateSource?.splitOperations) ? stateSource.splitOperations : [];
     const savedOperations = Array.isArray(savedSource?.splitOperations) ? savedSource.splitOperations : [];
     const stateOperation = stateOperations.find(operation => operation.operationId === operationId);
-    const savedOperation = savedOperations.find(operation => operation.operationId === operationId);
+    const savedOperationEntries = savedOperations.filter(operation => operation.operationId === operationId);
+    const savedOperation = savedOperationEntries[0];
     if (savedOperation) {
-      const savedChild = latestOpen.find(entry => entry.folio === savedOperation.childFolio && entry.splitFrom?.operationId === operationId);
-      if (!savedChild) {
-        this.toast('La división guardada está incompleta y requiere revisión; no se repetirá.', 'warn');
+      if (savedOperationEntries.length !== 1) {
+        this.toast('El historial contiene identidades de división duplicadas y requiere revisión.', 'warn');
+        return 'keep';
+      }
+      let savedPlan;
+      try { savedPlan = planOrderSplit(expectedSource, savedOperation.selection); }
+      catch { savedPlan = null; }
+      const savedChild = latestOpen.find(entry => entry.folio === savedOperation.childFolio);
+      const linkedChildren = latestOpen.filter(entry => entry.splitFrom && typeof entry.splitFrom === 'object' && !Array.isArray(entry.splitFrom)
+        && entry.splitFrom.folio === sourceFolio && entry.splitFrom.operationId === operationId);
+      const childLineage = savedChild?.splitFrom && typeof savedChild.splitFrom === 'object' && !Array.isArray(savedChild.splitFrom)
+        && savedChild.splitFrom.folio === sourceFolio && savedChild.splitFrom.operationId === operationId;
+      const matchingRetry = savedPlan
+        && savedOperation.childFolio === childFolio
+        && JSON.stringify(savedPlan.selection) === JSON.stringify(requestedPlan.selection)
+        && savedChild?.folio === childFolio
+        && linkedChildren.length === 1
+        && linkedChildren[0]?.folio === childFolio
+        && childLineage;
+      if (!matchingRetry) {
+        this.toast('Esta identidad de división ya existe con otras cantidades o vínculos. La operación requiere revisión y no se repetirá.', 'warn');
         return 'keep';
       }
       this._folio = Math.max(Number.isSafeInteger(this._folio) ? this._folio : 1051, savedSequence);
