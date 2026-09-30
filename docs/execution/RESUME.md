@@ -1,6 +1,6 @@
 # Manual resume checkpoint
 
-Continue from managed worktrees and stacked codex branches. Main is clean at ef10819184c1fe7769b316c8a259f00c4391d79e; no PR was merged into main. No automation is scheduled. GPT-6 Luna High delegates implement; root GPT-6.1 Sol reviews with fixes. All three implementation agents are stopped at clean commits because the current allowance is near its boundary.
+Continue from managed worktrees and stacked codex branches. Main is clean at ef10819184c1fe7769b316c8a259f00c4391d79e; no PR was merged into main. No automation is scheduled. GPT-6 Luna xhigh delegates implement; root GPT-6.1 Sol reviews with fixes. Resumed on 2026-09-30 with foundation_xhigh and orders_xhigh. Root owns hosted proof and payment cancellation preparation. Inspect the manifest for current ownership before touching a worktree.
 
 ## Published and reviewed
 
@@ -19,7 +19,7 @@ The public synthetic demo is https://the-evillevi.github.io/karma/. Deployment 3
 
 Only immutable EVL-114 schema is applied to approved Supabase karma-pos (vwvlsayxsunefeehiavt); backend.json records that fact. Eight prior hosted EVL-114 browser/RLS/offline tests passed. Credentials stay outside the public repo or ignored/mode0600/HTTPdenied. Never print keys or mutate other projects. No new fixture/invite/email was created during the EVL-118 checkpoint.
 
-Use manifest.json and node scripts/execution-status.mjs before dispatch. Reuse one managed worktree per chain, exclusive agent ownership, stacked codex branches and GPT-6 Luna High. Root reviews each completed slice, fixes findings, records evidence and publishes attached drafts. Resume manually when the user asks; keep frequent clean commits.
+Use manifest.json and node scripts/execution-status.mjs before dispatch. Reuse one managed worktree per chain, exclusive agent ownership, stacked codex branches and GPT-6 Luna xhigh. Root reviews each completed slice, fixes findings, records evidence and publishes attached drafts. Resume manually when the user asks; keep frequent clean commits.
 
 Carlos catalog/photo/business acceptance and physical hardware proof remain open. Customer credit stays before pilot with owner-approved limits and recorded repayment/correction roles. Account move/merge is deferred. Do not create deferred standalone issues, write Linear, merge main or message people.
 

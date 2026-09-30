@@ -5,8 +5,8 @@
   "delivery": "draft_pr_stacks_no_main_merges",
   "agent": {
     "model": "gpt-6-luna",
-    "reasoningEffort": "high",
-    "maxConcurrent": 3
+    "reasoningEffort": "xhigh",
+    "maxConcurrent": 2
   },
   "coordinatorModel": "gpt-6.1-sol",
   "integration": {
@@ -234,8 +234,8 @@
       "requires": [
         "EVL-116"
       ],
-      "stage": "awaiting_foundation",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "foundation_xhigh",
       "commits": [
         "d1b3b1c",
         "9bea334",
@@ -250,12 +250,12 @@
         "Root full combined check passed: 68 unit tests without skips, 27 components, format/lint/scoped types, four-entry builds, secret scans and PWA restart browser proof",
         "Exact migration hash independently verified unchanged"
       ],
-      "review": "bounded_policy_client_fixed_and_rereviewed",
+      "review": "pending_resumed_work",
       "blockers": [
         "Migration remains unapplied; private EVL-114 fixture is stale and compatible EVL-118 hosted proof is not run.",
         "Actual POS role boundaries, draft-preserving identity switch and production enrollment/recovery are incomplete."
       ],
-      "nextAction": "Complete production UI authority and compatible private synthetic fixtures, apply only exact approved migration to karma-pos after gates, independently verify hosted RPC/roles/concurrency/revocation before EVL-126.",
+      "nextAction": "Continue implementation from reviewed integration with GPT-6 Luna xhigh; root review and fixes before acceptance.",
       "artifactsReady": true
     },
     {
@@ -567,14 +567,14 @@
         "EVL-120",
         "EVL-118"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "orders_xhigh",
       "commits": [],
       "pr": null,
       "checks": [],
-      "review": "pending",
+      "review": "pending_resumed_work",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Continue implementation from reviewed integration with GPT-6 Luna xhigh; root review and fixes before acceptance."
     },
     {
       "id": "EVL-189",
@@ -671,14 +671,14 @@
         "EVL-123",
         "EVL-118"
       ],
-      "stage": "queued",
+      "stage": "preparing",
       "agent": null,
       "commits": [],
       "pr": null,
       "checks": [],
-      "review": "pending",
+      "review": "pending_resumed_work",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Continue implementation from reviewed integration with GPT-6 Luna xhigh; root review and fixes before acceptance."
     },
     {
       "id": "EVL-125",
@@ -1031,12 +1031,12 @@
   ],
   "sessionCheckpoint": {
     "manualResume": true,
-    "reason": "Near current allowance boundary (90% at last check); all delegates completed clean committed handoffs.",
-    "runningAgents": 0,
-    "integration": "0b6132f",
+    "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
+    "runningAgents": 2,
+    "integration": "1b2e62a",
     "mainMerged": false,
-    "nextIssue": "EVL-118 then EVL-126; resume payment/order chains from reviewed stacks.",
+    "nextIssue": "EVL-118/122/187 then EVL-126",
     "resumeDocument": "docs/execution/RESUME.md",
-    "status": "saved_manual_resume"
+    "status": "resumed"
   }
 }
