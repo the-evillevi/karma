@@ -39,18 +39,31 @@ export type PreparationStatus = "not-sent" | "queued" | "preparing" | "ready" | 
 export interface CashPayment {
   paymentId: Id;
   method: "cash";
+  /** Payment total in centavos, including tipCents. */
   netAmountCents: Cents;
+  tipCents: Cents;
   cashReceivedCents: Cents;
   changeCents: Cents;
 }
 
-export interface Payment {
+export interface NonCashPayment {
   paymentId: Id;
-  method: "cash" | "card" | "transfer" | "credit";
+  method: "card" | "transfer" | "credit";
+  /** Payment total in centavos, including tipCents. */
   netAmountCents: Cents;
   tipCents: Cents;
-  cashReceivedCents?: Cents;
-  changeCents?: Cents;
+}
+export type Payment = CashPayment | NonCashPayment;
+
+export interface PaymentCompensation {
+  compensationId: Id;
+  paymentId: Id;
+  kind: "pre-close-reversal" | "closed-sale-refund";
+  amountCents: Cents;
+  reason: string;
+  actorId: Id;
+  deviceId: Id;
+  occurredAt: string;
 }
 
 export interface BusinessCommand<TPayload = unknown> {
@@ -63,11 +76,15 @@ export interface BusinessCommand<TPayload = unknown> {
   payload: TPayload;
 }
 
-export interface CommandCommit<TProjection, TEvent extends EventEnvelope = EventEnvelope> {
-  /** Event append, idempotency receipt, and recoverable projection commit atomically. */
-  command: BusinessCommand;
+export interface CommandBatchDocument<TEvent extends EventEnvelope = EventEnvelope> {
+  /** Persist this single immutable document as the command's idempotent commit point. */
+  commandId: Id;
+  aggregateId: Id;
+  actorId: Id;
+  deviceId: Id;
+  occurredAt: string;
+  schemaVersion: number;
   events: readonly TEvent[];
-  projection: TProjection;
 }
 
 export interface OrderProjection {
@@ -76,8 +93,10 @@ export interface OrderProjection {
   currency: "MXN";
   financialStatus: FinancialStatus;
   preparationStatus: PreparationStatus;
+  saleClosed: boolean;
   lines: readonly OrderLineSnapshot[];
   payments: readonly Payment[];
+  paymentCompensations: readonly PaymentCompensation[];
   paidNetCents: Cents;
   dueCents: Cents;
   lastEventId: Id | null;
