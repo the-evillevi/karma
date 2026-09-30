@@ -8,7 +8,7 @@ import './karma-data.js';
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 afterEach(() => { cleanup(); if (originalScrollIntoView) HTMLElement.prototype.scrollIntoView = originalScrollIntoView; else delete HTMLElement.prototype.scrollIntoView; });
 function setup(options = {}) {
-  const sale = { folio: 'A-REFUND', day: 0, status: 'completada', total: 50, totalCents: 5000, tip: 0, tipo: 'En local', fecha: 'Hoy', creo: 'Original', cobro: 'Cashier', sync: 'pendiente', items: [{ name: 'Café', qty: 1, total: 50 }], payments: [{ paymentId: 'pay-1', method: 'cash', netAmountCents: 5000, cashReceivedCents: 10000, changeCents: 5000 }], audit: [] };
+  const sale = { folio: 'A-REFUND', occurredAt: new Date().toISOString(), day: 0, status: 'completada', total: 50, totalCents: 5000, tip: 0, tipo: 'En local', fecha: 'Hora capturada', creo: 'Original', cobro: 'Cashier', sync: 'pendiente', items: [{ name: 'Café', qty: 1, total: 50 }], payments: [{ paymentId: 'pay-1', method: 'cash', netAmountCents: 5000, cashReceivedCents: 10000, changeCents: 5000 }], audit: [] };
   Object.assign(sale, options.sale || {});
   const key = options.props?.accessStorageKey || 'karma-pos-v1';
   const values = new Map([[key, JSON.stringify({ session: 'u1', sales: [sale], open: [], kitchenTickets: [], pending: [] })]]);
@@ -29,6 +29,7 @@ it('records a refund offline once, keeps sale/payment snapshots and displays gro
   confirm(callback);
   expect(read().sales[0]).toMatchObject({ status: 'completada', total: 50, payments: sale.payments, items: sale.items, compensations: [{ kind: 'refund', amountCents: 2000, actorId: 'u1', reason: 'Corrección autorizada' }] });
   expect(read().pending).toHaveLength(1);
+  act(() => app.setState({ module: 'reportes' }));
   expect(app.renderVals()).toMatchObject({ repVentas: '$50.00', repRefunds: '$20.00', repNet: '$30.00' });
   confirm(callback);
   expect(read().sales[0].compensations).toHaveLength(1);
@@ -68,6 +69,7 @@ it('fully voids manually without removing a closed sale or reopening a chargeabl
   expect(read().sales[0]).toMatchObject({ status: 'completada', total: 50, compensations: [{ kind: 'void', amountCents: 5000 }] });
   expect(read().open).toHaveLength(0);
   expect(read().kitchenTickets).toHaveLength(0);
+  act(() => app.setState({ module: 'reportes' }));
   expect(app.renderVals()).toMatchObject({ repVentas: '$50.00', repRefunds: '$50.00', repNet: '$0.00', repVoids: 1 });
 });
 it('exposes the actual report refund flow with a required reason', async () => {
