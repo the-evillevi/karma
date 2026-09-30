@@ -140,7 +140,9 @@ export function validateCatalog(catalog) {
       if (product.price.currency !== catalog.currency) errors.push(`${label} price currency must match catalog currency`);
       requireString(product.price.provenance, `${label} price provenance`);
     }
-    for (const [index, groupId] of requireArray(product.modifierGroupIds, `${label} modifierGroupIds`).entries()) {
+    const groupReferences = requireArray(product.modifierGroupIds, `${label} modifierGroupIds`);
+    if (new Set(groupReferences).size !== groupReferences.length) errors.push(`${label} modifierGroupIds must not contain duplicates`);
+    for (const [index, groupId] of groupReferences.entries()) {
       if (typeof groupId !== 'string' || !groups.has(groupId)) errors.push(`${label} references missing modifier group ${groupId} at index ${index}`);
     }
     const stock = product.stockControl;

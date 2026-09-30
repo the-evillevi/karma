@@ -237,3 +237,16 @@ test('ounce measurement groups can declare a two-ounce default without changing 
   assert.equal(espresso.priceEffectCents, 0);
   assert.equal(linked.catalog.importGate.readyForValidatedBusinessUse, false);
 });
+
+test('duplicate product modifier-group references are rejected before they can double-charge', () => {
+  const invalid = structuredClone(seed);
+  const coffee = invalid.products.find(({ name }) => name === 'Americano');
+  coffee.price.amountCents = 6000;
+  coffee.modifierGroupIds = ['leche', 'leche'];
+  assert.ok(validateCatalog(invalid).errors.some((error) => error.includes('modifierGroupIds must not contain duplicates')));
+  assert.throws(() => captureProductLine(invalid, { productId: coffee.id, selections: { leche: { optionIds: ['deslactosada'] } } }), /modifierGroupIds must not contain duplicates/);
+
+  const product = { id: 'duplicate-groups', name: 'Duplicate groups', categoryId: 'lattes', price: { amountCents: 6000, currency: 'MXN' }, modifierGroupIds: ['leche', 'leche'] };
+  assert.throws(() => applyCatalogCommand(seed, command('product.create', { product })), /modifierGroupIds must not contain duplicates/);
+  assert.throws(() => applyCatalogCommand(seed, command('product.edit', { productId: seed.products[0].id, changes: { modifierGroupIds: ['leche', 'leche'] } })), /modifierGroupIds must not contain duplicates/);
+});
