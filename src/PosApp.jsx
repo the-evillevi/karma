@@ -206,17 +206,28 @@ export default class PosApp extends React.Component {
     this.setState({ dlg: { title: 'Acción no permitida', body: 'Tu rol (' + (D.roleLabels[this.role()] || '') + ') no tiene permiso para ' + what + '. Solicita apoyo a un encargado o a la dueña.', closeLabel: 'Entendido', onConfirm: null } });
   }
   lineUnit(l) {
+    if (Number.isFinite(l?.capturedSnapshot?.unitPriceCents)) return l.capturedSnapshot.unitPriceCents / 100;
+    // Older saved accounts store their captured per-unit total in MXN.
+    if (Number.isFinite(l?.unit)) return l.unit;
+    return null;
+  }
+  previewLineUnit(l) {
     const D = window.KARMA;
     const p = this.state.prods.find(x => x.id === l.prodId);
-    if (!p) return l.unit || 0;
-    let t = p.price;
-    Object.keys(l.mods || {}).forEach(g => {
-      const G = D.modGroups[g]; if (!G) return;
-      (l.mods[g] || []).forEach(oid => { const o = G.options.find(x => x.id === oid); if (o) t += o.price; });
+    if (!p) return null;
+    let total = p.price;
+    Object.keys(l.mods || {}).forEach(groupId => {
+      const group = D.modGroups[groupId]; if (!group) return;
+      (l.mods[groupId] || []).forEach(optionId => {
+        const option = group.options.find(item => item.id === optionId);
+        if (option) total += option.price;
+      });
     });
-    return t;
+    return total;
   }
   modsText(l) {
+    if (typeof l?.modsTextSnapshot === 'string') return l.modsTextSnapshot;
+    if (typeof l?.modsText === 'string') return l.modsText;
     const D = window.KARMA; const parts = [];
     Object.keys(l.mods || {}).forEach(g => {
       const G = D.modGroups[g]; if (!G) return;
@@ -225,6 +236,7 @@ export default class PosApp extends React.Component {
     return parts.join(' · ');
   }
   orderTotals(o) {
+    if (o.items.some(l => this.lineUnit(l) === null)) return { sub: null, disc: 0, total: null };
     const sub = o.items.reduce((a, l) => a + this.lineUnit(l) * l.qty, 0);
     const disc = Math.min(o.discount || 0, sub);
     return { sub, disc, total: sub - disc };
@@ -232,16 +244,23 @@ export default class PosApp extends React.Component {
   typeLabel(t) { return ({ local: 'En local', mesa: 'Mesa', llevar: 'Para llevar', domicilio: 'Domicilio', recoger: 'Recoger' })[t] || t; }
   refOf(o) { return o.type === 'mesa' ? ('Mesa ' + (o.mesa || '—')) : (o.name || this.typeLabel(o.type)); }
   needItems() { if (!this.state.order.items.length) { this.toast('Agrega productos a la orden primero', 'warn'); return false; } return true; }
+  hasCapturedPrice(line) { return Number.isFinite(line?.capturedSnapshot?.unitPriceCents) || Number.isFinite(line?.unit); }
+  needCapturedPrices(lines = this.state.order.items) {
+    if (lines.every(line => this.hasCapturedPrice(line))) return true;
+    this.toast('Hay productos sin precio capturado. Revisa el historial antes de guardar o cobrar; el precio actual del menú no sustituye el dato faltante.', 'warn');
+    return false;
+  }
   openEntry(o) {
     return {
       folio: o.folio, type: o.type, ref: this.refOf(o), time: this.now(),
       user: this.user().name, prep: 'en-cola', sync: this.state.online ? 'sincronizada' : 'pendiente',
-      items: o.items.map(l => ({ prodId: l.prodId, name: (this.state.prods.find(p => p.id === l.prodId) || {}).name || l.name, qty: l.qty, mods: l.mods, modsText: this.modsText(l), notes: l.notes, unit: this.lineUnit(l) })),
+      items: o.items.map(l => ({ ...l, prodId: l.prodId, name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, mods: l.mods, modsText: this.modsText(l), notes: l.notes, unit: this.lineUnit(l) })),
       name: o.name, discount: o.discount || 0
     };
   }
   saveOpen(keepStation) {
     if (!this.needItems()) return;
+    if (!this.needCapturedPrices()) return;
     const s = this.state; const o = { ...s.order };
     if (!o.folio) o.folio = this.nf();
     const entry = this.openEntry(o);
@@ -255,6 +274,7 @@ export default class PosApp extends React.Component {
     return o.folio;
   }
   startCheckout(folio, lines, discount, type, fromStation) {
+    if (!this.needCapturedPrices(lines)) return;
     const sourceSnapshot = this.checkoutSourceSnapshot({ folio, fromStation }, this.state);
     let subCents;
     let discCents;
@@ -526,16 +546,24 @@ export default class PosApp extends React.Component {
     V.linesEmpty = o.items.length === 0;
     V.lines = o.items.map(l => ({
       lineId: l.lineId,
-      qty: l.qty, name: (s.prods.find(p => p.id === l.prodId) || {}).name || '—',
+      qty: l.qty, name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name || (s.prods.find(p => p.id === l.prodId) || {}).name || '—',
       modsText: this.modsText(l), hasMods: !!this.modsText(l), notes: l.notes, hasNotes: !!l.notes,
-      total: this.fmt(this.lineUnit(l) * l.qty),
-      inc: () => this.up({ order: { ...this.state.order, items: this.state.order.items.map(x => x.lineId === l.lineId ? { ...x, qty: x.qty + 1 } : x) } }),
-      dec: () => this.up({ order: { ...this.state.order, items: this.state.order.items.map(x => x.lineId === l.lineId ? { ...x, qty: Math.max(1, x.qty - 1) } : x) } }),
+      total: this.lineUnit(l) === null ? 'Precio por verificar' : this.fmt(this.lineUnit(l) * l.qty),
+      inc: () => this.up({ order: { ...this.state.order, items: this.state.order.items.map(x => {
+        if (x.lineId !== l.lineId) return x;
+        const qty = x.qty + 1;
+        return { ...x, qty, ...(x.capturedSnapshot ? { capturedSnapshot: { ...x.capturedSnapshot, quantity: qty, lineTotalCents: x.capturedSnapshot.unitPriceCents * qty } } : {}) };
+      }) } }),
+      dec: () => this.up({ order: { ...this.state.order, items: this.state.order.items.map(x => {
+        if (x.lineId !== l.lineId) return x;
+        const qty = Math.max(1, x.qty - 1);
+        return { ...x, qty, ...(x.capturedSnapshot ? { capturedSnapshot: { ...x.capturedSnapshot, quantity: qty, lineTotalCents: x.capturedSnapshot.unitPriceCents * qty } } : {}) };
+      }) } }),
       remove: () => this.up({ order: { ...this.state.order, items: this.state.order.items.filter(x => x.lineId !== l.lineId) } }, () => this.toast('Producto eliminado de la orden')),
-      edit: () => this.setState({ ed: { prodId: l.prodId, qty: l.qty, mods: JSON.parse(JSON.stringify(l.mods || {})), notes: l.notes || '', lineId: l.lineId } })
+      edit: () => this.setState({ ed: { prodId: l.prodId, qty: l.qty, mods: JSON.parse(JSON.stringify(l.mods || {})), notes: l.notes || '', lineId: l.lineId, capturedSnapshot: l.capturedSnapshot, name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name, unit: l.unit, modsText: this.modsText(l) } })
     }));
     V.itemCount = o.items.reduce((a, l) => a + l.qty, 0);
-    V.subtotal = this.fmt(ot.sub); V.hasDiscount = ot.disc > 0; V.discount = this.fmt(ot.disc); V.total = this.fmt(ot.total);
+    V.subtotal = ot.sub === null ? 'Precio por verificar' : this.fmt(ot.sub); V.hasDiscount = ot.disc > 0; V.discount = this.fmt(ot.disc); V.total = ot.total === null ? 'Precio por verificar' : this.fmt(ot.total);
     V.addDiscount = () => {
       if (!this.can('descuento')) { this.notAllowed('aplicar descuentos'); return; }
       this.setState({ dlg: { title: 'Aplicar descuento', body: 'El descuento se resta del subtotal y queda auditado con tu usuario.', needReason: true, confirmLabel: 'Aplicar', fields: [{ key: 'monto', label: 'Monto (MXN)', ph: '0.00', value: '' }], onConfirm: d => { const f = (d.fields || []).find(x => x.key === 'monto'); const v = parseFloat(f && f.value) || 0; if (v <= 0) { this.toast('Captura un monto válido', 'warn'); return 'keep'; } this.up({ order: { ...this.state.order, discount: v, discountReason: d.reason } }); this.toast('Descuento de ' + this.fmt(v) + ' aplicado'); } } });
@@ -543,6 +571,7 @@ export default class PosApp extends React.Component {
     V.saveOpen = () => { const f = this.saveOpen(); if (f) this.toast('Cuenta ' + f + ' guardada como abierta'); };
     V.sendComanda = () => {
       if (!this.needItems()) return;
+      if (!this.needCapturedPrices()) return;
       const f = this.saveOpen(true);
       this.toast('Comanda ' + f + ' enviada a cocina y barra' + (s.flags.autoprint ? ' · impresa' : ''));
     };
@@ -566,9 +595,9 @@ export default class PosApp extends React.Component {
     const ed = s.ed;
     V.ed = !!ed;
     if (ed) {
-      const p = s.prods.find(x => x.id === ed.prodId) || { name: '', price: 0, mods: [] };
-      const unit = this.lineUnit(ed);
-      V.edName = p.name; V.edPrice = this.fmt(p.price); V.edQty = ed.qty;
+      const p = s.prods.find(x => x.id === ed.prodId) || { name: ed.name || '', price: 0, mods: [] };
+      const unit = this.lineUnit(ed) ?? (!ed.lineId ? this.previewLineUnit(ed) : null);
+      V.edName = ed.name || p.name; V.edPrice = ed.unit != null ? this.fmt(ed.unit) : (ed.capturedSnapshot ? this.fmt(ed.capturedSnapshot.unitPriceCents / 100) : (!ed.lineId ? this.fmt(p.price) : 'Precio por verificar')); V.edQty = ed.qty;
       V.edInc = () => this.setState({ ed: { ...ed, qty: ed.qty + 1 } });
       V.edDec = () => this.setState({ ed: { ...ed, qty: Math.max(1, ed.qty - 1) } });
       V.edGroups = p.mods.map(gid => {
@@ -591,12 +620,32 @@ export default class PosApp extends React.Component {
         };
       }).filter(Boolean);
       V.edNotes = ed.notes; V.edSetNotes = e => this.setState({ ed: { ...this.state.ed, notes: e.target.value } });
-      V.edConfirmLabel = (ed.lineId ? 'Guardar' : 'Agregar') + ' · ' + this.fmt(unit * ed.qty);
+      V.edConfirmLabel = (ed.lineId ? 'Guardar' : 'Agregar') + ' · ' + (unit === null ? 'Precio por verificar' : this.fmt(unit * ed.qty));
       V.edCancel = () => this.setState({ ed: null });
       V.edConfirm = () => {
         const st = this.state; const e2 = st.ed;
+        if (e2.lineId) {
+          const original = st.order.items.find(x => x.lineId === e2.lineId);
+          const oldMods = original?.mods || {};
+          const sameMods = Object.keys({ ...oldMods, ...e2.mods }).every(groupId => {
+            const before = [...(oldMods[groupId] || [])].sort();
+            const after = [...(e2.mods[groupId] || [])].sort();
+            return before.length === after.length && before.every((id, index) => id === after[index]);
+          });
+          if (!sameMods) {
+            this.toast('Para cambiar modificadores, elimina el producto y agrégalo de nuevo. Así se confirma cualquier precio vigente.', 'warn');
+            return;
+          }
+          const items = st.order.items.map(x => x.lineId === e2.lineId ? {
+            ...x, qty: e2.qty, notes: e2.notes,
+            ...(x.capturedSnapshot ? { capturedSnapshot: { ...x.capturedSnapshot, quantity: e2.qty, notes: e2.notes, lineTotalCents: x.capturedSnapshot.unitPriceCents * e2.qty } } : {})
+          } : x);
+          this.up({ order: { ...st.order, items }, ed: null }, () => this.toast((e2.name || p.name) + ' actualizado'));
+          return;
+        }
         let normalizedMods;
         let currentCatalog;
+        let captured;
         try {
           // Reconcile only at capture time, so a malformed legacy localStorage
           // price cannot break rendering or prevent the menu editor from fixing it.
@@ -613,7 +662,7 @@ export default class PosApp extends React.Component {
             const optionIds = e2.mods[gid] ?? (group.selection.defaultOptionId ? [group.selection.defaultOptionId] : []);
             return [[gid, { optionIds }]];
           }));
-          captureProductLine(currentCatalog, { productId: e2.prodId, quantity: e2.qty, selections, notes: e2.notes });
+          captured = captureProductLine(currentCatalog, { productId: e2.prodId, quantity: e2.qty, selections, notes: e2.notes });
           normalizedMods = Object.fromEntries(Object.entries(selections).map(([groupId, selection]) => [groupId, selection.optionIds]));
         } catch (error) {
           this.toast(error.message || 'Revisa las opciones obligatorias', 'warn');
@@ -621,20 +670,25 @@ export default class PosApp extends React.Component {
         }
         const linePatch = { prodId: e2.prodId, qty: e2.qty, mods: normalizedMods, notes: e2.notes };
         let items;
-        if (e2.lineId) items = st.order.items.map(x => x.lineId === e2.lineId ? { ...x, ...linePatch } : x);
-        else items = [...st.order.items, { lineId: 'l' + Date.now(), ...linePatch }];
-        this.up({ order: { ...st.order, items }, ed: null }, () => this.toast(p.name + (e2.lineId ? ' actualizado' : ' agregado a la orden')));
+        items = [...st.order.items, {
+          lineId: 'l' + Date.now(), ...linePatch,
+          capturedSnapshot: captured, name: captured.name, productNameSnapshot: captured.name,
+          unit: captured.unitPriceCents / 100,
+          modsText: this.modsText({ mods: normalizedMods })
+        }];
+        this.up({ order: { ...st.order, items }, ed: null }, () => this.toast(p.name + ' agregado a la orden'));
       };
     } else { V.edName = ''; V.edPrice = ''; V.edQty = 1; V.edGroups = []; V.edNotes = ''; V.edSetNotes = () => {}; V.edInc = V.edDec = V.edCancel = V.edConfirm = () => {}; V.edConfirmLabel = ''; }
 
     // ---- open orders
     V.ordersCount = s.open.length; V.ordersEmpty = s.open.length === 0;
     V.orders = s.open.map(oo => {
-      const total = oo.items.reduce((a, l) => a + (l.unit || 0) * l.qty, 0) - (oo.discount || 0);
+      const hasCapturedPrices = oo.items.every(l => this.hasCapturedPrice(l));
+      const total = hasCapturedPrices ? oo.items.reduce((a, l) => a + this.lineUnit(l) * l.qty, 0) - (oo.discount || 0) : null;
       const prep = (s.kitchenTickets.find(ticket => ticket.folio === oo.folio) || oo).prep;
       const pt = prepTags[prep] || prepTags['en-cola']; const st2 = syncTags[oo.sync] || syncTags.sincronizada;
       return {
-        folio: oo.folio, total: this.fmt(total),
+        folio: oo.folio, total: total === null ? 'Precio por verificar' : this.fmt(total),
         prepLabel: pt[0], prepVariant: prep === 'listo' ? 'success' : prep === 'preparando' ? 'pending' : 'outline',
         syncLabel: st2[0], syncVariant: oo.sync === 'pendiente' ? 'pending' : oo.sync === 'conflicto' ? 'conflict' : 'outline',
         meta: this.typeLabel(oo.type) + ' · ' + oo.ref + ' · ' + oo.time + ' · ' + oo.user,
@@ -642,7 +696,7 @@ export default class PosApp extends React.Component {
         conflict: oo.sync === 'conflicto',
         resolve: () => this.setState({ dlg: { title: 'Conflicto de sincronización', body: oo.folio + ' fue modificada también en otro dispositivo. Conserva la versión de esta caja para continuar; la otra versión quedará en el historial de auditoría.', confirmLabel: 'Conservar esta versión', onConfirm: () => { this.up({ open: this.state.open.map(x => x.folio === oo.folio ? { ...x, sync: 'sincronizada' } : x) }); this.toast('Conflicto resuelto — versión local conservada'); } } }),
         resume: () => {
-          const items = oo.items.map((l, i) => ({ lineId: 'l' + Date.now() + i, prodId: l.prodId, qty: l.qty, mods: l.mods || {}, notes: l.notes || '' }));
+          const items = oo.items.map((l, i) => ({ ...l, lineId: 'l' + Date.now() + i, prodId: l.prodId, qty: l.qty, mods: l.mods || {}, notes: l.notes || '', unit: this.lineUnit(l), name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name, modsText: this.modsText(l) }));
           this.up({ order: { folio: oo.folio, type: oo.type, mesa: oo.type === 'mesa' ? oo.ref.replace(/\D/g, '') : '', name: oo.name || '', items, discount: oo.discount || 0 }, open: this.state.open.filter(x => x.folio !== oo.folio), module: 'pos' }, () => this.toast(oo.folio + ' abierta en la estación'));
         },
         charge: () => this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + ' · ' + oo.ref, false),
