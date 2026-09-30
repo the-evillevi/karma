@@ -561,20 +561,29 @@
       "id": "EVL-122",
       "chain": "orders",
       "branch": "codex/orders/evl-122",
-      "baseBranch": "codex/orders/evl-188",
+      "baseBranch": "codex/orders/accounts-base",
       "requires": [
         "EVL-188",
         "EVL-120",
         "EVL-118"
       ],
-      "stage": "implementing",
-      "agent": "orders_xhigh",
-      "commits": [],
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "b12ec4d",
+        "0173778",
+        "32c750d"
+      ],
       "pr": null,
-      "checks": [],
-      "review": "pending_resumed_work",
-      "blockers": [],
-      "nextAction": "Continue implementation from reviewed integration with GPT-6 Luna xhigh; root review and fixes before acceptance."
+      "checks": [
+        "Root18 combined account/cancellation tests passed; Luna41 regressions and normal/PWA builds passed"
+      ],
+      "review": "fixed_and_rereviewed_order_details_cents_conflicts",
+      "blockers": [
+        "Combined verified118 runtime and durable cross-device126 reconciliation remain acceptance gates."
+      ],
+      "nextAction": "Continue189 finance split; integrate and independently test118/122/187 together.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-189",
@@ -584,14 +593,14 @@
       "requires": [
         "EVL-122"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "orders_xhigh",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Luna xhigh implements centavo-preserving discount split preview/idempotence on reviewed122 stack; root reviews with fixes."
     },
     {
       "id": "EVL-155",
