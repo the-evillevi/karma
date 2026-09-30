@@ -1,9 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  archiveInventoryItem,
   applyInventoryMovement,
   applyInventoryThreshold,
   createInitialInventoryState,
+  createInventoryItem,
+  editInventoryItem,
   formatBaseUnits,
   inventorySummary,
   quantityToBaseUnits,
@@ -368,5 +371,319 @@ test("rejects oversized quantities before decimal conversion", () => {
   assert.throws(
     () => quantityToBaseUnits("9".repeat(33), "kg", "g"),
     /at most 32 characters/,
+  );
+});
+
+test("keeps untouched v1 ledgers backward compatible and records a real zero-or-positive opening for new catalog items", () => {
+  const legacy = initial();
+  const validatedLegacy = validateInventoryState(legacy);
+  assert.deepEqual(Object.keys(validatedLegacy).sort(), [
+    "entries",
+    "items",
+    "revision",
+    "schemaVersion",
+  ]);
+  assert.equal(validatedLegacy.catalogEvents, undefined);
+
+  const createSyrup = {
+    ...actor,
+    commandId: "catalog-create-syrup",
+    kind: "create",
+    itemId: "syrup",
+    name: "Jarabe de vainilla",
+    itemKind: "Ingrediente",
+    displayUnit: "kg",
+    openingQuantityText: "1.25",
+    thresholdText: "0",
+    expectedCatalogRevision: 0,
+  };
+  const created = createInventoryItem(legacy, createSyrup);
+  const syrup = created.state.items.find((item) => item.itemId === "syrup");
+  const opening = created.state.entries.find(
+    (entry) => entry.itemId === "syrup",
+  );
+  assert.equal(syrup.provenance, "operator-count");
+  assert.equal(opening.provenance, "operator-count");
+  assert.equal(opening.actorId, actor.actorId);
+  assert.equal(opening.syncStatus, "pending");
+  assert.equal(opening.quantityBaseUnits, 1250);
+  assert.equal(created.state.catalogEvents[0].kind, "create");
+  assert.equal(created.state.revision, 1);
+  assert.equal(
+    inventorySummary(created.state).find((item) => item.itemId === "syrup")
+      .stockBaseUnits,
+    1250,
+  );
+  const retry = createInventoryItem(created.state, createSyrup);
+  assert.equal(retry.duplicate, true);
+  assert.equal(
+    retry.state.entries.filter((entry) => entry.itemId === "syrup").length,
+    1,
+  );
+  assert.throws(
+    () =>
+      createInventoryItem(created.state, {
+        ...createSyrup,
+        openingQuantityText: "1.5",
+      }),
+    /different content/,
+  );
+
+  const empty = createInventoryItem(created.state, {
+    ...actor,
+    commandId: "catalog-create-empty",
+    kind: "create",
+    itemId: "empty-cups",
+    name: "Vaso nuevo",
+    itemKind: "Insumo",
+    displayUnit: "pz",
+    openingQuantityText: "0",
+    thresholdText: "0",
+    expectedCatalogRevision: 1,
+  });
+  assert.equal(empty.opening.quantityBaseUnits, 0);
+  assert.equal(empty.opening.deltaBaseUnits, 0);
+  assert.equal(empty.opening.actorId, actor.actorId);
+  assert.equal(empty.state.catalogRevision, 2);
+  assert.throws(
+    () =>
+      validateInventoryState({
+        ...empty.state,
+        catalogEvents: empty.state.catalogEvents.map((event, index) =>
+          index ? event : { ...event, unexpected: "stored data" },
+        ),
+      }),
+    /unsupported fields/,
+  );
+});
+
+test("edits catalog names and display units without changing the base unit or rewriting prior entries", () => {
+  const original = initial();
+  const legacyOpening = original.entries.find(
+    (entry) => entry.itemId === "beans",
+  );
+  const command = {
+    ...actor,
+    commandId: "catalog-edit-beans",
+    kind: "edit",
+    itemId: "beans",
+    name: "Café de origen",
+    itemKind: "Ingrediente",
+    displayUnit: "g",
+    expectedCatalogRevision: 0,
+    expectedItemCatalogRevision: 0,
+  };
+  const edited = editInventoryItem(original, command);
+  const beans = edited.state.items.find((item) => item.itemId === "beans");
+  assert.equal(beans.name, "Café de origen");
+  assert.equal(beans.baseUnit, "g");
+  assert.equal(beans.displayUnit, "g");
+  assert.equal(
+    edited.state.entries[0].quantityText,
+    legacyOpening.quantityText,
+  );
+  assert.equal(edited.state.entries[0].unitSnapshot, "kg");
+  assert.equal(edited.event.before.name, "Café en grano");
+  assert.equal(edited.event.after.name, "Café de origen");
+  assert.equal(validateInventoryState(edited.state).catalogEvents.length, 1);
+  assert.equal(editInventoryItem(edited.state, command).duplicate, true);
+  assert.throws(
+    () => editInventoryItem(edited.state, { ...command, displayUnit: "L" }),
+    /separate stock migration/,
+  );
+  const movement = applyInventoryMovement(edited.state, {
+    ...actor,
+    commandId: "post-edit-entry",
+    itemId: "beans",
+    kind: "entry",
+    quantityText: "250",
+    unit: "g",
+    itemNameSnapshot: "Café de origen",
+    itemKindSnapshot: "Ingrediente",
+    expectedRevision: 0,
+  });
+  assert.equal(movement.entry.itemNameSnapshot, "Café de origen");
+  assert.equal(movement.entry.unitSnapshot, "g");
+  assert.equal(movement.state.entries[0].unitSnapshot, "kg");
+});
+
+test("archives only zero-stock items, retains all history, and makes archive retries idempotent", () => {
+  const original = initial();
+  const added = applyInventoryMovement(original, {
+    ...actor,
+    commandId: "beans-count-down",
+    itemId: "beans",
+    kind: "waste",
+    quantityText: "6.5",
+    unit: "kg",
+    expectedRevision: 0,
+  });
+  assert.equal(
+    inventorySummary(added.state).find((item) => item.itemId === "beans")
+      .stockBaseUnits,
+    0,
+  );
+  const command = {
+    ...actor,
+    commandId: "archive-beans",
+    kind: "archive",
+    itemId: "beans",
+    expectedCatalogRevision: 0,
+    expectedItemCatalogRevision: 0,
+  };
+  const archived = archiveInventoryItem(added.state, command);
+  assert.equal(
+    archived.state.items.find((item) => item.itemId === "beans").archived,
+    true,
+  );
+  assert.equal(
+    inventorySummary(archived.state).find((item) => item.itemId === "beans")
+      .stockBaseUnits,
+    0,
+  );
+  assert.equal(archived.state.entries.length, original.entries.length + 1);
+  assert.equal(archived.state.catalogEvents.length, 1);
+  assert.equal(archiveInventoryItem(archived.state, command).duplicate, true);
+  assert.throws(
+    () =>
+      applyInventoryMovement(archived.state, {
+        ...actor,
+        commandId: "late-beans-entry",
+        itemId: "beans",
+        kind: "entry",
+        quantityText: "1",
+        unit: "kg",
+        expectedRevision: 1,
+      }),
+    /Archived inventory items/,
+  );
+
+  const inStock = initial();
+  assert.throws(
+    () =>
+      archiveInventoryItem(inStock, { ...command, expectedCatalogRevision: 0 }),
+    /still has stock/,
+  );
+});
+
+test("interleaves catalog edits and threshold history without invalidating reload or identical movement retries", () => {
+  let state = initial();
+  const movement = {
+    ...actor,
+    commandId: "entry-before-rename",
+    itemId: "beans",
+    kind: "entry",
+    quantityText: "0.25",
+    unit: "kg",
+    expectedRevision: 0,
+  };
+  state = applyInventoryMovement(state, movement).state;
+  const edit = {
+    ...actor,
+    commandId: "rename-before-threshold",
+    kind: "edit",
+    itemId: "beans",
+    name: "Nuevo café",
+    itemKind: "Ingrediente",
+    displayUnit: "g",
+    expectedCatalogRevision: 0,
+    expectedItemCatalogRevision: 0,
+  };
+  state = editInventoryItem(state, edit).state;
+  const threshold = {
+    ...actor,
+    commandId: "threshold-after-edit",
+    kind: "threshold",
+    itemId: "beans",
+    quantityText: "1000",
+    unit: "g",
+    expectedRevision: 1,
+  };
+  state = applyInventoryThreshold(state, threshold).state;
+  state = editInventoryItem(state, {
+    ...edit,
+    commandId: "rename-after-threshold",
+    name: "Café actualizado",
+    expectedCatalogRevision: 1,
+    expectedItemCatalogRevision: 1,
+  }).state;
+  assert.equal(
+    validateInventoryState(JSON.parse(JSON.stringify(state))).items.find(
+      (item) => item.itemId === "beans",
+    ).lowThresholdBaseUnits,
+    1000,
+  );
+  assert.equal(applyInventoryMovement(state, movement).duplicate, true);
+  assert.equal(applyInventoryThreshold(state, threshold).duplicate, true);
+  assert.throws(
+    () => editInventoryItem(state, { ...edit, expectedItemCatalogRevision: 9 }),
+    /different content/,
+  );
+  assert.equal(
+    state.entries.find((entry) => entry.commandId === movement.commandId)
+      .itemNameSnapshot,
+    "Café en grano",
+  );
+});
+
+test("binds operator opening audit to item creation and keeps subsequent thresholds independent", () => {
+  const create = {
+    ...actor,
+    commandId: "operator-open",
+    kind: "create",
+    itemId: "operator-cups",
+    name: "Vasos contados",
+    itemKind: "Insumo",
+    displayUnit: "pz",
+    openingQuantityText: "20",
+    thresholdText: "2",
+    expectedCatalogRevision: 0,
+  };
+  let state = createInventoryItem(initial(), create).state;
+  state = applyInventoryThreshold(state, {
+    ...actor,
+    commandId: "operator-minimum",
+    kind: "threshold",
+    itemId: "operator-cups",
+    quantityText: "5",
+    unit: "pz",
+    expectedRevision: 0,
+  }).state;
+  assert.equal(createInventoryItem(state, create).duplicate, true);
+  const corrupt = JSON.parse(JSON.stringify(state));
+  corrupt.entries.find(
+    (entry) => entry.itemId === "operator-cups" && entry.kind === "opening",
+  ).actorId = "forged-actor";
+  assert.throws(
+    () => validateInventoryState(corrupt),
+    /matching operator opening/,
+  );
+});
+
+test("keeps identical retries of legacy v1 movements without fabricating missing item snapshots", () => {
+  const command = {
+    ...actor,
+    commandId: "legacy-retry",
+    itemId: "beans",
+    kind: "entry",
+    quantityText: "1",
+    unit: "kg",
+    expectedRevision: 0,
+  };
+  const current = applyInventoryMovement(initial(), command).state;
+  const legacy = JSON.parse(JSON.stringify(current));
+  delete legacy.entries.at(-1).itemNameSnapshot;
+  delete legacy.entries.at(-1).itemKindSnapshot;
+  const retry = applyInventoryMovement(legacy, command);
+  assert.equal(retry.duplicate, true);
+  assert.deepEqual(retry.state, legacy);
+  assert.throws(
+    () =>
+      applyInventoryMovement(legacy, {
+        ...command,
+        itemNameSnapshot: "",
+        itemKindSnapshot: "Ingrediente",
+      }),
+    /non-empty string/,
   );
 });

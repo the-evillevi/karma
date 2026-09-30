@@ -7,6 +7,7 @@ const ENTRY_KINDS = new Set([
   "adjustment",
   "threshold",
 ]);
+const CATALOG_EVENT_KINDS = new Set(["create", "edit", "archive"]);
 const EVENT_FIELDS = [
   "movementId",
   "commandId",
@@ -27,6 +28,8 @@ const EVENT_FIELDS = [
   "thresholdBaseUnits",
   "thresholdText",
   "provenance",
+  "itemNameSnapshot",
+  "itemKindSnapshot",
 ];
 
 export class InventoryLedgerError extends Error {
@@ -53,6 +56,76 @@ function assertExactFields(value, required, label) {
   ) {
     fail("invalid_state", `${label} has missing or unsupported fields.`);
   }
+}
+
+function assertAllowedFields(value, required, optional, label) {
+  const allowed = new Set([...required, ...optional]);
+  const keys = Object.keys(value);
+  if (
+    required.some((key) => !Object.prototype.hasOwnProperty.call(value, key)) ||
+    keys.some((key) => !allowed.has(key))
+  ) {
+    fail("invalid_state", `${label} has missing or unsupported fields.`);
+  }
+}
+
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function baseUnitForDisplay(displayUnit) {
+  return displayUnit === "kg" ? "g" : displayUnit === "L" ? "ml" : displayUnit;
+}
+
+function inventoryMetadataSnapshot(item) {
+  return {
+    itemId: item.itemId,
+    name: item.name,
+    kind: item.kind,
+    baseUnit: item.baseUnit,
+    displayUnit: item.displayUnit,
+    archived: item.archived === true,
+    provenance: item.provenance,
+  };
+}
+
+function sameRecord(a, b) {
+  if (!isRecord(a) || !isRecord(b)) return false;
+  const aKeys = Object.keys(a).sort();
+  const bKeys = Object.keys(b).sort();
+  return (
+    aKeys.length === bKeys.length &&
+    aKeys.every((key, index) => key === bKeys[index] && a[key] === b[key])
+  );
+}
+
+const CATALOG_SNAPSHOT_FIELDS = [
+  "itemId",
+  "name",
+  "kind",
+  "baseUnit",
+  "displayUnit",
+  "archived",
+  "provenance",
+];
+
+function validateCatalogSnapshot(snapshot, itemId) {
+  if (!isRecord(snapshot))
+    fail("invalid_state", "Saved inventory catalog snapshot is invalid.");
+  assertExactFields(snapshot, CATALOG_SNAPSHOT_FIELDS, "Catalog snapshot");
+  assertText(snapshot.itemId, "Catalog item id", 100);
+  assertText(snapshot.name, "Catalog item name", 120);
+  if (
+    snapshot.itemId !== itemId ||
+    !ITEM_TYPES.has(snapshot.kind) ||
+    !BASE_UNITS.has(snapshot.baseUnit) ||
+    typeof snapshot.archived !== "boolean" ||
+    !["synthetic-seed-unverified", "operator-count"].includes(
+      snapshot.provenance,
+    )
+  )
+    fail("invalid_state", "Saved inventory catalog snapshot is invalid.");
+  unitFactor(snapshot.displayUnit, snapshot.baseUnit);
 }
 
 function assertText(value, label, maxLength = 160) {
@@ -142,12 +215,22 @@ export function formatBaseUnits(quantityBaseUnits, unit) {
 }
 
 function clonedState(state) {
-  return {
+  const copy = {
     schemaVersion: state.schemaVersion,
     revision: state.revision,
     items: state.items.map((item) => ({ ...item })),
     entries: state.entries.map((entry) => ({ ...entry })),
   };
+  if (hasOwn(state, "catalogRevision"))
+    copy.catalogRevision = state.catalogRevision;
+  if (hasOwn(state, "catalogEvents")) {
+    copy.catalogEvents = state.catalogEvents.map((event) => ({
+      ...event,
+      before: event.before ? { ...event.before } : null,
+      after: event.after ? { ...event.after } : null,
+    }));
+  }
+  return copy;
 }
 
 function itemById(state, itemId) {
@@ -245,16 +328,27 @@ export function validateInventoryState(state) {
   ) {
     fail("invalid_state", "Saved inventory ledger has an invalid shape.");
   }
-  assertExactFields(
+  assertAllowedFields(
     state,
     ["schemaVersion", "revision", "items", "entries"],
+    ["catalogRevision", "catalogEvents"],
     "Saved inventory ledger",
   );
+  if (hasOwn(state, "catalogRevision") !== hasOwn(state, "catalogEvents"))
+    fail("invalid_state", "Saved inventory catalog history is incomplete.");
+  const catalogEvents = state.catalogEvents || [];
+  const catalogRevision = state.catalogRevision ?? 0;
+  if (
+    !Array.isArray(catalogEvents) ||
+    !Number.isSafeInteger(catalogRevision) ||
+    catalogRevision < 0
+  )
+    fail("invalid_state", "Saved inventory catalog history is invalid.");
   const items = new Map();
   for (const item of state.items) {
     if (!isRecord(item))
       fail("invalid_state", "Saved inventory item must be a record.");
-    assertExactFields(
+    assertAllowedFields(
       item,
       [
         "itemId",
@@ -266,8 +360,20 @@ export function validateInventoryState(state) {
         "revision",
         "provenance",
       ],
+      ["catalogRevision", "archived"],
       "Saved inventory item",
     );
+    if (
+      hasOwn(item, "catalogRevision") !== hasOwn(item, "archived") ||
+      (hasOwn(item, "catalogRevision") &&
+        (!Number.isSafeInteger(item.catalogRevision) ||
+          item.catalogRevision < 0 ||
+          typeof item.archived !== "boolean"))
+    )
+      fail(
+        "invalid_state",
+        "Saved inventory item catalog metadata is invalid.",
+      );
     const itemId = assertText(item.itemId, "Inventory item id", 100);
     if (
       items.has(itemId) ||
@@ -295,7 +401,9 @@ export function validateInventoryState(state) {
         "invalid_state",
         "Saved inventory threshold or revision is invalid.",
       );
-    if (item.provenance !== "synthetic-seed-unverified")
+    if (
+      !["synthetic-seed-unverified", "operator-count"].includes(item.provenance)
+    )
       fail("invalid_state", "Inventory item provenance is invalid.");
     items.set(itemId, {
       revision: -1,
@@ -309,6 +417,7 @@ export function validateInventoryState(state) {
     fail("invalid_state", "Saved inventory ledger has no items.");
   const commandIds = new Set();
   const movementIds = new Set();
+  const openingEntries = new Map();
   let operationCount = 0;
   for (const entry of state.entries) {
     if (!isRecord(entry) || !ENTRY_KINDS.has(entry.kind))
@@ -334,6 +443,11 @@ export function validateInventoryState(state) {
       fields.push("thresholdBaseUnits", "thresholdText", "provenance");
     if (entry.kind === "threshold")
       fields.push("thresholdBeforeBaseUnits", "thresholdBaseUnits");
+    const hasNameSnapshot = hasOwn(entry, "itemNameSnapshot");
+    const hasKindSnapshot = hasOwn(entry, "itemKindSnapshot");
+    if (hasNameSnapshot !== hasKindSnapshot)
+      fail("invalid_state", "Inventory event item snapshot is incomplete.");
+    if (hasNameSnapshot) fields.push("itemNameSnapshot", "itemKindSnapshot");
     assertExactFields(entry, fields, "Saved inventory event");
     const itemId = assertText(entry.itemId, "Inventory event item id", 100);
     const current = items.get(itemId);
@@ -368,6 +482,14 @@ export function validateInventoryState(state) {
         "Saved inventory quantity text or timestamp is invalid.",
       );
     if (
+      hasNameSnapshot &&
+      (typeof entry.itemNameSnapshot !== "string" ||
+        !entry.itemNameSnapshot.trim() ||
+        entry.itemNameSnapshot.length > 120 ||
+        !ITEM_TYPES.has(entry.itemKindSnapshot))
+    )
+      fail("invalid_state", "Saved inventory event item snapshot is invalid.");
+    if (
       entry.kind === "opening" &&
       (typeof entry.thresholdText !== "string" ||
         entry.thresholdText.length > 32)
@@ -387,12 +509,23 @@ export function validateInventoryState(state) {
         "invalid_state",
         "Saved inventory event quantity or revision is invalid.",
       );
-    if (
-      entry.syncStatus !== (entry.kind === "opening" ? "unverified" : "pending")
-    )
+    const expectedSyncStatus =
+      entry.kind === "opening" &&
+      entry.provenance === "synthetic-seed-unverified"
+        ? "unverified"
+        : "pending";
+    if (entry.syncStatus !== expectedSyncStatus)
       fail("invalid_state", "Saved inventory sync status is invalid.");
 
     if (entry.kind === "opening") {
+      const syntheticOpening =
+        entry.provenance === "synthetic-seed-unverified" &&
+        current.metadata.provenance === "synthetic-seed-unverified" &&
+        commandId === `inventory:opening:v1:${itemId}`;
+      const operatorOpening =
+        entry.provenance === "operator-count" &&
+        current.metadata.provenance === "operator-count" &&
+        commandId !== `inventory:opening:v1:${itemId}`;
       if (
         current.opening ||
         current.revision !== -1 ||
@@ -402,8 +535,8 @@ export function validateInventoryState(state) {
         entry.deltaBaseUnits < 0 ||
         !Number.isSafeInteger(entry.thresholdBaseUnits) ||
         entry.thresholdBaseUnits < 0 ||
-        entry.provenance !== "synthetic-seed-unverified" ||
-        commandId !== `inventory:opening:v1:${itemId}`
+        (!syntheticOpening && !operatorOpening) ||
+        (operatorOpening && !hasNameSnapshot)
       ) {
         fail(
           "invalid_state",
@@ -445,6 +578,7 @@ export function validateInventoryState(state) {
       current.revision = 0;
       current.stock = entry.deltaBaseUnits;
       current.threshold = entry.thresholdBaseUnits;
+      openingEntries.set(itemId, entry);
       continue;
     }
 
@@ -547,6 +681,165 @@ export function validateInventoryState(state) {
     }
     current.revision = entry.itemRevision;
   }
+  if (catalogEvents.length !== catalogRevision)
+    fail(
+      "invalid_state",
+      "Inventory catalog revision does not match its history.",
+    );
+  const catalogCommands = new Set();
+  const catalogEventIds = new Set();
+  const catalogByItem = new Map();
+  const lastCatalogRevisionByItem = new Map();
+  catalogEvents.forEach((event, index) => {
+    if (!isRecord(event) || !CATALOG_EVENT_KINDS.has(event.kind))
+      fail("invalid_state", "Saved inventory catalog event is invalid.");
+    assertExactFields(
+      event,
+      [
+        "catalogEventId",
+        "commandId",
+        "itemId",
+        "kind",
+        "actorId",
+        "actorName",
+        "occurredAt",
+        "reason",
+        "sourceRevision",
+        "sourceItemRevision",
+        "itemRevision",
+        "before",
+        "after",
+        "syncStatus",
+      ],
+      "Saved inventory catalog event",
+    );
+    const itemId = assertText(event.itemId, "Catalog event item id", 100);
+    const current = items.get(itemId);
+    if (!current)
+      fail("invalid_state", "Catalog event references an unknown item.");
+    const commandId = assertText(event.commandId, "Catalog command id", 180);
+    const catalogEventId = assertText(
+      event.catalogEventId,
+      "Catalog event id",
+      200,
+    );
+    if (
+      catalogCommands.has(commandId) ||
+      commandIds.has(commandId) ||
+      catalogEventIds.has(catalogEventId) ||
+      catalogEventId !== `catalog:${commandId}`
+    )
+      fail(
+        "invalid_state",
+        "Catalog event identities are invalid or duplicated.",
+      );
+    catalogCommands.add(commandId);
+    catalogEventIds.add(catalogEventId);
+    assertText(event.actorId, "Catalog actor id", 100);
+    assertText(event.actorName, "Catalog actor name", 120);
+    assertText(event.reason, "Catalog event reason", 250);
+    if (
+      !Number.isFinite(Date.parse(event.occurredAt)) ||
+      event.sourceRevision !== index ||
+      event.sourceItemRevision !==
+        (lastCatalogRevisionByItem.get(itemId) ?? 0) ||
+      event.itemRevision !== index + 1 ||
+      event.syncStatus !== "pending"
+    )
+      fail(
+        "invalid_state",
+        "Inventory catalog event revision or audit is invalid.",
+      );
+    validateCatalogSnapshot(event.after, itemId);
+    if (event.kind === "create") {
+      if (
+        event.before !== null ||
+        catalogByItem.has(itemId) ||
+        event.after.archived ||
+        event.after.provenance !== "operator-count"
+      )
+        fail("invalid_state", "Inventory item creation history is invalid.");
+      const opening = openingEntries.get(itemId);
+      if (
+        !opening ||
+        opening.provenance !== "operator-count" ||
+        opening.itemNameSnapshot !== event.after.name ||
+        opening.itemKindSnapshot !== event.after.kind ||
+        opening.unitSnapshot !== event.after.displayUnit ||
+        opening.commandId !== `${commandId}:opening` ||
+        opening.actorId !== event.actorId ||
+        opening.actorName !== event.actorName ||
+        opening.occurredAt !== event.occurredAt ||
+        opening.reason !== event.reason
+      )
+        fail(
+          "invalid_state",
+          "Created items require a matching operator opening count.",
+        );
+    } else {
+      validateCatalogSnapshot(event.before, itemId);
+      const previous = catalogByItem.get(itemId);
+      if (previous && !sameRecord(previous, event.before))
+        fail("invalid_state", "Inventory catalog history is not continuous.");
+      if (
+        !previous &&
+        (event.before.provenance !== "synthetic-seed-unverified" ||
+          current.metadata.provenance !== "synthetic-seed-unverified")
+      )
+        fail("invalid_state", "Legacy catalog history provenance is invalid.");
+      if (event.kind === "edit") {
+        if (
+          event.before.archived ||
+          event.after.archived ||
+          event.before.provenance !== event.after.provenance ||
+          event.before.baseUnit !== event.after.baseUnit
+        )
+          fail(
+            "invalid_state",
+            "Inventory catalog edits cannot change stock units or threshold history.",
+          );
+      } else if (
+        event.before.archived ||
+        !event.after.archived ||
+        !sameRecord({ ...event.before, archived: true }, event.after)
+      ) {
+        fail("invalid_state", "Inventory archive history is invalid.");
+      }
+    }
+    catalogByItem.set(itemId, event.after);
+    lastCatalogRevisionByItem.set(itemId, event.itemRevision);
+  });
+
+  for (const [itemId, current] of items) {
+    const catalogSnapshot = catalogByItem.get(itemId);
+    if (catalogSnapshot) {
+      if (
+        !sameRecord(
+          catalogSnapshot,
+          inventoryMetadataSnapshot(current.metadata),
+        ) ||
+        current.metadata.catalogRevision !==
+          lastCatalogRevisionByItem.get(itemId) ||
+        current.metadata.archived !== catalogSnapshot.archived
+      )
+        fail(
+          "invalid_state",
+          "Inventory item metadata does not match its catalog history.",
+        );
+    } else if (
+      current.metadata.provenance === "operator-count" ||
+      hasOwn(current.metadata, "catalogRevision") ||
+      hasOwn(current.metadata, "archived")
+    ) {
+      fail("invalid_state", "Inventory item is missing its catalog history.");
+    }
+    if (current.metadata.archived === true && current.stock !== 0)
+      fail(
+        "invalid_state",
+        "Archived inventory items must not hide positive stock.",
+      );
+  }
+
   for (const current of items.values()) {
     if (
       !current.opening ||
@@ -559,7 +852,7 @@ export function validateInventoryState(state) {
       );
     }
   }
-  if (state.revision !== operationCount)
+  if (state.revision !== operationCount + catalogEvents.length)
     fail(
       "invalid_state",
       "Inventory ledger revision does not match its event history.",
@@ -586,6 +879,7 @@ export function inventorySummary(state) {
       ...item,
       stockBaseUnits,
       low: stockBaseUnits <= item.lowThresholdBaseUnits,
+      archived: item.archived === true,
     };
   });
 }
@@ -619,6 +913,368 @@ function sameEventContent(a, b) {
   return EVENT_FIELDS.every((field) => a[field] === b[field]);
 }
 
+function assertCatalogCommand(command, expectedKind) {
+  if (!isRecord(command) || command.kind !== expectedKind)
+    fail("invalid_command", "Inventory catalog command type is invalid.");
+  const commandId = assertText(command.commandId, "Catalog command id", 180);
+  const itemId = assertText(command.itemId, "Inventory item id", 100);
+  const actorId = assertText(command.actorId, "Catalog actor id", 100);
+  const actorName = assertText(command.actorName, "Catalog actor name", 120);
+  const reason = assertText(command.reason, "Catalog reason", 250);
+  if (
+    !Number.isFinite(Date.parse(command.occurredAt)) ||
+    !Number.isSafeInteger(command.expectedCatalogRevision) ||
+    command.expectedCatalogRevision < 0 ||
+    !Number.isSafeInteger(command.expectedItemCatalogRevision ?? 0) ||
+    (command.expectedItemCatalogRevision ?? 0) < 0
+  )
+    fail("invalid_command", "Catalog source revision or audit is invalid.");
+  return {
+    commandId,
+    itemId,
+    actorId,
+    actorName,
+    reason,
+    occurredAt: command.occurredAt,
+    expectedCatalogRevision: command.expectedCatalogRevision,
+    expectedItemCatalogRevision: command.expectedItemCatalogRevision ?? 0,
+  };
+}
+
+function catalogEvent(common, kind, before, after, sourceRevision) {
+  return {
+    catalogEventId: `catalog:${common.commandId}`,
+    commandId: common.commandId,
+    itemId: common.itemId,
+    kind,
+    actorId: common.actorId,
+    actorName: common.actorName,
+    occurredAt: common.occurredAt,
+    reason: common.reason,
+    sourceRevision,
+    sourceItemRevision: common.expectedItemCatalogRevision,
+    itemRevision: sourceRevision + 1,
+    before,
+    after,
+    syncStatus: "pending",
+  };
+}
+
+function assertUniqueActiveName(state, name, exceptItemId = null) {
+  const normalized = name.trim().toLocaleLowerCase("es-MX");
+  if (
+    state.items.some(
+      (item) =>
+        item.itemId !== exceptItemId &&
+        item.archived !== true &&
+        item.name.trim().toLocaleLowerCase("es-MX") === normalized,
+    )
+  )
+    fail(
+      "duplicate_item_name",
+      "An active inventory item already uses that name.",
+    );
+}
+
+function validateCatalogItemFields(nameValue, kind, displayUnit) {
+  const name = assertText(nameValue, "Inventory item name", 120);
+  if (!ITEM_TYPES.has(kind))
+    fail("invalid_item_kind", "Inventory item type is invalid.");
+  const baseUnit = baseUnitForDisplay(displayUnit);
+  if (!BASE_UNITS.has(baseUnit))
+    fail("unit_mismatch", "Inventory unit is invalid.");
+  unitFactor(displayUnit, baseUnit);
+  return { name, kind, baseUnit, displayUnit };
+}
+
+function commandMatchesCatalogEvent(event, common, kind, after) {
+  return (
+    event.kind === kind &&
+    event.commandId === common.commandId &&
+    event.itemId === common.itemId &&
+    event.actorId === common.actorId &&
+    event.actorName === common.actorName &&
+    event.occurredAt === common.occurredAt &&
+    event.reason === common.reason &&
+    event.sourceRevision === common.expectedCatalogRevision &&
+    event.sourceItemRevision === common.expectedItemCatalogRevision &&
+    sameRecord(event.after, after)
+  );
+}
+
+/** Create a catalog item with a real, audited zero-or-positive opening count. */
+export function createInventoryItem(state, command) {
+  const valid = validateInventoryState(state);
+  const common = assertCatalogCommand(command, "create");
+  const fields = validateCatalogItemFields(
+    command.name,
+    command.itemKind,
+    command.displayUnit,
+  );
+  const openingBaseUnits = quantityToBaseUnits(
+    command.openingQuantityText,
+    fields.displayUnit,
+    fields.baseUnit,
+    { allowZero: true },
+  );
+  const thresholdBaseUnits = quantityToBaseUnits(
+    command.thresholdText,
+    fields.displayUnit,
+    fields.baseUnit,
+    { allowZero: true },
+  );
+  const after = {
+    itemId: common.itemId,
+    ...fields,
+    archived: false,
+    provenance: "operator-count",
+  };
+  const history = valid.catalogEvents || [];
+  const duplicate = history.find(
+    (event) => event.commandId === common.commandId,
+  );
+  if (duplicate) {
+    const openingCommandId = `${common.commandId}:opening`;
+    const opening = valid.entries.find(
+      (entry) => entry.commandId === openingCommandId,
+    );
+    if (
+      !commandMatchesCatalogEvent(duplicate, common, "create", after) ||
+      !opening ||
+      opening.quantityBaseUnits !== openingBaseUnits ||
+      opening.deltaBaseUnits !== openingBaseUnits ||
+      opening.thresholdBaseUnits !== thresholdBaseUnits ||
+      opening.quantityText !== String(command.openingQuantityText).trim() ||
+      opening.thresholdText !== String(command.thresholdText).trim() ||
+      opening.actorId !== common.actorId ||
+      opening.actorName !== common.actorName ||
+      opening.occurredAt !== common.occurredAt ||
+      opening.reason !== common.reason
+    )
+      fail(
+        "command_conflict",
+        "This catalog command id was already used for different content.",
+      );
+    return { state: valid, event: duplicate, duplicate: true, changed: false };
+  }
+  const catalogRevision = valid.catalogRevision ?? 0;
+  if (catalogRevision !== common.expectedCatalogRevision)
+    fail(
+      "stale_catalog_revision",
+      "Inventory catalog changed after this form opened.",
+    );
+  if (valid.items.some((item) => item.itemId === common.itemId))
+    fail("item_id_conflict", "Inventory item identifiers cannot be reused.");
+  assertUniqueActiveName(valid, fields.name);
+  const openingCommandId = `${common.commandId}:opening`;
+  if (valid.entries.some((entry) => entry.commandId === openingCommandId))
+    fail(
+      "command_conflict",
+      "This inventory opening command id is already in use.",
+    );
+  const item = {
+    ...after,
+    lowThresholdBaseUnits: thresholdBaseUnits,
+    revision: 0,
+    catalogRevision: catalogRevision + 1,
+  };
+  const opening = {
+    movementId: `movement:${openingCommandId}`,
+    commandId: openingCommandId,
+    itemId: common.itemId,
+    kind: "opening",
+    quantityBaseUnits: openingBaseUnits,
+    deltaBaseUnits: openingBaseUnits,
+    unitSnapshot: fields.displayUnit,
+    quantityText: String(command.openingQuantityText).trim(),
+    actorId: common.actorId,
+    actorName: common.actorName,
+    occurredAt: common.occurredAt,
+    reason: common.reason,
+    sourceRevision: 0,
+    itemRevision: 0,
+    syncStatus: "pending",
+    thresholdBaseUnits,
+    thresholdText: String(command.thresholdText).trim(),
+    provenance: "operator-count",
+    itemNameSnapshot: fields.name,
+    itemKindSnapshot: fields.kind,
+  };
+  const event = catalogEvent(common, "create", null, after, catalogRevision);
+  const next = validateInventoryState({
+    ...valid,
+    revision: valid.revision + 1,
+    catalogRevision: catalogRevision + 1,
+    catalogEvents: [...history, event],
+    items: [...valid.items, item],
+    entries: [...valid.entries, opening],
+  });
+  return { state: next, event, opening, duplicate: false, changed: true };
+}
+
+function assertCatalogItemRevision(command, item) {
+  if (
+    !Number.isSafeInteger(command.expectedItemCatalogRevision) ||
+    command.expectedItemCatalogRevision < 0
+  )
+    fail("invalid_command", "Inventory item catalog revision is invalid.");
+  if ((item.catalogRevision ?? 0) !== command.expectedItemCatalogRevision)
+    fail(
+      "stale_catalog_revision",
+      "Inventory item changed after this form opened.",
+    );
+}
+
+/** Edit descriptive fields without migrating the integer stock base unit. */
+export function editInventoryItem(state, command) {
+  const valid = validateInventoryState(state);
+  const common = assertCatalogCommand(command, "edit");
+  const history = valid.catalogEvents || [];
+  const duplicate = history.find(
+    (event) => event.commandId === common.commandId,
+  );
+  let before;
+  let after;
+  if (duplicate) {
+    if (duplicate.kind !== "edit" || !duplicate.before)
+      fail(
+        "command_conflict",
+        "This catalog command id was already used for different content.",
+      );
+    before = duplicate.before;
+    const fields = validateCatalogItemFields(
+      command.name,
+      command.itemKind,
+      command.displayUnit,
+    );
+    if (fields.baseUnit !== before.baseUnit)
+      fail(
+        "base_unit_migration_required",
+        "Changing an item's base unit requires a separate stock migration.",
+      );
+    after = {
+      ...before,
+      name: fields.name,
+      kind: fields.kind,
+      displayUnit: fields.displayUnit,
+    };
+    if (!commandMatchesCatalogEvent(duplicate, common, "edit", after))
+      fail(
+        "command_conflict",
+        "This catalog command id was already used for different content.",
+      );
+    return { state: valid, event: duplicate, duplicate: true, changed: false };
+  }
+  const catalogRevision = valid.catalogRevision ?? 0;
+  if (catalogRevision !== common.expectedCatalogRevision)
+    fail(
+      "stale_catalog_revision",
+      "Inventory catalog changed after this form opened.",
+    );
+  const item = itemById(valid, common.itemId);
+  if (!item) fail("unknown_item", "Inventory item does not exist.");
+  if (item.archived === true)
+    fail("archived_item", "Archived inventory items cannot be edited.");
+  assertCatalogItemRevision(command, item);
+  const fields = validateCatalogItemFields(
+    command.name,
+    command.itemKind,
+    command.displayUnit,
+  );
+  if (fields.baseUnit !== item.baseUnit)
+    fail(
+      "base_unit_migration_required",
+      "Changing an item's base unit requires a separate stock migration.",
+    );
+  assertUniqueActiveName(valid, fields.name, item.itemId);
+  before = inventoryMetadataSnapshot(item);
+  after = {
+    ...before,
+    name: fields.name,
+    kind: fields.kind,
+    displayUnit: fields.displayUnit,
+  };
+  const event = catalogEvent(common, "edit", before, after, catalogRevision);
+  const next = validateInventoryState({
+    ...valid,
+    revision: valid.revision + 1,
+    catalogRevision: catalogRevision + 1,
+    catalogEvents: [...history, event],
+    items: valid.items.map((candidate) =>
+      candidate.itemId === item.itemId
+        ? {
+            ...candidate,
+            ...fields,
+            archived: false,
+            catalogRevision: catalogRevision + 1,
+          }
+        : candidate,
+    ),
+  });
+  return { state: next, event, duplicate: false, changed: true };
+}
+
+/** Archive an item without deleting its balance or any part of its history. */
+export function archiveInventoryItem(state, command) {
+  const valid = validateInventoryState(state);
+  const common = assertCatalogCommand(command, "archive");
+  const history = valid.catalogEvents || [];
+  const duplicate = history.find(
+    (event) => event.commandId === common.commandId,
+  );
+  let before;
+  let after;
+  if (duplicate) {
+    if (duplicate.kind !== "archive" || !duplicate.before)
+      fail(
+        "command_conflict",
+        "This catalog command id was already used for different content.",
+      );
+    before = duplicate.before;
+    after = { ...before, archived: true };
+    if (!commandMatchesCatalogEvent(duplicate, common, "archive", after))
+      fail(
+        "command_conflict",
+        "This catalog command id was already used for different content.",
+      );
+    return { state: valid, event: duplicate, duplicate: true, changed: false };
+  }
+  const catalogRevision = valid.catalogRevision ?? 0;
+  if (catalogRevision !== common.expectedCatalogRevision)
+    fail(
+      "stale_catalog_revision",
+      "Inventory catalog changed after this form opened.",
+    );
+  const item = itemById(valid, common.itemId);
+  if (!item) fail("unknown_item", "Inventory item does not exist.");
+  if (item.archived === true)
+    fail("archived_item", "This inventory item is already archived.");
+  assertCatalogItemRevision(command, item);
+  const currentStock = inventorySummary(valid).find(
+    (summary) => summary.itemId === item.itemId,
+  ).stockBaseUnits;
+  if (currentStock !== 0)
+    fail(
+      "archive_with_stock",
+      "The item still has stock. Record or verify its disposition before archiving.",
+    );
+  before = inventoryMetadataSnapshot(item);
+  after = { ...before, archived: true };
+  const event = catalogEvent(common, "archive", before, after, catalogRevision);
+  const next = validateInventoryState({
+    ...valid,
+    revision: valid.revision + 1,
+    catalogRevision: catalogRevision + 1,
+    catalogEvents: [...history, event],
+    items: valid.items.map((candidate) =>
+      candidate.itemId === item.itemId
+        ? { ...candidate, archived: true, catalogRevision: catalogRevision + 1 }
+        : candidate,
+    ),
+  });
+  return { state: next, event, duplicate: false, changed: true };
+}
+
 function storeEvent(valid, item, event) {
   const items = valid.items.map((candidate) =>
     candidate.itemId === item.itemId
@@ -632,11 +1288,32 @@ function storeEvent(valid, item, event) {
       : candidate,
   );
   return validateInventoryState({
-    schemaVersion: 1,
+    ...valid,
     revision: valid.revision + 1,
     items,
     entries: [...valid.entries, event],
   });
+}
+
+function movementItemSnapshot(command, item, duplicate) {
+  const supplied =
+    command.itemNameSnapshot !== undefined ||
+    command.itemKindSnapshot !== undefined;
+  if (supplied) {
+    assertText(command.itemNameSnapshot, "Inventory captured item name", 120);
+    if (!ITEM_TYPES.has(command.itemKindSnapshot))
+      fail("invalid_command", "Inventory captured item type is invalid.");
+  }
+  if (duplicate && !hasOwn(duplicate, "itemNameSnapshot") && !supplied)
+    return {};
+  return {
+    itemNameSnapshot: supplied
+      ? command.itemNameSnapshot
+      : (duplicate?.itemNameSnapshot ?? item.name),
+    itemKindSnapshot: supplied
+      ? command.itemKindSnapshot
+      : (duplicate?.itemKindSnapshot ?? item.kind),
+  };
 }
 
 /** Add an entry, waste, or signed adjustment to a validated immutable ledger. */
@@ -660,10 +1337,14 @@ export function applyInventoryMovement(state, command) {
       : command.kind === "waste"
         ? -quantityBaseUnits
         : quantityBaseUnits;
+  const duplicate = valid.entries.find(
+    (entry) => entry.commandId === common.commandId,
+  );
   const event = {
     movementId: `movement:${common.commandId}`,
     commandId: common.commandId,
     itemId: common.itemId,
+    ...movementItemSnapshot(command, item, duplicate),
     kind: command.kind,
     quantityBaseUnits: Math.abs(quantityBaseUnits),
     deltaBaseUnits,
@@ -677,9 +1358,6 @@ export function applyInventoryMovement(state, command) {
     itemRevision: command.expectedRevision + 1,
     syncStatus: "pending",
   };
-  const duplicate = valid.entries.find(
-    (entry) => entry.commandId === common.commandId,
-  );
   if (duplicate) {
     if (!sameEventContent(duplicate, event))
       fail(
@@ -688,6 +1366,8 @@ export function applyInventoryMovement(state, command) {
       );
     return { state: valid, entry: duplicate, duplicate: true, changed: false };
   }
+  if (item.archived === true)
+    fail("archived_item", "Archived inventory items cannot receive movements.");
   if (item.revision !== command.expectedRevision)
     fail(
       "stale_revision",
@@ -731,6 +1411,7 @@ export function applyInventoryThreshold(state, command) {
     movementId: `movement:${common.commandId}`,
     commandId: common.commandId,
     itemId: common.itemId,
+    ...movementItemSnapshot(command, item, duplicate),
     kind: "threshold",
     quantityBaseUnits: 0,
     deltaBaseUnits: 0,
@@ -755,6 +1436,8 @@ export function applyInventoryThreshold(state, command) {
       );
     return { state: valid, entry: duplicate, duplicate: true, changed: false };
   }
+  if (item.archived === true)
+    fail("archived_item", "Archived inventory items cannot change thresholds.");
   if (item.revision !== command.expectedRevision)
     fail(
       "stale_revision",

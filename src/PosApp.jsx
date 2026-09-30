@@ -36,9 +36,12 @@ import { canPerform, resolveAccessAction, seededRoleToAccessRole } from './acces
 import { parseVerifiedAccessContext } from './access/offline-identity.ts';
 import { planOrderSplit, splitLineId, suggestSplitSelection } from './orders/order-split.mjs';
 import {
+  archiveInventoryItem,
   applyInventoryMovement,
   applyInventoryThreshold,
   createInitialInventoryState,
+  createInventoryItem,
+  editInventoryItem,
   formatBaseUnits,
   inventorySummary,
   validateInventoryState,
@@ -73,9 +76,16 @@ function inventoryOperatorError(error) {
     ['unknown_item', 'El artículo ya no está disponible. Revisa el inventario y vuelve a intentarlo.'],
     ['invalid_command', 'Revisa el artículo, cantidad, unidad y motivo capturados.'],
     ['invalid_record', 'Revisa los datos capturados antes de guardar.'],
-    ['invalid_state', 'El registro local requiere revisión. No se aplicó el movimiento.'],
+    ['invalid_state', 'El registro local requiere revisión. No se aplicaron cambios.'],
+    ['stale_catalog_revision', 'El catálogo cambió desde que abriste el formulario. Revisa los datos y vuelve a intentarlo.'],
+    ['base_unit_migration_required', 'No se puede cambiar la unidad base con este formulario. Conserva una unidad compatible.'],
+    ['archive_with_stock', 'El artículo conserva existencias. Registra o verifica su destino antes de archivarlo.'],
+    ['archived_item', 'El artículo está archivado y no acepta nuevos movimientos.'],
+    ['duplicate_item_name', 'Ya existe un artículo activo con ese nombre.'],
+    ['invalid_item_kind', 'Selecciona un tipo de artículo válido.'],
+    ['item_id_conflict', 'No se pudo reservar el identificador del artículo. Vuelve a abrir el formulario.'],
   ]);
-  return messages.get(error?.code) || 'No se pudo guardar el movimiento. Revisa el inventario e intenta de nuevo.';
+  return messages.get(error?.code) || 'No se pudo guardar la información de inventario. Revisa e intenta de nuevo.';
 }
 
 function textField(value, maxLength = 160) {
@@ -1315,19 +1325,114 @@ export default class PosApp extends React.Component {
   }
   retryInventoryInitialization() { this.setState({ inventoryError: '' }, () => this.initializeInventoryState()); }
   inventoryField(fields, key) { return fields.find(field => field.key === key); }
+  inventoryCommandId(prefix = 'inventory') {
+    return globalThis.crypto?.randomUUID ? `${prefix}:${globalThis.crypto.randomUUID()}` : `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  }
+  inventoryItemId() {
+    return globalThis.crypto?.randomUUID ? `operator:${globalThis.crypto.randomUUID()}` : `operator:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  }
+  openInventoryCatalogDialog(kind, itemId = null) {
+    if (!this.requireAction('adjustInventory')) return;
+    const state = this.state.inventoryState;
+    if (!state) { this.toast('El inventario no está disponible; revisa el registro local antes de continuar.', 'warn'); return; }
+    const item = itemId ? state.items.find(candidate => candidate.itemId === itemId) : null;
+    if (itemId && (!item || item.archived === true)) { this.toast('El artículo ya no está disponible para cambios.', 'warn'); return; }
+    const unitsFor = baseUnit => baseUnit === 'g' ? ['g', 'kg'] : baseUnit === 'ml' ? ['ml', 'L'] : ['pz'];
+    const unitLabel = unit => unit === 'g' ? 'g (gramos)' : unit === 'kg' ? 'kg (kilogramos)' : unit === 'ml' ? 'ml (mililitros)' : unit === 'L' ? 'L (litros)' : 'pz (piezas)';
+    const commandId = this.inventoryCommandId('inventory-catalog');
+    const commandOccurredAt = new Date().toISOString();
+    if (kind === 'archive') {
+      this.setState({ dlg: {
+        title: 'Archivar artículo',
+        body: `Se conservarán el artículo y todo su historial. Para archivar, las existencias actuales deben ser cero. ${item.name}`,
+        needReason: true, danger: true, confirmLabel: 'Archivar', commandId, commandOccurredAt,
+        inventoryCatalogCommand: 'archive', itemId: item.itemId,
+        expectedCatalogRevision: state.catalogRevision ?? 0,
+        expectedItemCatalogRevision: item.catalogRevision ?? 0,
+        onConfirm: dialog => this.confirmInventoryCatalog(dialog),
+      } });
+      return;
+    }
+    const editing = kind === 'edit';
+    const fields = editing ? [
+      { key: 'name', label: 'Nombre del artículo', value: item.name, maxLength: 120 },
+      { key: 'itemKind', type: 'select', label: 'Tipo de artículo', value: item.kind, options: ['Ingrediente', 'Insumo', 'Producto terminado'].map(value => ({ value, label: value })) },
+      { key: 'displayUnit', type: 'select', label: 'Unidad de captura', value: item.displayUnit, options: unitsFor(item.baseUnit).map(value => ({ value, label: unitLabel(value) })) },
+    ] : [
+      { key: 'name', label: 'Nombre del artículo', value: '', maxLength: 120 },
+      { key: 'itemKind', type: 'select', label: 'Tipo de artículo', value: 'Ingrediente', options: ['Ingrediente', 'Insumo', 'Producto terminado'].map(value => ({ value, label: value })) },
+      { key: 'displayUnit', type: 'select', label: 'Unidad base y de captura', value: 'g', options: ['g', 'kg', 'ml', 'L', 'pz'].map(value => ({ value, label: unitLabel(value) })) },
+      { key: 'openingQuantityText', label: 'Existencia contada', ph: '0', value: '', maxLength: 32 },
+      { key: 'thresholdText', label: 'Mínimo de stock', ph: '0', value: '', maxLength: 32 },
+    ];
+    this.setState({ dlg: {
+      title: editing ? 'Editar artículo' : 'Nuevo artículo',
+      body: editing
+        ? 'Los cambios quedarán en el historial. La unidad debe conservar la misma base para proteger saldos y movimientos anteriores.'
+        : 'Registra una existencia real contada, incluso si es cero. El nombre, conteo, tipo y unidad se guardarán con usuario, hora y motivo.',
+      needReason: true, confirmLabel: editing ? 'Guardar cambios' : 'Crear artículo',
+      commandId, commandOccurredAt, inventoryCatalogCommand: kind,
+      itemId: item?.itemId || this.inventoryItemId(),
+      expectedCatalogRevision: state.catalogRevision ?? 0,
+      expectedItemCatalogRevision: item?.catalogRevision ?? 0,
+      fields,
+      onConfirm: dialog => this.confirmInventoryCatalog(dialog),
+    } });
+  }
+  confirmInventoryCatalog(dialog) {
+    const reason = typeof dialog.reason === 'string' ? dialog.reason.trim() : '';
+    if (!reason || reason.length > 250) { this.toast('Captura un motivo de entre 1 y 250 caracteres.', 'warn'); return 'keep'; }
+    if (!this.requireAction('adjustInventory', reason)) return 'keep';
+    const actor = this.user();
+    if (!actor) return 'keep';
+    try {
+      const key = this._storageKey || 'karma-pos-v1';
+      const raw = localStorage.getItem(key);
+      const persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted) || !Object.prototype.hasOwnProperty.call(persisted, 'inventoryState')) throw new Error('inventory ledger missing');
+      const current = validateInventoryState(persisted.inventoryState);
+      const operational = this.latestOperationalState(persisted);
+      const value = field => this.inventoryField(dialog.fields || [], field)?.value;
+      const command = {
+        commandId: dialog.commandId, itemId: dialog.itemId,
+        kind: dialog.inventoryCatalogCommand,
+        actorId: actor.id, actorName: actor.name,
+        occurredAt: dialog.commandOccurredAt || new Date().toISOString(), reason,
+        expectedCatalogRevision: dialog.expectedCatalogRevision,
+        expectedItemCatalogRevision: dialog.expectedItemCatalogRevision,
+        name: value('name'), itemKind: value('itemKind'), displayUnit: value('displayUnit'),
+        openingQuantityText: value('openingQuantityText'), thresholdText: value('thresholdText'),
+      };
+      const result = command.kind === 'create' ? createInventoryItem(current, command)
+        : command.kind === 'edit' ? editInventoryItem(current, command)
+          : archiveInventoryItem(current, command);
+      if (result.changed) {
+        try { localStorage.setItem(key, JSON.stringify({ ...persisted, inventoryState: result.state })); }
+        catch { this.toast('No se pudo guardar el artículo. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+      }
+      if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
+      this.setState({ ...operational, inventoryState: result.state, inventoryError: '' });
+      this.toast(result.duplicate ? 'Este cambio de catálogo ya estaba registrado; no se duplicó.' : `${dialog.title} guardado en el historial local.`);
+      return undefined;
+    } catch (error) {
+      this.toast(inventoryOperatorError(error), 'warn');
+      return 'keep';
+    }
+  }
   openInventoryDialog(kind, itemId = null) {
     if (!this.requireAction('adjustInventory')) return;
     const state = this.state.inventoryState;
     if (!state) { this.toast('El inventario no está disponible; revisa el registro local antes de continuar.', 'warn'); return; }
-    const item = state.items.find(candidate => candidate.itemId === itemId) || state.items[0];
+    const availableItems = state.items.filter(candidate => candidate.archived !== true);
+    const item = availableItems.find(candidate => candidate.itemId === itemId) || availableItems[0];
     if (!item) { this.toast('No hay artículos de inventario disponibles.', 'warn'); return; }
     const labels = { entry: 'Registrar entrada', waste: 'Registrar merma', adjustment: 'Ajuste manual de inventario', threshold: 'Cambiar mínimo de stock' };
     const labelsByKind = { Ingrediente: 'Ingrediente', Insumo: 'Insumo', 'Producto terminado': 'Producto terminado' };
     const unitOptions = [...new Set([item.displayUnit, item.baseUnit])];
     const unitLabel = unit => unit === 'g' ? 'g (gramos)' : unit === 'kg' ? 'kg (kilogramos)' : unit === 'ml' ? 'ml (mililitros)' : unit === 'L' ? 'L (litros)' : 'pz (piezas)';
-    const commandId = globalThis.crypto?.randomUUID ? `inventory:${globalThis.crypto.randomUUID()}` : `inventory:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    const commandId = this.inventoryCommandId();
     const fields = [
-      { key: 'itemId', type: 'select', label: 'Artículo', value: item.itemId, options: state.items.map(candidate => ({ value: candidate.itemId, label: `${candidate.name} · ${labelsByKind[candidate.kind]}` })) },
+      { key: 'itemId', type: 'select', label: 'Artículo', value: item.itemId, options: availableItems.map(candidate => ({ value: candidate.itemId, label: `${candidate.name} · ${labelsByKind[candidate.kind]}` })) },
       { key: 'unit', type: 'select', label: 'Unidad', value: item.displayUnit, options: unitOptions.map(unit => ({ value: unit, label: unitLabel(unit) })) },
       { key: 'quantityText', label: kind === 'adjustment' ? 'Ajuste con signo (+ o −)' : kind === 'threshold' ? 'Nuevo mínimo' : 'Cantidad', ph: kind === 'adjustment' ? '+0.5 o -2' : '0.5', value: '', maxLength: 32 },
     ];
@@ -1337,13 +1442,14 @@ export default class PosApp extends React.Component {
         ? 'Indica la diferencia real con signo: positivo agrega existencias y negativo las reduce.'
         : kind === 'threshold' ? 'El mínimo solo cambia el aviso de stock bajo; no modifica la existencia.' : 'El movimiento quedará en un historial local con tu usuario, hora y motivo.',
       needReason: true, confirmLabel: 'Registrar', commandId, commandOccurredAt: new Date().toISOString(), expectedItemRevision: item.revision,
+      expectedItemName: item.name, expectedItemKind: item.kind,
       fields, inventoryCommandKind: kind,
       onInventoryItemChange: nextItemId => {
         const selected = this.state.inventoryState?.items.find(candidate => candidate.itemId === nextItemId);
         if (!selected) return;
         const selectedUnits = [...new Set([selected.displayUnit, selected.baseUnit])];
         this.setState(current => ({ dlg: current.dlg ? {
-          ...current.dlg, expectedItemRevision: selected.revision,
+          ...current.dlg, expectedItemRevision: selected.revision, expectedItemName: selected.name, expectedItemKind: selected.kind,
           fields: current.dlg.fields.map(field => field.key === 'itemId' ? { ...field, value: selected.itemId }
             : field.key === 'unit' ? { ...field, value: selected.displayUnit, options: selectedUnits.map(unit => ({ value: unit, label: unitLabel(unit) })) } : field),
         } : current.dlg }));
@@ -1374,6 +1480,7 @@ export default class PosApp extends React.Component {
         unit: unitField.value, actorId: actor.id, actorName: actor.name,
         occurredAt: dialog.commandOccurredAt || new Date().toISOString(), reason,
         expectedRevision: dialog.expectedItemRevision,
+        itemNameSnapshot: dialog.expectedItemName, itemKindSnapshot: dialog.expectedItemKind,
       };
       const result = command.kind === 'threshold'
         ? applyInventoryThreshold(current, command)
@@ -1875,27 +1982,54 @@ export default class PosApp extends React.Component {
     V.retryInventory = () => this.retryInventoryInitialization();
     V.inventorySynthetic = true;
     V.inventoryCanAdjust = this.can('adjustInventory') && !!s.inventoryState;
+    V.inventoryCanManage = V.inventoryCanAdjust;
+    V.addInventoryItem = () => this.openInventoryCatalogDialog('create');
     V.stock = inv.map(i => ({
       id: i.itemId, name: i.name, kind: i.kind,
       qty: formatBaseUnits(i.stockBaseUnits, i.displayUnit), min: formatBaseUnits(i.lowThresholdBaseUnits, i.displayUnit),
-      tagLabel: i.low ? 'Stock bajo' : 'OK', tagVariant: i.low ? 'pending' : 'outline',
+      archived: i.archived,
+      tagLabel: i.archived ? 'Archivado' : i.low ? 'Stock bajo' : 'OK', tagVariant: i.archived ? 'secondary' : i.low ? 'pending' : 'outline',
       changeThreshold: () => this.openInventoryDialog('threshold', i.itemId),
+      edit: () => this.openInventoryCatalogDialog('edit', i.itemId),
+      archive: () => this.openInventoryCatalogDialog('archive', i.itemId),
     }));
     const entryTags = { opening: ['Saldo inicial sintético', 'outline'], entry: ['Entrada', 'pending'], waste: ['Merma', 'destructive'], adjustment: ['Ajuste', 'outline'], threshold: ['Mínimo', 'secondary'] };
-    V.movs = [...(s.inventoryState?.entries || [])].reverse().map(event => {
-      const item = s.inventoryState.items.find(candidate => candidate.itemId === event.itemId);
-      const tag = entryTags[event.kind];
+    const ledger = s.inventoryState;
+    const catalogByItem = new Map();
+    for (const event of ledger?.catalogEvents || []) if (!catalogByItem.has(event.itemId)) catalogByItem.set(event.itemId, event);
+    const stockEvents = (ledger?.entries || []).map(event => {
+      const item = ledger.items.find(candidate => candidate.itemId === event.itemId);
+      const firstCatalog = catalogByItem.get(event.itemId);
+      const historicalName = event.itemNameSnapshot || firstCatalog?.before?.name || firstCatalog?.after?.name || item?.name || 'Artículo desconocido';
+      const tag = event.kind === 'opening' && event.provenance === 'operator-count'
+        ? ['Conteo inicial', 'outline'] : entryTags[event.kind];
       const quantity = event.kind === 'threshold'
         ? `mínimo ${formatBaseUnits(event.thresholdBaseUnits, event.unitSnapshot)}`
         : event.kind === 'opening' || event.kind === 'entry' ? `+${event.quantityText} ${event.unitSnapshot}`
           : event.kind === 'waste' ? `−${event.quantityText} ${event.unitSnapshot}` : `${event.quantityText} ${event.unitSnapshot}`;
       return {
-        id: event.commandId, kind: event.kind, tipoLabel: tag[0], tagVariant: tag[1],
-        item: item?.name || 'Artículo desconocido', qty: quantity,
+        id: event.commandId, tipoLabel: tag[0], tagVariant: tag[1], item: historicalName, qty: quantity,
         user: event.actorName, date: new Date(event.occurredAt).toLocaleString('es-MX'), motivo: event.reason,
         sync: event.syncStatus === 'unverified' ? 'Saldo inicial sin verificar' : 'Guardado local · sincronización pendiente',
+        occurredAt: event.occurredAt,
       };
     });
+    const catalogLabels = { create: ['Artículo creado', 'outline'], edit: ['Artículo editado', 'secondary'], archive: ['Artículo archivado', 'secondary'] };
+    const catalogRows = (ledger?.catalogEvents || []).map(event => {
+      const tag = catalogLabels[event.kind];
+      const opening = event.kind === 'create' ? ledger.entries.find(entry => entry.commandId === `${event.commandId}:opening`) : null;
+      const qty = event.kind === 'create'
+        ? `Existencia inicial: ${opening?.quantityText || '0'} ${opening?.unitSnapshot || event.after.displayUnit}; mínimo: ${opening?.thresholdText || '0'} ${opening?.unitSnapshot || event.after.displayUnit}`
+        : event.kind === 'edit'
+          ? `Nombre: ${event.before.name} → ${event.after.name}; tipo: ${event.before.kind} → ${event.after.kind}; unidad: ${event.before.displayUnit} → ${event.after.displayUnit}`
+          : 'Saldo cero archivado; se conserva el historial';
+      return {
+        id: event.catalogEventId, tipoLabel: tag[0], tagVariant: tag[1], item: event.after.name, qty,
+        user: event.actorName, date: new Date(event.occurredAt).toLocaleString('es-MX'), motivo: event.reason,
+        sync: 'Guardado local · sincronización pendiente', occurredAt: event.occurredAt,
+      };
+    });
+    V.movs = [...stockEvents, ...catalogRows].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
     V.legacyMovs = s.movs.map(movement => ({ item: movement.item, qty: movement.qty, user: movement.user, date: movement.date, motivo: movement.motivo }));
     V.recs = D.recipes.map(r => ({ product: r.product, items: r.items.map(([name, use, conv]) => ({ name, use, conv })) }));
     V.regEntrada = () => this.openInventoryDialog('entry');
@@ -2478,6 +2612,7 @@ export default class PosApp extends React.Component {
 {(V.invTabs).map((t, tI) => (<Button key={tI} type="button" size="sm" variant={t.active ? 'default' : 'outline'} aria-pressed={t.active} onClick={t.pick}>{t.label}</Button>))}
 </div>
 <div style={css("margin-left:auto;display:flex;gap:8px")}>
+<Button type="button" variant="outline" onClick={V.addInventoryItem} disabled={!V.inventoryCanManage}>+ Artículo</Button>
 <Button type="button" onClick={V.regEntrada} disabled={!V.inventoryCanAdjust}>+ Entrada</Button>
 <Button type="button" variant="outline" onClick={V.regMerma} disabled={!V.inventoryCanAdjust}>Registrar merma</Button>
 <Button type="button" variant="outline" onClick={V.regAjuste} disabled={!V.inventoryCanAdjust}>Ajuste manual</Button>
@@ -2493,11 +2628,15 @@ export default class PosApp extends React.Component {
 </div>
 <div className="text-xs text-muted-foreground lg:hidden">Desliza para ver existencias y estado →</div>
 <Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Existencias y estado del inventario', tabIndex: 0 }} className="min-w-[740px]">
-<TableHeader><TableRow><TableHead>Artículo</TableHead><TableHead>Tipo</TableHead><TableHead>Existencia</TableHead><TableHead>Mínimo</TableHead><TableHead>Estado</TableHead><TableHead>Acción</TableHead></TableRow></TableHeader>
+<TableHeader><TableRow><TableHead>Artículo</TableHead><TableHead>Tipo</TableHead><TableHead>Existencia</TableHead><TableHead>Mínimo</TableHead><TableHead>Estado</TableHead><TableHead>Acciones</TableHead></TableRow></TableHeader>
 <TableBody>
 {(!V.inventoryReady || V.stockEmpty) && (<TableRow><TableCell colSpan={6} className="h-20 text-center text-muted-foreground">{V.inventoryReady ? 'Sin artículos que coincidan.' : 'Existencias no disponibles.'}</TableCell></TableRow>)}
 {(V.stock).map((s, sI) => (<TableRow key={sI}>
-<TableCell className="font-medium">{s.name}</TableCell><TableCell className="text-muted-foreground">{s.kind}</TableCell><TableCell>{s.qty}</TableCell><TableCell className="text-muted-foreground">{s.min}</TableCell><TableCell><Badge variant={s.tagVariant}>{s.tagLabel}</Badge></TableCell><TableCell><Button type="button" size="sm" variant="outline" onClick={s.changeThreshold} disabled={!V.inventoryCanAdjust}>Cambiar mínimo</Button></TableCell>
+<TableCell className="font-medium">{s.name}</TableCell><TableCell className="text-muted-foreground">{s.kind}</TableCell><TableCell>{s.qty}</TableCell><TableCell className="text-muted-foreground">{s.min}</TableCell><TableCell><Badge variant={s.tagVariant}>{s.tagLabel}</Badge></TableCell><TableCell><div className="flex flex-wrap gap-1">{s.archived ? <span className="text-xs text-muted-foreground">Historial conservado</span> : <>
+<Button type="button" size="sm" variant="outline" onClick={s.changeThreshold} disabled={!V.inventoryCanAdjust}>Cambiar mínimo</Button>
+<Button type="button" size="sm" variant="outline" onClick={s.edit} disabled={!V.inventoryCanManage}>Editar</Button>
+<Button type="button" size="sm" variant="outline" onClick={s.archive} disabled={!V.inventoryCanManage}>Archivar</Button>
+</>}</div></TableCell>
 </TableRow>))}
 </TableBody></Table></Card>
 </>)}
