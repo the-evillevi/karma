@@ -40,6 +40,7 @@ export function normalizeCatalog(seed) {
     id,
     name: group.label,
     sortOrder: index,
+    active: true,
     selection: {
       required: group.min > 0,
       multiple: group.max > 1,

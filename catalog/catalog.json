@@ -197,6 +197,7 @@
       "id": "leche",
       "name": "Tipo de leche",
       "sortOrder": 0,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -291,6 +292,7 @@
       "id": "shot",
       "name": "Shot de sabor",
       "sortOrder": 1,
+      "active": true,
       "selection": {
         "required": false,
         "multiple": true,
@@ -430,6 +432,7 @@
       "id": "teVar",
       "name": "Variedad",
       "sortOrder": 2,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -494,6 +497,7 @@
       "id": "tisanaVar",
       "name": "Variedad",
       "sortOrder": 3,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -588,6 +592,7 @@
       "id": "aderezo",
       "name": "Aderezos",
       "sortOrder": 4,
+      "active": true,
       "selection": {
         "required": false,
         "multiple": true,
@@ -697,6 +702,7 @@
       "id": "topBowl",
       "name": "Topping incluido",
       "sortOrder": 5,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -761,6 +767,7 @@
       "id": "proteina",
       "name": "Proteína",
       "sortOrder": 6,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -825,6 +832,7 @@
       "id": "dulceExtra",
       "name": "Extras",
       "sortOrder": 7,
+      "active": true,
       "selection": {
         "required": false,
         "multiple": true,
@@ -904,6 +912,7 @@
       "id": "affVar",
       "name": "Variedad",
       "sortOrder": 8,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -968,6 +977,7 @@
       "id": "crepaSabor",
       "name": "Sabor",
       "sortOrder": 9,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -1137,6 +1147,7 @@
       "id": "croiSabor",
       "name": "Sabor",
       "sortOrder": 10,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -1246,6 +1257,7 @@
       "id": "frutaAcomp",
       "name": "Fruta que acompaña",
       "sortOrder": 11,
+      "active": true,
       "selection": {
         "required": true,
         "multiple": false,
@@ -1325,6 +1337,7 @@
       "id": "extraTop",
       "name": "Toppings extra",
       "sortOrder": 12,
+      "active": true,
       "selection": {
         "required": false,
         "multiple": true,

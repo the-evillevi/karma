@@ -85,23 +85,32 @@ export function validateCatalog(catalog) {
   for (const group of modifierGroups) {
     const label = `modifier group ${group.id || '(missing id)'}`;
     requireSafeInteger(group.sortOrder, `${label} sortOrder`);
+    if (typeof group.active !== 'boolean') errors.push(`${label} active must be boolean`);
     checkSource(group.source, label);
     const options = checkUnique(group.options, `${label} options`, { names: true });
     const selection = isRecord(group.selection) ? group.selection : {};
     if (!isRecord(group.selection)) errors.push(`${label} selection metadata is required`);
+    for (const field of Object.keys(selection)) {
+      if (!['required', 'multiple', 'min', 'max', 'defaultOptionId', 'defaultProvenance', 'unit', 'defaultQuantity'].includes(field)) errors.push(`${label} has unsupported selection field ${field}`);
+    }
     const minValid = Number.isSafeInteger(selection.min) && selection.min >= 0;
     const maxValid = Number.isSafeInteger(selection.max) && selection.max >= 0;
     if (!minValid || !maxValid || (minValid && maxValid && selection.max < selection.min)) errors.push(`modifier group ${group.id} has invalid selection limits`);
-    if (minValid && selection.min > options.length) errors.push(`${label} min exceeds its option count`);
+    const activeOptions = options.filter((option) => option.active === true);
+    if (minValid && selection.min > activeOptions.length) errors.push(`${label} min exceeds its active option count`);
     if (maxValid && selection.max > options.length) errors.push(`${label} max exceeds its option count`);
     if (typeof selection.required !== 'boolean') errors.push(`${label} required must be boolean`);
     else if (minValid && selection.required !== (selection.min > 0)) errors.push(`${label} required must match min`);
     if (typeof selection.multiple !== 'boolean') errors.push(`${label} multiple must be boolean`);
     else if (maxValid && selection.multiple !== (selection.max > 1)) errors.push(`${label} multiple must match max`);
     if (selection.defaultOptionId !== null && typeof selection.defaultOptionId !== 'string') errors.push(`${label} defaultOptionId must be a string or null`);
-    if (typeof selection.defaultOptionId === 'string' && !options.some((option) => option.id === selection.defaultOptionId)) errors.push(`${label} default option does not exist`);
+    if (typeof selection.defaultOptionId === 'string' && !options.some((option) => option.id === selection.defaultOptionId && option.active === true)) errors.push(`${label} default option does not exist or is inactive`);
     if (selection.required === true && selection.defaultOptionId === null) errors.push(`required modifier group ${group.id} must declare a default or be reconciled`);
     requireString(selection.defaultProvenance, `${label} defaultProvenance`);
+    if ('unit' in selection || 'defaultQuantity' in selection) {
+      requireString(selection.unit, `${label} unit`);
+      if (!Number.isSafeInteger(selection.defaultQuantity) || selection.defaultQuantity < 1) errors.push(`${label} defaultQuantity must be a positive safe integer`);
+    }
     for (const option of options) {
       const optionLabel = `option ${group.id}/${option.id || '(missing id)'}`;
       requireSafeInteger(option.sortOrder, `${optionLabel} sortOrder`);
@@ -131,7 +140,9 @@ export function validateCatalog(catalog) {
       if (product.price.currency !== catalog.currency) errors.push(`${label} price currency must match catalog currency`);
       requireString(product.price.provenance, `${label} price provenance`);
     }
-    for (const [index, groupId] of requireArray(product.modifierGroupIds, `${label} modifierGroupIds`).entries()) {
+    const groupReferences = requireArray(product.modifierGroupIds, `${label} modifierGroupIds`);
+    if (new Set(groupReferences).size !== groupReferences.length) errors.push(`${label} modifierGroupIds must not contain duplicates`);
+    for (const [index, groupId] of groupReferences.entries()) {
       if (typeof groupId !== 'string' || !groups.has(groupId)) errors.push(`${label} references missing modifier group ${groupId} at index ${index}`);
     }
     const stock = product.stockControl;
@@ -183,6 +194,10 @@ function assertValid(catalog) {
   if (errors.length) fail(`Invalid catalog: ${errors.join('; ')}`);
 }
 function sourceEntry() { return { kind: 'operator-entry', path: 'catalog-command' }; }
+function assertFields(value, allowed, label) {
+  if (!isRecord(value)) fail(`${label} must be an object`);
+  for (const field of Object.keys(value)) if (!allowed.includes(field)) fail(`unsupported ${label} field ${field}`);
+}
 
 /** Apply an append-only catalog command. Authenticated actor identity must come from a trusted caller. */
 export function applyCatalogCommand(input, command) {
@@ -203,6 +218,8 @@ export function applyCatalogCommand(input, command) {
   const event = { commandId, actorId, occurredAt, type, fingerprint };
   const category = (id) => catalog.categories.find((item) => item.id === id) || fail(`category ${id} does not exist`);
   const product = (id) => catalog.products.find((item) => item.id === id) || fail(`product ${id} does not exist`);
+  const group = (id) => catalog.modifierGroups.find((item) => item.id === id) || fail(`modifier group ${id} does not exist`);
+  const option = (groupId, id) => group(groupId).options.find((item) => item.id === id) || fail(`modifier option ${groupId}/${id} does not exist`);
   const uniqueId = (collection, id, label) => {
     requireText(id, `${label} id`);
     if (collection.some((item) => item.id === id)) fail(`${label} id ${id} already exists`);
@@ -266,6 +283,58 @@ export function applyCatalogCommand(input, command) {
     }
     case 'product.reorder': product(command.productId).sortOrder = command.sortOrder; break;
     case 'product.setActive': product(command.productId).active = command.active; break;
+    case 'modifierGroup.create': {
+      const value = command.group || {};
+      assertFields(value, ['id', 'name', 'sortOrder', 'active', 'selection'], 'modifier group');
+      uniqueId(catalog.modifierGroups, value.id, 'modifier group');
+      const selection = clone(value.selection || { required: false, multiple: false, min: 0, max: 0, defaultOptionId: null, defaultProvenance: 'none' });
+      catalog.modifierGroups.push({ id: value.id, name: name(value.name), sortOrder: value.sortOrder ?? catalog.modifierGroups.length, active: value.active ?? true, selection, options: [], source: sourceEntry() });
+      break;
+    }
+    case 'modifierGroup.edit': {
+      const target = group(command.groupId); const changes = command.changes || {};
+      if (!isRecord(changes)) fail('modifier group changes must be an object');
+      const editable = ['name', 'sortOrder', 'active', 'selection'];
+      for (const field of Object.keys(changes)) if (!editable.includes(field)) fail(`unsupported modifier group edit field ${field}`);
+      if ('name' in changes) target.name = name(changes.name);
+      if ('sortOrder' in changes) target.sortOrder = changes.sortOrder;
+      if ('active' in changes) target.active = changes.active;
+      if ('selection' in changes) target.selection = clone(changes.selection);
+      break;
+    }
+    case 'modifierGroup.reorder': group(command.groupId).sortOrder = command.sortOrder; break;
+    case 'modifierGroup.setActive': group(command.groupId).active = command.active; break;
+    case 'modifierOption.create': {
+      const target = group(command.groupId); const value = command.option || {};
+      assertFields(value, ['id', 'name', 'sortOrder', 'active', 'priceEffect'], 'modifier option');
+      uniqueId(target.options, value.id, `modifier option in ${command.groupId}`);
+      if (!isRecord(value.priceEffect) || !['none', 'fixed-addition'].includes(value.priceEffect.kind)) fail('modifier option priceEffect kind must be none or fixed-addition');
+      const amountCents = requireCents(value.priceEffect.amountCents, 'priceEffect.amountCents');
+      if (value.priceEffect.currency !== CURRENCY) fail(`priceEffect.currency must be ${CURRENCY}`);
+      if (value.priceEffect.kind === 'none' && amountCents !== 0) fail('none priceEffect amountCents must be zero');
+      target.options.push({ id: value.id, name: name(value.name), sortOrder: value.sortOrder ?? target.options.length, active: value.active ?? true, priceEffect: { kind: value.priceEffect.kind, amountCents, currency: CURRENCY }, source: sourceEntry() });
+      break;
+    }
+    case 'modifierOption.edit': {
+      const target = option(command.groupId, command.optionId); const changes = command.changes || {};
+      if (!isRecord(changes)) fail('modifier option changes must be an object');
+      const editable = ['name', 'sortOrder', 'active', 'priceEffect'];
+      for (const field of Object.keys(changes)) if (!editable.includes(field)) fail(`unsupported modifier option edit field ${field}`);
+      if ('name' in changes) target.name = name(changes.name);
+      if ('sortOrder' in changes) target.sortOrder = changes.sortOrder;
+      if ('active' in changes) target.active = changes.active;
+      if ('priceEffect' in changes) {
+        const effect = changes.priceEffect;
+        if (!isRecord(effect) || !['none', 'fixed-addition'].includes(effect.kind)) fail('modifier option priceEffect kind must be none or fixed-addition');
+        const amountCents = requireCents(effect.amountCents, 'priceEffect.amountCents');
+        if (effect.currency !== CURRENCY) fail(`priceEffect.currency must be ${CURRENCY}`);
+        if (effect.kind === 'none' && amountCents !== 0) fail('none priceEffect amountCents must be zero');
+        target.priceEffect = { kind: effect.kind, amountCents, currency: CURRENCY };
+      }
+      break;
+    }
+    case 'modifierOption.reorder': option(command.groupId, command.optionId).sortOrder = command.sortOrder; break;
+    case 'modifierOption.setActive': option(command.groupId, command.optionId).active = command.active; break;
     default: fail(`unsupported catalog command type ${type}`);
   }
   catalog.revision += 1;
@@ -275,3 +344,101 @@ export function applyCatalogCommand(input, command) {
 }
 
 export const catalogSchema = CATALOG_SCHEMA;
+
+/**
+ * Capture a product and its chosen modifiers as an immutable MXN-centavo line.
+ * selections is keyed by modifier group ID; each value is { optionIds, quantity? }.
+ * taxSnapshot is captured verbatim in the contract { rateBasisPoints, amountCents, currency, source }.
+ */
+export function captureProductLine(catalog, request) {
+  assertValid(catalog);
+  assertFields(request, ['productId', 'selections', 'quantity', 'notes', 'taxSnapshot'], 'line capture request');
+  const product = catalog.products.find((item) => item.id === request.productId) || fail(`product ${request.productId} does not exist`);
+  const category = catalog.categories.find((item) => item.id === product.categoryId);
+  if (!product.active || !product.available || !category?.active) fail(`product ${product.id} is not currently sellable`);
+  const quantity = request.quantity ?? 1;
+  if (!Number.isSafeInteger(quantity) || quantity < 1) fail('quantity must be a positive safe integer');
+  const selections = request.selections ?? {};
+  if (!isRecord(selections)) fail('selections must be an object keyed by modifier group id');
+  const configuredGroups = product.modifierGroupIds.map((id) => catalog.modifierGroups.find((group) => group.id === id));
+  const byOrderAndId = (left, right) => left.sortOrder - right.sortOrder || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const activeGroups = configuredGroups.filter((group) => group.active).sort(byOrderAndId);
+  for (const groupId of Object.keys(selections)) {
+    if (!activeGroups.some((group) => group.id === groupId)) fail(`modifier group ${groupId} is not active for product ${product.id}`);
+  }
+  const modifierSnapshots = [];
+  let modifiersTotalCents = 0;
+  for (const group of activeGroups) {
+    const input = selections[group.id];
+    if (input !== undefined && !isRecord(input)) fail(`selection for group ${group.id} must be an object`);
+    if (input !== undefined) assertFields(input, ['optionIds', 'quantity'], `selection for group ${group.id}`);
+    const optionIds = input === undefined
+      ? (group.selection.defaultOptionId ? [group.selection.defaultOptionId] : [])
+      : input.optionIds;
+    if (!Array.isArray(optionIds)) fail(`selection for group ${group.id} must include optionIds array`);
+    if (new Set(optionIds).size !== optionIds.length) fail(`selection for group ${group.id} contains duplicate options`);
+    if (optionIds.some((id) => typeof id !== 'string')) fail(`selection for group ${group.id} contains an invalid option id`);
+    if (optionIds.length < group.selection.min || optionIds.length > group.selection.max) {
+      fail(`selection for group ${group.id} must contain between ${group.selection.min} and ${group.selection.max} options`);
+    }
+    const selectedOptions = optionIds.map((id) => {
+      const option = group.options.find((item) => item.id === id);
+      if (!option || !option.active) fail(`modifier option ${group.id}/${id} is missing or inactive`);
+      return option;
+    }).sort(byOrderAndId);
+    const selectedQuantity = input?.quantity ?? group.selection.defaultQuantity ?? null;
+    if (group.selection.unit !== undefined) {
+      if (!Number.isSafeInteger(selectedQuantity) || selectedQuantity < 1) fail(`selection for ${group.id} requires a positive integer quantity in ${group.selection.unit}`);
+    } else if (input?.quantity !== undefined) {
+      fail(`selection for ${group.id} does not accept a quantity`);
+    }
+    for (const option of selectedOptions) {
+      const amountCents = option.priceEffect.amountCents;
+      if (!Number.isSafeInteger(modifiersTotalCents + amountCents)) fail('modifier total exceeds the safe integer centavo range');
+      modifiersTotalCents += amountCents;
+      modifierSnapshots.push({
+        groupId: group.id,
+        groupName: group.name,
+        optionId: option.id,
+        optionName: option.name,
+        priceEffectCents: amountCents,
+        currency: CURRENCY,
+        ...(group.selection.unit ? { quantity: selectedQuantity, unit: group.selection.unit } : {}),
+      });
+    }
+    // Quantity controls preparation for measure groups, including default 2 oz,
+    // even if the user did not choose a priced option in that group.
+    if (selectedOptions.length === 0 && group.selection.unit && selectedQuantity !== null) {
+      modifierSnapshots.push({ groupId: group.id, groupName: group.name, optionId: null, optionName: null, priceEffectCents: 0, currency: CURRENCY, quantity: selectedQuantity, unit: group.selection.unit });
+    }
+  }
+  const unitPriceCents = product.price.amountCents + modifiersTotalCents;
+  if (!Number.isSafeInteger(unitPriceCents)) fail('line unit price exceeds the safe integer centavo range');
+  const lineTotalCents = unitPriceCents * quantity;
+  if (!Number.isSafeInteger(lineTotalCents)) fail('line total exceeds the safe integer centavo range');
+  let taxSnapshot = null;
+  if (request.taxSnapshot !== undefined && request.taxSnapshot !== null) {
+    const tax = request.taxSnapshot;
+    if (!isRecord(tax)) fail('taxSnapshot must be an object');
+    if (!Number.isSafeInteger(tax.rateBasisPoints) || tax.rateBasisPoints < 0) fail('taxSnapshot.rateBasisPoints must be a non-negative safe integer');
+    requireCents(tax.amountCents, 'taxSnapshot.amountCents');
+    if (tax.currency !== CURRENCY) fail(`taxSnapshot.currency must be ${CURRENCY}`);
+    requireText(tax.source, 'taxSnapshot.source');
+    taxSnapshot = clone(tax);
+  }
+  if (request.notes !== undefined && request.notes !== null && typeof request.notes !== 'string') fail('notes must be a string');
+  const notes = request.notes === undefined || request.notes === null ? '' : request.notes.trim();
+  return deepFreeze({
+    productId: product.id,
+    name: product.name,
+    quantity,
+    currency: CURRENCY,
+    baseUnitPriceCents: product.price.amountCents,
+    modifiersTotalCents,
+    unitPriceCents,
+    lineTotalCents,
+    modifiers: modifierSnapshots,
+    notes,
+    taxSnapshot,
+  });
+}
