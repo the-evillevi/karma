@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-30",
+  "scope": "EVL-118 integration and owner provisioning",
+  "accessScan": {
+    "issueCount": 0
+  },
+  "ownerProvisioningScan": {
+    "issueCount": 0
+  },
+  "posAppScan": {
+    "issueCount": 4,
+    "ids": [
+      "javascript/PrototypePollution"
+    ],
+    "attribution": "All four sinks are in unchanged baseline Reports aggregators; no new access, cancellation, checkout or provisioning finding.",
+    "baseline": "ef10819184c1fe7769b316c8a259f00c4391d79e",
+    "verifiedUnchangedLines": [
+      {
+        "baselineLine": 579,
+        "currentLine": 1274,
+        "unchangedSha256": "43fa7834bddbad8c03c589dd77f3605c4223b09ef595cad1400d007a44148fd6"
+      },
+      {
+        "baselineLine": 581,
+        "currentLine": 1276,
+        "unchangedSha256": "adc9dc9aa314da4b784e10cb2476becdf477f41858c7d9dfcc8ed699a0b7fd6e"
+      }
+    ]
+  },
+  "limitations": "This is a scoped medium-and-higher static scan, not a claim of whole-repository security."
+}

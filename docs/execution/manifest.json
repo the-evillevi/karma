@@ -234,8 +234,8 @@
       "requires": [
         "EVL-116"
       ],
-      "stage": "implementing",
-      "agent": "foundation_xhigh",
+      "stage": "reviewed_slice",
+      "agent": null,
       "commits": [
         "d1b3b1c",
         "9bea334",
@@ -243,19 +243,27 @@
         "dec7ff9",
         "971e7cb",
         "eb64ac0",
-        "70ff145"
+        "70ff145",
+        "ff20124",
+        "d13a6aa",
+        "b70f49b",
+        "e92e846",
+        "d308c65",
+        "bda187b"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/16",
       "checks": [
         "Root full combined check passed: 68 unit tests without skips, 27 components, format/lint/scoped types, four-entry builds, secret scans and PWA restart browser proof",
         "Exact migration hash independently verified unchanged",
-        "2026-09-30 root exact reviewed migration applied to isolated karma-pos; 12/12 real hosted RPC/RLS/browser proofs passed, synthetic owners restored after concurrency proof."
+        "2026-09-30 root exact reviewed migration applied to isolated karma-pos; 12/12 real hosted RPC/RLS/browser proofs passed, synthetic owners restored after concurrency proof.",
+        "Root 14/14 hosted cases no skips: actual secure POS and deployed owner provisioning; zero new scoped security findings; full build/secret and demo PWA restart checks passed.",
+        "69 combined component cases covered: prior67 plus2 root secure actor/current-role regressions. 73 domain and10 Edge cases passed."
       ],
-      "review": "pending_resumed_work",
+      "review": "fixed_and_rereviewed_actual_pos_and_hosted_provisioning",
       "blockers": [
-        "Actual POS role boundaries, draft-preserving identity switch and production enrollment/recovery are incomplete."
+        "Full production enrollment/recovery and durable operational mutations/reads remain open."
       ],
-      "nextAction": "Continue implementation from reviewed integration with GPT-6 Luna xhigh; root review and fixes before acceptance.",
+      "nextAction": "EVL-126 durable POS storage proceeds from this checkpoint; preserve production recovery and cross-device gates.",
       "artifactsReady": true
     },
     {
@@ -574,7 +582,7 @@
         "0173778",
         "32c750d"
       ],
-      "pr": null,
+      "pr": "https://github.com/the-evillevi/karma/pull/19",
       "checks": [
         "Root18 combined account/cancellation tests passed; Luna41 regressions and normal/PWA builds passed"
       ],
@@ -593,14 +601,16 @@
       "requires": [
         "EVL-122"
       ],
-      "stage": "implementing",
+      "stage": "root_review_fixes",
       "agent": "orders_xhigh",
-      "commits": [],
+      "commits": [
+        "55ee685"
+      ],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Luna xhigh implements centavo-preserving discount split preview/idempotence on reviewed122 stack; root reviews with fixes."
+      "nextAction": "Luna fixes malformed split history, latest persisted state preservation and monotonic folio sequence; root integrates secure118/187 and reviews before155."
     },
     {
       "id": "EVL-155",
@@ -683,7 +693,8 @@
       "stage": "awaiting_foundation",
       "agent": null,
       "commits": [
-        "4d441e7"
+        "4d441e7",
+        "b699692"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/18",
       "checks": [
@@ -691,7 +702,7 @@
       ],
       "review": "fixed_and_rereviewed_cancellation_history",
       "blockers": [
-        "Verified access118, durable command transaction126 and exactly-once inventory compensation129 remain acceptance gates."
+        "Durable command transaction126 and exactly-once inventory compensation129 remain acceptance gates."
       ],
       "nextAction": "Integrate and test with access/order slices; complete durable cancellation and compensation when126/129 are available.",
       "artifactsReady": true
@@ -1048,10 +1059,10 @@
   "sessionCheckpoint": {
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
-    "runningAgents": 2,
-    "integration": "1b2e62a",
+    "runningAgents": 1,
+    "integration": "bda187b",
     "mainMerged": false,
-    "nextIssue": "EVL-118/122/187 then EVL-126",
+    "nextIssue": "EVL-189 review fixes, EVL-126 local durable layer, then EVL-155",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed"
   }

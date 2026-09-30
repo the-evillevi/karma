@@ -21,6 +21,7 @@ const admin = enabled
   : null;
 
 async function login(page, role) {
+  console.log(`POS proof: signing in ${role}`);
   await page
     .getByLabel("Correo de la cuenta Supabase")
     .fill(env[`SUPABASE_${role}_EMAIL`]);
@@ -49,6 +50,7 @@ test("actual POS verifies identities, preserves the draft across roles and offli
     !enabled,
     "Requires isolated synthetic EVL-118 fixtures and reviewed secure POS runtime.",
   );
+  test.setTimeout(90_000);
   await page.goto("http://127.0.0.1:4179/");
   await expect(
     page.getByRole("heading", { name: "Acceso individual verificado" }),
@@ -77,7 +79,7 @@ test("actual POS verifies identities, preserves the draft across roles and offli
     const original = await readDraft(page);
     expect(original.actorId).toBeTruthy();
     expect(original.items[0].unit).toBe(30);
-    await page.getByRole("button", { name: /^Salir de la estación/ }).click();
+    await page.getByRole("button", { name: "Salir", exact: true }).click();
     await login(page, "CASHIER");
     await expect(
       page.getByRole("button", { name: "Cobrar $30.00" }),
@@ -96,7 +98,7 @@ test("actual POS verifies identities, preserves the draft across roles and offli
     ).toBeVisible();
     await page.getByRole("button", { name: "Entendido", exact: true }).click();
     expect((await readDraft(page)).items[0].qty).toBe(2);
-    await page.getByRole("button", { name: /^Salir de la estación/ }).click();
+    await page.getByRole("button", { name: "Salir", exact: true }).click();
     await login(page, "WAITER");
     await page.getByRole("button", { name: "Cobrar $60.00" }).click();
     await expect(
@@ -109,15 +111,18 @@ test("actual POS verifies identities, preserves the draft across roles and offli
         exact: true,
       }),
     ).toHaveAttribute("aria-disabled", "true");
-    await page.getByRole("button", { name: /^Salir de la estación/ }).click();
+    await page.getByRole("button", { name: "Salir", exact: true }).click();
     await expect(page.getByLabel("PIN offline", { exact: true })).toHaveCount(
       0,
     );
+    console.log("POS proof: begin offline unlock");
     await context.setOffline(true);
     await expect(page.getByLabel("PIN offline", { exact: true })).toBeVisible();
+    console.log("POS proof: choose cached identity");
     await page
-      .getByLabel("Persona", { exact: true })
+      .getByRole("combobox", { name: "Persona", exact: true })
       .selectOption(original.actorId);
+    console.log("POS proof: enter offline PIN");
     await page.getByLabel("PIN offline", { exact: true }).fill("246810");
     await page.getByRole("button", { name: "Desbloquear identidad" }).click();
     await expect(
@@ -125,6 +130,7 @@ test("actual POS verifies identities, preserves the draft across roles and offli
     ).toBeVisible();
     const offlineDraft = await readDraft(page);
     expect(offlineDraft.items).toEqual(changed.items);
+    console.log("POS proof: revocation check");
     const revoked = await admin
       .from("register_devices")
       .update({ revoked_at: new Date().toISOString() })

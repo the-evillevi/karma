@@ -78,32 +78,73 @@
 /* Global CSS ported from the two original style blocks of the DC artifacts.
    Shared resets + keyframes here; body background differs per page and is set
    via the body class (.pos / .comanda) so the two entries don't collide. */
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
   color: var(--foreground);
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-body { background-color: var(--background); color: var(--foreground); }
-body.pos { background: var(--background); }
-body.comanda { background: var(--foreground); }
-
-a { color: var(--primary); text-decoration: none; }
-a:hover { color: var(--foreground); }
-
-button { font-family: inherit; }
-input, select, textarea { font-family: inherit; color: var(--foreground); }
-::placeholder { color: var(--placeholder); }
-
-@layer base {
-  * { border-color: var(--border); }
-  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+body.pos {
+  background: var(--background);
+}
+body.comanda {
+  background: var(--foreground);
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--foreground);
+}
+
+button {
+  font-family: inherit;
+}
+input,
+select,
+textarea {
+  font-family: inherit;
+  color: var(--foreground);
+}
+::placeholder {
+  color: var(--placeholder);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 .pos-shell {
   display: flex;
@@ -115,7 +156,10 @@ input, select, textarea { font-family: inherit; color: var(--foreground); }
   background: var(--background);
 }
 
-.pos-sidebar { flex: none; border-right: 1px solid var(--sidebar-border); }
+.pos-sidebar {
+  flex: none;
+  border-right: 1px solid var(--sidebar-border);
+}
 .pos-sidebar [data-slot="sidebar-footer"] {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
@@ -130,8 +174,38 @@ input, select, textarea { font-family: inherit; color: var(--foreground); }
   overscroll-behavior: contain;
   background: var(--background);
 }
-.pos-main > * { min-width: 0; }
-.pos-mobile-bar { display: none; }
+.pos-main > * {
+  min-width: 0;
+}
+.pos-mobile-bar {
+  display: none;
+}
+.pos-access-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px 16px;
+  background: #edf4ed;
+  color: #315a38;
+  font-size: 12px;
+  text-align: center;
+}
+.pos-access-status button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid #bdcdbf;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.pos-access-status.demo {
+  background: #fff4dc;
+  color: #78551c;
+}
 .pos-main [data-slot="table-container"] {
   max-width: 100%;
   overflow-x: auto;
@@ -139,13 +213,21 @@ input, select, textarea { font-family: inherit; color: var(--foreground); }
 }
 
 @media (max-width: 900px) {
-  .pos-module { --pos-module-padding: 18px 18px 32px !important; }
+  .pos-module {
+    --pos-module-padding: 18px 18px 32px !important;
+  }
 }
 
 @media (max-width: 1023px) {
-  .pos-shell { height: var(--karma-viewport-height, 100vh); }
-  .pos-shell { height: var(--karma-viewport-height, 100dvh); }
-  .pos-main { width: 100%; }
+  .pos-shell {
+    height: var(--karma-viewport-height, 100vh);
+  }
+  .pos-shell {
+    height: var(--karma-viewport-height, 100dvh);
+  }
+  .pos-main {
+    width: 100%;
+  }
   .pos-mobile-bar {
     position: sticky;
     z-index: 45;
@@ -158,19 +240,51 @@ input, select, textarea { font-family: inherit; color: var(--foreground); }
     border-bottom: 1px solid var(--border);
     background: var(--card);
   }
-  .pos-mobile-bar { --pos-mobile-bar-height: calc(64px + env(safe-area-inset-top)); }
-  .pos-offline-banner { top: var(--pos-mobile-bar-height, 64px) !important; padding: 8px 12px !important; }
-  .pos-module { --pos-module-padding: 14px 12px 32px !important; }
-  .pos-module h1 { min-width: 0; overflow-wrap: anywhere; }
+  .pos-mobile-bar {
+    --pos-mobile-bar-height: calc(64px + env(safe-area-inset-top));
+  }
+  .pos-offline-banner {
+    top: var(--pos-mobile-bar-height, 64px) !important;
+    padding: 8px 12px !important;
+  }
+  .pos-module {
+    --pos-module-padding: 14px 12px 32px !important;
+  }
+  .pos-module h1 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .pos-module > div,
-  .pos-module > section { min-width: 0; }
-  .pos-menu-search { align-items: center; flex-wrap: wrap; }
-  .pos-menu-search > input { width: auto; min-width: 140px; flex: 1 1 140px; }
-  .pos-menu-search > button { flex: 0 1 auto; white-space: normal; }
+  .pos-module > section {
+    min-width: 0;
+  }
+  .pos-menu-search {
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .pos-menu-search > input {
+    width: auto;
+    min-width: 140px;
+    flex: 1 1 140px;
+  }
+  .pos-menu-search > button {
+    flex: 0 1 auto;
+    white-space: normal;
+  }
 }
 
 @media (max-width: 380px) {
-  .pos-mobile-bar { gap: 4px; padding-right: 6px; padding-left: 6px; }
-  .pos-mobile-bar > button:last-child { max-width: 82px; overflow: hidden; text-overflow: ellipsis; }
-  .pos-menu-search > button { flex: 1 1 100%; }
+  .pos-mobile-bar {
+    gap: 4px;
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+  .pos-mobile-bar > button:last-child {
+    max-width: 82px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pos-menu-search > button {
+    flex: 1 1 100%;
+  }
 }
