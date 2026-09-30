@@ -226,7 +226,10 @@
         "a629c4e",
         "9fcdafc",
         "30d0fe9",
-        "1197272"
+        "1197272",
+        "4e58ba5",
+        "63a9a17",
+        "0d5720c"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/30",
       "checks": [
@@ -235,13 +238,14 @@
         "GitHub quality rerun PASSED after deterministic fixture repair;118run36740648986,126run36740649771 including Edge/journal lanes",
         "Root5 adapter domain and27 sharedUI plus2 strengthenedactualrich/legacycheckoutcases;0medium+newsource;GitHubquality36753787540passed",
         "Root19operationalcases/types/lint/Snyk0medium+; fullcombined132domain116components10Edge7journal1PWApassed.",
-        "Journal candidate full check passed; root5/5 actual Chromium including future-version preservation; final journal/domain scans zero medium+."
+        "Journal candidate full check passed; root5/5 actual Chromium including future-version preservation; final journal/domain scans zero medium+.",
+        "Root independent local PostgreSQL proof passed inclactualACL/RLS/late rollback; exact38527549 isolatedapplied/historyrecorded;actualhostedprivateACL/RLS/RPC assertionsPASS;hosted7/8PASS, concurrency90s timeout tracedto custom40001 PostgRESTretry."
       ],
-      "review": "server_root_review_in_progress",
+      "review": "hosted_revision_conflict_forward_fix_in_progress",
       "blockers": [
         "Forward versioned server write/read contract and operational integration remain pending; applied114/118 immutable."
       ],
-      "nextAction": "Fix root SQL runtime finding; execute real PostgreSQL proof before isolated reviewed migration application. No UI wiring.",
+      "nextAction": "Original open-order SQL38527549 appliedimmutable;7/8hosted passed, custom40001 causes known PostgREST retryloop. Prepare/review forward20260930000200 PT409fix, independently localtest andapplyisolated,rerun8hosted. No POSwiring.",
       "artifactsReady": true
     },
     {
@@ -925,7 +929,7 @@
     "mainMerged": false,
     "nextIssue": "126server;127truthful-recovery",
     "resumeDocument": "docs/execution/RESUME.md",
-    "status": "resumed_after_user_reset",
+    "status": "active_forward_fix_after_real_hosted_failure",
     "usage": {
       "primaryUsedPercent": 0,
       "weeklyUsedPercent": 16,
