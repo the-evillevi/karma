@@ -1338,7 +1338,7 @@ export default class PosApp extends React.Component {
 </DialogContent>
 </Dialog>
 
-<div style={css("position:fixed;right:20px;bottom:20px;z-index:400;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:calc(100vw - 32px)")} aria-label="Notificaciones">
+<div role="region" aria-label="Notificaciones" style={css("position:fixed;right:20px;bottom:20px;z-index:400;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:calc(100vw - 32px)")}>
 {(V.toasts).map((t, tI) => (<React.Fragment key={tI}>
 <Card role="status" aria-live="polite" aria-atomic="true" className="min-h-11 w-fit max-w-full flex-row items-center gap-3 border-foreground bg-foreground px-4 py-2 text-background shadow-md">
 <Badge variant={t.kind === 'warn' ? 'pending' : 'success'}>{t.kind === 'warn' ? 'Aviso' : 'Listo'}</Badge><span className="min-w-0 whitespace-normal break-words text-sm">{t.msg}</span>
