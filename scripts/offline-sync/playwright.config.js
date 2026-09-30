@@ -6,6 +6,7 @@ export default defineConfig({
     "offline-sync.spec.js",
     "access-control-v118.spec.js",
     "pos-access-v118.spec.js",
+    "provision-v118.spec.js",
   ],
   outputDir: ".playwright-output",
   timeout: 45_000,

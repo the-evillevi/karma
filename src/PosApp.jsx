@@ -767,13 +767,14 @@ export default class PosApp extends React.Component {
     const sale = {
       folio, cancellationCommandId: commandId, day: 0, fecha: 'Hoy · ' + this.now(),
       createdTime: source.time || origin?.time || null,
-      creo: source.responsible || source.user || origin?.user || actor.name,
+      creo: source.user || source.responsible || source.actorName || origin?.user || actor.name,
+      actorId: source.actorId || origin?.actorId || actor.id, actorName: source.actorName || source.user || source.responsible || origin?.user || actor.name,
       cobro: '—', tipo: source.ref || this.refOf(source),
       items: source.items.map(item => ({ ...item, name: item.capturedSnapshot?.name || item.productNameSnapshot || item.name,
         qty: item.qty, mods: this.modsText(item), unit: this.lineUnit(item), total: this.lineUnit(item) * item.qty })),
       payments: [], tip: 0, subtotalCents, discount: source.discount || 0,
       total: centsToMoney(totalCents), status: 'cancelada', sync: st.online ? 'sincronizada' : 'pendiente',
-      motivo: trimmedReason, cancelledAt: occurredAt, cancelledBy: actor.name, cancelledById: actor.id,
+      motivo: trimmedReason, cancelledAt: occurredAt, cancelledBy: actor.name, cancelledById: actor.id, cancelledByActorId: actor.id, cancelledByActorName: actor.name,
       audit: [[occurredAt, 'Cancelada · ' + trimmedReason, actor.name]]
     };
     const patch = {
