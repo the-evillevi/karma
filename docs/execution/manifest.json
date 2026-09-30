@@ -58,7 +58,7 @@
     {
       "name": "customers",
       "issues": ["EVL-135", "EVL-136"],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-customers/karma"
     },
     {
       "name": "hardware",
@@ -593,7 +593,8 @@
       "commits": ["20035f3", "2fc994c"],
       "pr": "https://github.com/the-evillevi/karma/pull/24",
       "checks": [
-        "Root10 domain /9 actualUI; combined96domain/103components/10Edge/fullbuild/PWA/bundlescans"
+        "Root10 domain /9 actualUI; combined96domain/103components/10Edge/fullbuild/PWA/bundlescans",
+        "GitHub quality run36750425881 passed; root14 secure UI cases include current-role/revocation inventory confirmation at90ceb52"
       ],
       "review": "manual_ledger_fixed_and_rereviewed_catalog_in_progress",
       "blockers": [
@@ -681,16 +682,16 @@
       "id": "EVL-135",
       "chain": "customers",
       "branch": "codex/customers/evl-135",
-      "baseBranch": "main",
+      "baseBranch": "codex/customers/credit-base",
       "requires": ["EVL-123", "EVL-126", "EVL-118"],
       "stage": "queued",
       "agent": null,
-      "commits": [],
+      "commits": ["40d93b1"],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Prepared isolated WT and owner-approved implementation boundary at40d93b1; assign next available Luna xhigh after current catalog review. No credit runtime implemented."
     },
     {
       "id": "EVL-136",
@@ -872,7 +873,7 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "7b0c612",
+    "integration": "90ceb52",
     "mainMerged": false,
     "nextIssue": "EVL-126 snapshot fixes/full durability and EVL-128 audited item catalog",
     "resumeDocument": "docs/execution/RESUME.md",
@@ -882,6 +883,9 @@
       "weeklyUsedPercent": 0,
       "ordinaryUsageAllowed": true,
       "resetCreditsRemaining": 3
+    },
+    "preparedWorktrees": {
+      "customers": "40d93b1"
     }
   }
 }
