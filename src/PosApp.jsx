@@ -31,6 +31,7 @@ import { toggleModifierSelection } from './catalog/sales-selection.mjs';
 import { sameCapturedModifiers } from './catalog/captured-modifiers.mjs';
 import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue.js';
 import { calculateTender, centsToMoney, moneyToCents, paymentMethodTotalsCents, paymentNetCents } from './domain/payment-tender.js';
+import { planOrderSplit, suggestSplitSelection } from './orders/order-split.mjs';
 
 const DEFAULT_TABLE_COUNT = 12;
 const MAX_TABLE_COUNT = 50;
@@ -203,17 +204,21 @@ export default class PosApp extends React.Component {
     return report({ status: 'safe', reason: '' });
   }
   componentWillUnmount() { clearTimeout(this._t); window.removeEventListener('storage', this._sl); }
-  persist() {
-    const s = this.state;
-    try {
-      localStorage.setItem('karma-pos-v1', JSON.stringify({
-        session: s.session, pick: s.pick, online: s.online, pending: s.pending, order: s.order,
-        orderSettings: s.orderSettings,
-        open: s.open, kitchenTickets: s.kitchenTickets,
-        sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq: this._folio
-      }));
-    } catch (e) {}
+  storedState(s = this.state, folioSeq = this._folio) {
+    return {
+      session: s.session, pick: s.pick, online: s.online, pending: s.pending, order: s.order,
+      orderSettings: s.orderSettings,
+      open: s.open, kitchenTickets: s.kitchenTickets,
+      sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq
+    };
   }
+  writePersistedState(s = this.state, folioSeq = this._folio) {
+    try {
+      localStorage.setItem(this._storageKey || 'karma-pos-v1', JSON.stringify(this.storedState(s, folioSeq)));
+      return true;
+    } catch { return false; }
+  }
+  persist() { this.writePersistedState(); }
   up(p, cb) { this.setState(p, () => { this.persist(); cb && cb(); }); }
   toast(msg, kind) {
     const id = Date.now() + Math.random();
@@ -227,7 +232,7 @@ export default class PosApp extends React.Component {
   role() { const u = this.user(); return u ? u.role : 'cajero'; }
   can(act) {
     const r = this.role();
-    const P = { cancelar: ['dueno', 'encargado'], descuento: ['dueno', 'encargado'], ajuste: ['dueno', 'encargado'], configureTables: ['dueno', 'encargado'] };
+    const P = { cancelar: ['dueno', 'encargado'], descuento: ['dueno', 'encargado'], ajuste: ['dueno', 'encargado'], configureTables: ['dueno', 'encargado'], openOrder: ['dueno', 'encargado', 'cajero'] };
     return (P[act] || []).includes(r);
   }
   needsOrderContact(order) {
@@ -344,6 +349,156 @@ export default class PosApp extends React.Component {
       ? 'La cuenta tiene un conflicto de sincronización pendiente; espera a que se concilie antes de continuar.'
       : 'La cuenta ya no está disponible. Vuelve a Órdenes abiertas y revisa su estado.', 'warn');
   }
+  nextSplitFolio() {
+    const persisted = this.persistedOrderState();
+    const used = new Set();
+    for (const record of [...this.state.open, ...this.state.kitchenTickets, ...this.state.sales,
+      ...(Array.isArray(persisted.open) ? persisted.open : []),
+      ...(Array.isArray(persisted.kitchenTickets) ? persisted.kitchenTickets : []),
+      ...(Array.isArray(persisted.sales) ? persisted.sales : [])]) {
+      if (typeof record?.folio === 'string') used.add(record.folio);
+    }
+    let sequence = Number.isSafeInteger(this._folio) && this._folio > 0 ? this._folio : 1051;
+    while (used.has('A-' + sequence)) {
+      sequence += 1;
+      if (!Number.isSafeInteger(sequence)) throw new RangeError('No quedan folios disponibles.');
+    }
+    if (!Number.isSafeInteger(sequence + 1)) throw new RangeError('No quedan folios disponibles.');
+    return { folio: 'A-' + sequence, sequence };
+  }
+  splitPreview(source, plan, childFolio) {
+    const lines = items => items.map(item => {
+      const name = item.capturedSnapshot?.name || item.productNameSnapshot || item.name || 'Producto';
+      const mods = typeof item.modsTextSnapshot === 'string' ? item.modsTextSnapshot : typeof item.modsText === 'string' ? item.modsText : '';
+      const notes = typeof item.notes === 'string' ? item.notes : '';
+      return { text: `${item.qty}× ${name}${mods ? ' · ' + mods : ''}${notes ? ' · ' + notes : ''}` };
+    });
+    return {
+      sourceFolio: source.folio, childFolio,
+      sourceLines: lines(plan.sourceItems), childLines: lines(plan.childItems),
+      sourceSubtotal: this.fmt(centsToMoney(plan.sourceSubtotalCents)),
+      sourceDiscount: this.fmt(centsToMoney(plan.sourceDiscountCents)),
+      sourceTotal: this.fmt(centsToMoney(plan.sourceTotalCents)),
+      childSubtotal: this.fmt(centsToMoney(plan.childSubtotalCents)),
+      childDiscount: this.fmt(centsToMoney(plan.childDiscountCents)),
+      childTotal: this.fmt(centsToMoney(plan.childTotalCents)),
+      combinedSubtotal: this.fmt(centsToMoney(plan.combinedSubtotalCents)),
+      combinedDiscount: this.fmt(centsToMoney(plan.combinedDiscountCents)),
+      combinedTotal: this.fmt(centsToMoney(plan.combinedTotalCents)),
+    };
+  }
+  confirmOpenSplit({ sourceFolio, expectedSnapshot, operationId, childFolio, childSequence, selection }) {
+    const allowed = typeof this.requireAction === 'function'
+      ? this.requireAction('openOrder')
+      : this.can('openOrder');
+    if (!allowed) {
+      if (typeof this.requireAction !== 'function') this.notAllowed('dividir cuentas abiertas');
+      return 'keep';
+    }
+
+    const stateSource = this.state.open.find(entry => entry.folio === sourceFolio);
+    const stateOperation = stateSource?.splitOperations?.find(operation => operation?.operationId === operationId);
+    let persisted;
+    try {
+      const raw = localStorage.getItem(this._storageKey || 'karma-pos-v1');
+      persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) throw new TypeError('invalid saved state');
+    } catch {
+      this.toast('No se puede verificar la cuenta guardada. Revisa el almacenamiento antes de dividirla.', 'warn');
+      return 'keep';
+    }
+    const savedOpen = Array.isArray(persisted.open) ? persisted.open : null;
+    const savedSource = savedOpen?.find(entry => entry?.folio === sourceFolio);
+    const savedOperation = savedSource?.splitOperations?.find(operation => operation?.operationId === operationId);
+    if (savedOperation) {
+      const savedChild = savedOpen?.find(entry => entry?.folio === savedOperation.childFolio && entry.splitFrom?.operationId === operationId);
+      if (!savedChild) {
+        this.toast('La división guardada está incompleta y requiere revisión; no se repetirá.', 'warn');
+        return 'keep';
+      }
+      if (!stateOperation) {
+        this.setState({ open: savedOpen, ...(Array.isArray(persisted.pending) ? { pending: persisted.pending } : {}) });
+      }
+      this.toast('La cuenta ya fue dividida en ' + savedOperation.childFolio);
+      return true;
+    }
+    if (stateOperation) {
+      this.toast('La cuenta cambió mientras se confirmaba la división. Revisa sus versiones antes de continuar.', 'warn');
+      return 'keep';
+    }
+
+    const sourceStatus = this.orderSourceStatus(sourceFolio, 'open');
+    if (sourceStatus !== 'available' || !stateSource) { this.blockOrderSource(sourceStatus); return 'keep'; }
+    if (stateSource.sync === 'conflicto' || savedSource?.sync === 'conflicto') { this.blockOrderSource('conflict'); return 'keep'; }
+    if (this.state.sales.some(sale => sale.folio === sourceFolio && sale.status === 'completada')
+      || (Array.isArray(persisted.sales) && persisted.sales.some(sale => sale?.folio === sourceFolio && sale.status === 'completada'))) {
+      this.toast('No se puede dividir una cuenta con un pago registrado.', 'warn');
+      return 'keep';
+    }
+    if (JSON.stringify(stateSource) !== expectedSnapshot
+      || (savedOpen && (!savedSource || JSON.stringify(savedSource) !== expectedSnapshot))) {
+      this.toast('La cuenta cambió mientras se confirmaba la división. Revisa sus versiones antes de continuar.', 'warn');
+      return 'keep';
+    }
+    const folioUsed = record => record?.folio === childFolio;
+    const stateCollision = [...this.state.open, ...this.state.kitchenTickets, ...this.state.sales].some(folioUsed);
+    const savedCollision = [
+      ...(Array.isArray(persisted.open) ? persisted.open : []),
+      ...(Array.isArray(persisted.kitchenTickets) ? persisted.kitchenTickets : []),
+      ...(Array.isArray(persisted.sales) ? persisted.sales : []),
+    ].some(folioUsed);
+    if (stateCollision || savedCollision) {
+      this.toast('El folio propuesto ya existe. Cierra esta ventana y vuelve a abrir la división para revisar el nuevo folio.', 'warn');
+      return 'keep';
+    }
+
+    let plan;
+    try { plan = planOrderSplit(stateSource, selection); }
+    catch (error) {
+      this.toast(error.message || 'No se puede dividir esta cuenta con las cantidades capturadas.', 'warn');
+      return 'keep';
+    }
+    const preparationFolio = textField(stateSource.preparationFolio || stateSource.folio, 80);
+    const createdAt = new Date().toISOString();
+    const operation = { operationId, childFolio, createdAt, selection: plan.selection };
+    const sourceNext = {
+      ...stateSource,
+      items: plan.sourceItems,
+      discount: centsToMoney(plan.sourceDiscountCents),
+      totalCents: plan.sourceTotalCents,
+      preparationFolio,
+      sharedPreparation: true,
+      sync: 'pendiente',
+      splitOperations: [...(Array.isArray(stateSource.splitOperations) ? stateSource.splitOperations : []), operation],
+    };
+    const child = {
+      ...stateSource,
+      folio: childFolio,
+      items: plan.childItems,
+      discount: centsToMoney(plan.childDiscountCents),
+      totalCents: plan.childTotalCents,
+      time: this.now(),
+      preparationFolio,
+      sharedPreparation: true,
+      splitFrom: { folio: sourceFolio, operationId },
+      splitOperations: [],
+      sync: 'pendiente',
+    };
+    const sourceIndex = this.state.open.findIndex(entry => entry.folio === sourceFolio);
+    const open = [...this.state.open.slice(0, sourceIndex), sourceNext, child, ...this.state.open.slice(sourceIndex + 1)];
+    const pending = this.state.pending.includes('Split ' + operationId)
+      ? this.state.pending
+      : [...this.state.pending, 'Split ' + operationId];
+    const nextState = { ...this.state, open, pending };
+    const nextSequence = Math.max(childSequence + 1, Number.isSafeInteger(this._folio) ? this._folio : childSequence + 1);
+    if (!this.writePersistedState(nextState, nextSequence)) {
+      this.toast('No se guardó la división; las cuentas siguen intactas. Intenta de nuevo.', 'warn');
+      return 'keep';
+    }
+    this._folio = nextSequence;
+    this.setState({ open, pending }, () => this.toast(sourceFolio + ' dividida — nueva cuenta ' + childFolio));
+    return true;
+  }
   typeLabel(t) { return ({ local: 'En local', mesa: 'Mesa', llevar: 'Para llevar', domicilio: 'Domicilio', recoger: 'Recoger' })[t] || t; }
   refOf(o) { return o.type === 'mesa' ? ('Mesa ' + (o.mesa || '—')) : (o.name || this.typeLabel(o.type)); }
   needItems() { if (!this.state.order.items.length) { this.toast('Agrega productos a la orden primero', 'warn'); return false; } return true; }
@@ -358,13 +513,26 @@ export default class PosApp extends React.Component {
     const totalCents = totals?.totalCents ?? null;
     const responsible = textField(o.responsible || o.user || this.user()?.name || '—', 100);
     const createdBy = textField(o.user || responsible, 100);
+    const splitFrom = o.splitFrom && typeof o.splitFrom === 'object'
+      ? { folio: textField(o.splitFrom.folio, 80), operationId: textField(o.splitFrom.operationId, 160) }
+      : null;
+    const splitOperations = Array.isArray(o.splitOperations)
+      ? o.splitOperations.filter(operation => operation && typeof operation === 'object').map(operation => ({
+        operationId: textField(operation.operationId, 160), childFolio: textField(operation.childFolio, 80), createdAt: textField(operation.createdAt, 40),
+        selection: Array.isArray(operation.selection) ? operation.selection.map(entry => ({ lineId: textField(entry?.lineId, 120), quantity: entry?.quantity })) : [],
+      }))
+      : null;
     return {
       folio: o.folio, type: o.type, ref: this.refOf(o), reference: this.refOf(o), time: textField(o.time || this.now(), 40),
       user: createdBy, responsible, totalCents,
       phone: textField(o.phone, 40), address: textField(o.address, 240),
       mesa: textField(o.mesa, 32), prep: 'en-cola', sync: this.state.online ? 'sincronizada' : 'pendiente',
       items: o.items.map(l => ({ ...l, prodId: l.prodId, name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, mods: l.mods, modsText: this.modsText(l), notes: l.notes, unit: this.orderLineUnitCents(l) === null ? null : centsToMoney(this.orderLineUnitCents(l)) })),
-      name: o.name, discount: o.discount || 0
+      name: o.name, discount: o.discount || 0,
+      preparationFolio: textField(o.preparationFolio || o.folio, 80),
+      ...(o.sharedPreparation === true ? { sharedPreparation: true } : {}),
+      ...(splitFrom ? { splitFrom } : {}),
+      ...(splitOperations ? { splitOperations } : {}),
     };
   }
   saveOpen(keepStation) {
@@ -380,7 +548,8 @@ export default class PosApp extends React.Component {
     if (!this.needsOrderContact(o)) return;
     if (!o.folio) o.folio = this.nf();
     const entry = this.openEntry(o);
-    const prev = s.kitchenTickets.find(x => x.folio === o.folio) || s.open.find(x => x.folio === o.folio);
+    const preparationFolio = textField(o.preparationFolio || o.folio, 80);
+    const prev = s.kitchenTickets.find(x => x.folio === preparationFolio) || s.open.find(x => x.folio === o.folio);
     if (prev) { entry.prep = prev.prep; entry.time = prev.time; entry.user = prev.user; entry.responsible = prev.responsible || prev.user; }
     const open = [entry, ...s.open.filter(x => x.folio !== o.folio)];
     const ticketEntry = { ...entry };
@@ -393,7 +562,8 @@ export default class PosApp extends React.Component {
       delete safeTicket.address;
       return safeTicket;
     });
-    const kitchenTickets = upsertKitchenTicket(kitchenBase, ticketEntry);
+    const sharedPreparation = o.sharedPreparation === true || (Array.isArray(o.splitOperations) && o.splitOperations.length > 0) || (!!preparationFolio && preparationFolio !== o.folio);
+    const kitchenTickets = sharedPreparation ? s.kitchenTickets : upsertKitchenTicket(kitchenBase, ticketEntry);
     const pending = s.online ? s.pending : [...s.pending, 'Orden ' + o.folio];
     if (keepStation) this.up({ open, kitchenTickets, pending, order: o });
     else this.up({ open, kitchenTickets, pending, order: this.blank() });
@@ -445,7 +615,20 @@ export default class PosApp extends React.Component {
       module: 'checkout',
       ck: {
         folio, sourceFolio: folio || null, fromStation, sourceSnapshot, type, step: 'review', ok: null, error: '', change: 0,
-        lines: lines.map(l => ({ name: l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, modsText: l.modsText != null ? l.modsText : this.modsText(l), unit: centsToMoney(this.orderLineUnitCents(l)) })),
+        preparationFolio: sourceOrder?.preparationFolio || sourceOrder?.folio || null,
+        sharedPreparation: sourceOrder?.sharedPreparation === true,
+        ...(sourceOrder?.splitFrom ? { splitFrom: sourceOrder.splitFrom } : {}),
+        lines: lines.map(l => {
+          const unitPriceCents = this.orderLineUnitCents(l);
+          return {
+            lineId: l.lineId, productId: l.prodId,
+            name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name,
+            qty: l.qty, modsText: l.modsTextSnapshot || l.modsText || this.modsText(l), unit: centsToMoney(unitPriceCents), unitPriceCents,
+            notes: l.capturedSnapshot?.notes || l.notes || '',
+            ...(l.capturedSnapshot ? { capturedSnapshot: l.capturedSnapshot } : {}),
+            ...(Object.prototype.hasOwnProperty.call(l, 'taxSnapshot') ? { taxSnapshot: l.taxSnapshot } : {}),
+          };
+        }),
         subCents, discCents, tipSel, tipCustom: '',
         sub: centsToMoney(subCents), disc: centsToMoney(discCents),
         pays: [{ id: 1, method: 'efectivo', amount: centsToMoney(totalCents).toFixed(2) }]
@@ -513,7 +696,16 @@ export default class PosApp extends React.Component {
       const ml = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' };
       const sale = {
         folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: this.user().name, cobro: this.user().name,
-        tipo: ck.type, items: ck.lines.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })),
+        tipo: ck.type, items: ck.lines.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: centsToMoney(l.unitPriceCents * l.qty) })),
+        lineSnapshots: ck.lines.map(l => ({
+          lineId: l.lineId, productId: l.productId, name: l.name, qty: l.qty, unitPriceCents: l.unitPriceCents,
+          lineTotalCents: l.unitPriceCents * l.qty, modsText: l.modsText, notes: l.notes,
+          ...(l.capturedSnapshot ? { capturedSnapshot: l.capturedSnapshot } : {}),
+          ...(Object.prototype.hasOwnProperty.call(l, 'taxSnapshot') ? { taxSnapshot: l.taxSnapshot } : {}),
+        })),
+        preparationFolio: ck.preparationFolio || null,
+        sharedPreparation: ck.sharedPreparation === true,
+        ...(ck.splitFrom ? { splitFrom: ck.splitFrom } : {}),
         payments: m.payments.filter(p => p.netAmountCents > 0).map(p => ({
           paymentId: `${folio}:payment:${p.id}`,
           method: p.method,
@@ -572,7 +764,9 @@ export default class PosApp extends React.Component {
           const s = this.state; const o = s.open.find(x => x.folio === folio); if (!o) return;
           const actor = this.user().name; const occurredAt = new Date().toISOString();
           const sale = { folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: o.user, cobro: '—', tipo: o.ref, items: o.items.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })), payments: [], tip: 0, total: o.items.reduce((a, l) => a + l.unit * l.qty, 0), status: 'cancelada', sync: s.online ? 'sincronizada' : 'pendiente', motivo: d.reason.trim(), audit: [[occurredAt, 'Cancelada · ' + d.reason.trim(), actor]] };
-          const kitchenTickets = cancelKitchenTicket(s.kitchenTickets, folio, actor, occurredAt, d.reason);
+          const kitchenTickets = o.sharedPreparation === true
+            ? s.kitchenTickets
+            : cancelKitchenTicket(s.kitchenTickets, folio, actor, occurredAt, d.reason);
           this.up({ open: s.open.filter(x => x.folio !== folio), kitchenTickets, sales: [sale, ...s.sales], order: s.order.folio === folio ? this.blank() : s.order });
           this.toast(folio + ' cancelada');
         }
@@ -751,7 +945,8 @@ export default class PosApp extends React.Component {
         if (!d.reason || !d.reason.trim()) { this.toast('Captura el motivo de cancelación', 'warn'); return 'keep'; }
         const st = this.state; const folio = st.order.folio; const account = st.open.find(x => x.folio === folio);
         const actor = this.user().name; const occurredAt = new Date().toISOString();
-        const kitchenTickets = folio ? cancelKitchenTicket(st.kitchenTickets, folio, actor, occurredAt, d.reason) : st.kitchenTickets;
+        const sharesPreparation = st.order.sharedPreparation === true || account?.sharedPreparation === true;
+        const kitchenTickets = folio && !sharesPreparation ? cancelKitchenTicket(st.kitchenTickets, folio, actor, occurredAt, d.reason) : st.kitchenTickets;
         const sale = account ? { folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: account.user, cobro: '—', tipo: account.ref, items: account.items.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })), payments: [], tip: 0, total: account.items.reduce((a, l) => a + l.unit * l.qty, 0), status: 'cancelada', sync: st.online ? 'sincronizada' : 'pendiente', motivo: d.reason.trim(), audit: [[occurredAt, 'Cancelada · ' + d.reason.trim(), actor]] } : null;
         this.up({ order: this.blank(), open: st.open.filter(x => x.folio !== folio), kitchenTickets, ...(sale ? { sales: [sale, ...st.sales] } : {}) });
         this.toast('Orden cancelada · ' + d.reason.trim());
@@ -847,7 +1042,15 @@ export default class PosApp extends React.Component {
     V.ordersCount = s.open.length; V.ordersEmpty = s.open.length === 0;
     V.orders = s.open.map(oo => {
       const totals = this.orderTotalsCents(oo);
-      const prep = (s.kitchenTickets.find(ticket => ticket.folio === oo.folio) || oo).prep;
+      const preparationFolio = textField(oo.preparationFolio || oo.folio, 80);
+      const prep = (s.kitchenTickets.find(ticket => ticket.folio === preparationFolio) || oo).prep;
+      let splitQuantity = 0;
+      const validSplitQuantities = Array.isArray(oo.items) && oo.items.length > 0 && oo.items.every(line => {
+        if (!Number.isSafeInteger(line?.qty) || line.qty < 1) return false;
+        splitQuantity += line.qty;
+        return Number.isSafeInteger(splitQuantity);
+      });
+      const canSplit = validSplitQuantities && splitQuantity >= 2;
       const pt = prepTags[prep] || prepTags['en-cola']; const st2 = syncTags[oo.sync] || syncTags.sincronizada;
       return {
         folio: oo.folio, total: totals === null ? 'Precio por verificar' : this.fmt(centsToMoney(totals.totalCents)),
@@ -856,13 +1059,14 @@ export default class PosApp extends React.Component {
         meta: this.typeLabel(oo.type) + ' · ' + textField(oo.reference || oo.ref || this.typeLabel(oo.type)) + ' · ' + textField(oo.time || '—', 40) + ' · ' + textField(oo.responsible || oo.user || '—', 100),
         itemsText: oo.items.map(l => l.qty + '× ' + l.name).join(' · '),
         conflict: oo.sync === 'conflicto',
+        splitDisabled: oo.sync === 'conflicto' || !canSplit,
         resume: () => {
           const status = this.orderSourceStatus(oo.folio, 'open');
           const source = this.state.open.find(entry => entry.folio === oo.folio);
           if (status !== 'available' || !source) { this.blockOrderSource(status); return; }
-          const items = source.items.map((l, i) => ({ ...l, lineId: 'l' + Date.now() + i, prodId: l.prodId, qty: l.qty, mods: l.mods || {}, notes: l.notes || '', unit: this.lineUnit(l), name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name, modsText: this.modsText(l) }));
+          const items = source.items.map((l, i) => ({ ...l, lineId: l.lineId || 'l' + Date.now() + i, prodId: l.prodId, qty: l.qty, mods: l.mods || {}, notes: l.notes || '', unit: this.lineUnit(l), name: l.capturedSnapshot?.name || l.productNameSnapshot || l.name, modsText: this.modsText(l) }));
           const mesa = source.type === 'mesa' ? textField(source.mesa, 32) || tableFromReference(source.reference || source.ref) : '';
-          this.up({ order: { folio: source.folio, type: source.type, mesa, name: textField(source.name, 100), phone: textField(source.phone, 40), address: textField(source.address, 240), user: textField(source.user || source.responsible, 100), responsible: textField(source.responsible || source.user, 100), time: textField(source.time, 40), items, discount: source.discount || 0 }, open: this.state.open.filter(x => x.folio !== source.folio), module: 'pos' }, () => this.toast(source.folio + ' abierta en la estación'));
+          this.up({ order: { folio: source.folio, type: source.type, mesa, name: textField(source.name, 100), phone: textField(source.phone, 40), address: textField(source.address, 240), user: textField(source.user || source.responsible, 100), responsible: textField(source.responsible || source.user, 100), time: textField(source.time, 40), reference: textField(source.reference || source.ref, 160), preparationFolio: textField(source.preparationFolio || source.folio, 80), ...(source.sharedPreparation === true ? { sharedPreparation: true } : {}), ...(source.splitFrom ? { splitFrom: source.splitFrom } : {}), ...(Array.isArray(source.splitOperations) ? { splitOperations: source.splitOperations } : {}), items, discount: source.discount || 0 }, open: this.state.open.filter(x => x.folio !== source.folio), module: 'pos' }, () => this.toast(source.folio + ' abierta en la estación'));
         },
         charge: () => this.startCheckout(oo.folio, oo.items, oo.discount, this.typeLabel(oo.type) + ' · ' + oo.ref, false),
         reprint: () => {
@@ -874,16 +1078,30 @@ export default class PosApp extends React.Component {
           const status = this.orderSourceStatus(oo.folio, 'open');
           const source = this.state.open.find(entry => entry.folio === oo.folio);
           if (status !== 'available' || !source) { this.blockOrderSource(status); return; }
-          if (source.items.length < 2) { this.toast('La cuenta necesita al menos 2 productos para dividirse', 'warn'); return; }
-          this.setState({ dlg: { title: 'Dividir ' + oo.folio, body: 'Se creará un folio nuevo con la mitad de los productos. Después podrás cobrar cada cuenta por separado.', confirmLabel: 'Dividir cuenta', onConfirm: () => {
-            const st = this.state;
-            const currentStatus = this.orderSourceStatus(oo.folio, 'open');
-            const src = st.open.find(entry => entry.folio === oo.folio);
-            if (currentStatus !== 'available' || !src) { this.blockOrderSource(currentStatus); return 'keep'; }
-            if (src.items.length < 2) { this.toast('La cuenta necesita al menos 2 productos para dividirse', 'warn'); return 'keep'; }
-            const half = Math.ceil(src.items.length / 2); const nfo = this.nf(); const b = { ...src, folio: nfo, items: src.items.slice(half), time: this.now(), ref: src.ref + ' (2)' }; const a = { ...src, items: src.items.slice(0, half) };
-            this.up({ open: [b, ...st.open.map(x => x.folio === oo.folio ? a : x)] }); this.toast(oo.folio + ' dividida — nueva cuenta ' + nfo);
-          } } });
+          let selection; let plan; let folioCandidate;
+          try {
+            selection = suggestSplitSelection(source.items);
+            plan = planOrderSplit(source, selection);
+            folioCandidate = this.nextSplitFolio();
+          } catch (error) {
+            this.toast(error.message || 'No se puede dividir esta cuenta con las cantidades capturadas.', 'warn');
+            return;
+          }
+          const operationToken = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+          const operationId = `split:${source.folio}:${operationToken}`;
+          const preview = this.splitPreview(source, plan, folioCandidate.folio);
+          const expectedSnapshot = JSON.stringify(source);
+          this.setState({ dlg: {
+            title: 'Dividir ' + source.folio,
+            body: 'Revisa qué cantidades quedan en cada cuenta y cómo se reparte el descuento antes de confirmar.',
+            splitPreview: preview,
+            confirmLabel: 'Dividir cuenta',
+            onConfirm: () => this.confirmOpenSplit({
+              sourceFolio: source.folio, expectedSnapshot, operationId,
+              childFolio: folioCandidate.folio, childSequence: folioCandidate.sequence,
+              selection,
+            }),
+          } });
         },
         cancel: () => this.cancelOpen(oo.folio)
       };
@@ -1162,7 +1380,7 @@ export default class PosApp extends React.Component {
     const dg = s.dlg;
     V.dlg = !!dg;
     if (dg) {
-      V.dlgTitle = dg.title; V.dlgBody = dg.body;
+      V.dlgTitle = dg.title; V.dlgBody = dg.body; V.dlgSplitPreview = dg.splitPreview || null;
       V.dlgFields = (dg.fields || []).map(f => ({ label: f.label, value: f.value, ph: f.ph || '', inputMode: f.key === 'monto' ? 'decimal' : undefined, set: e => this.setState({ dlg: { ...this.state.dlg, fields: this.state.dlg.fields.map(x => x.key === f.key ? { ...x, value: e.target.value } : x) } }) }));
       V.dlgNeedReason = !!dg.needReason && s.flags.cancelMotivo !== false || !!dg.needReason;
       V.dlgReason = dg.reason || ''; V.setDlgReason = e => this.setState({ dlg: { ...this.state.dlg, reason: e.target.value } });
@@ -1178,7 +1396,7 @@ export default class PosApp extends React.Component {
         const r = d.onConfirm && d.onConfirm(d);
         if (r !== 'keep') this.setState({ dlg: null });
       };
-    } else { Object.assign(V, { dlgTitle: '', dlgBody: '', dlgFields: [], dlgNeedReason: false, dlgReason: '', setDlgReason: () => {}, hasDlgErr: false, dlgErr: '', dlgHasConfirm: false, dlgCloseLabel: '', dlgConfirmLabel: '', dlgConfirmStyle: {}, dlgClose: () => {}, dlgConfirm: () => {} }); }
+    } else { Object.assign(V, { dlgTitle: '', dlgBody: '', dlgSplitPreview: null, dlgFields: [], dlgNeedReason: false, dlgReason: '', setDlgReason: () => {}, hasDlgErr: false, dlgErr: '', dlgHasConfirm: false, dlgCloseLabel: '', dlgConfirmLabel: '', dlgConfirmStyle: {}, dlgClose: () => {}, dlgConfirm: () => {} }); }
 
     return V;
   }
@@ -1293,7 +1511,7 @@ export default class PosApp extends React.Component {
 <Button size="sm" onClick={o.resume} disabled={o.conflict}>Abrir</Button>
 <Button size="sm" variant="secondary" onClick={o.charge} disabled={o.conflict}>Cobrar</Button>
 <Button size="sm" variant="outline" onClick={o.reprint} disabled={o.conflict}>Comanda</Button>
-<Button size="sm" variant="outline" onClick={o.split} disabled={o.conflict}>Dividir</Button>
+<Button size="sm" variant="outline" onClick={o.split} disabled={o.splitDisabled}>Dividir</Button>
 <Button size="sm" variant="ghost" className="ml-auto" onClick={o.cancel} disabled={o.conflict}>Cancelar</Button>
 </div>
 </Card>
@@ -1795,6 +2013,27 @@ export default class PosApp extends React.Component {
 <DialogTitle>{V.dlgTitle}</DialogTitle>
 <DialogDescription>{V.dlgBody}</DialogDescription>
 </DialogHeader>
+{(V.dlgSplitPreview) && (<>
+<section aria-label="Vista previa de la división" style={css("display:flex;flex-direction:column;gap:12px;border:1px solid #e2e0d6;border-radius:10px;padding:12px;font-size:12.5px")}>
+<div style={css("display:grid;grid-template-columns:1fr 1fr;gap:12px")}>
+{([[V.dlgSplitPreview.sourceFolio, V.dlgSplitPreview.sourceLines, V.dlgSplitPreview.sourceSubtotal, V.dlgSplitPreview.sourceDiscount, V.dlgSplitPreview.sourceTotal], [V.dlgSplitPreview.childFolio, V.dlgSplitPreview.childLines, V.dlgSplitPreview.childSubtotal, V.dlgSplitPreview.childDiscount, V.dlgSplitPreview.childTotal]]).map(([folio, items, subtotal, discount, total]) => (<section key={folio} aria-label={`Asignación de ${folio}`} style={css("min-width:0")}>
+<h3 style={css("font-weight:600;margin-bottom:5px")}>{folio}</h3>
+<ul style={css("display:flex;flex-direction:column;gap:3px;min-height:40px;margin-bottom:8px")}>{items.map((item, index) => <li key={`${folio}-${index}`}>{item.text}</li>)}</ul>
+<dl style={css("display:flex;flex-direction:column;gap:3px")}>
+<div style={css("display:flex;justify-content:space-between;gap:8px")}><dt>Subtotal</dt><dd>{subtotal}</dd></div>
+<div style={css("display:flex;justify-content:space-between;gap:8px")}><dt>Descuento</dt><dd>−{discount}</dd></div>
+<div style={css("display:flex;justify-content:space-between;gap:8px;font-weight:600")}><dt>Total</dt><dd>{total}</dd></div>
+</dl>
+</section>))}
+</div>
+<div aria-label="Totales combinados" style={css("border-top:1px solid #e2e0d6;padding-top:8px")}>
+<h3 style={css("font-weight:600;margin-bottom:4px")}>Totales combinados</h3>
+<div style={css("display:flex;justify-content:space-between;gap:8px")}><span>Subtotal</span><span>{V.dlgSplitPreview.combinedSubtotal}</span></div>
+<div style={css("display:flex;justify-content:space-between;gap:8px")}><span>Descuento</span><span>−{V.dlgSplitPreview.combinedDiscount}</span></div>
+<div style={css("display:flex;justify-content:space-between;gap:8px;font-weight:600")}><span>Total</span><span>{V.dlgSplitPreview.combinedTotal}</span></div>
+</div>
+</section>
+</>)}
 {(V.dlgFields).map((f, fI) => (<React.Fragment key={fI}>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 <Label htmlFor={`dialog-field-${fI}`}>{f.label}</Label>
