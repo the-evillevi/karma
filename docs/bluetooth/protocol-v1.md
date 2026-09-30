@@ -42,10 +42,11 @@ IDLE → PAIRING → AUTHENTICATED → NEGOTIATING → TRANSFERRING → COMPLETE
 any active state → cancel, permission loss, auth failure, or validation error → STOPPED
 ```
 
-- Sender keeps a command in its normal outbox until it receives an authenticated `ACK` matching both `commandId` and content digest.
+- Sender keeps a separate peer-transfer receipt pending until it receives an authenticated `ACK` matching both `commandId` and content digest. That ACK never removes or marks complete the EVL-114 backend-sync outbox entry.
 - Receiver stages partial bytes separately; partial transfer is never a domain event. On resume it reports the first missing chunk/offset. Sender retransmits from that point using the original serialized document.
-- Receiver validates the complete digest and batch, commits atomically, then ACKs `committed`. If the ACK is lost, an exact replay returns `duplicate`; a changed replay returns `CONFLICT`.
-- Disconnect, app suspension, disabled Bluetooth, denied permission, cancellation, and storage errors leave the sender's command pending. UI must say `pending/offline` or `received locally, awaiting server sync`; a transport ACK is never displayed as a backend sync receipt or payment settlement.
+- Receiver validates the complete digest and batch, commits atomically to its peer-received local store, then ACKs `committed`. If the ACK is lost, an exact replay returns `duplicate`; a changed replay returns `CONFLICT`.
+- Peer copies and peer ACK receipts are **not server-uploadable outbox entries**. The originating actor/device retains its own EVL-114 server-sync batch and must upload it using that actor's authenticated identity. Current EVL-114 row-level security requires uploader `auth.uid` to match the original `actorId` and the original device to belong to that actor. Do not rewrite actor/device IDs, use a service key, or share an actor login. If the original device cannot upload a peer-authored event, EVL-140 needs an explicitly reviewed signed-relay endpoint and authorization contract; until then keep it pending and surface the gap.
+- Disconnect, app suspension, disabled Bluetooth, denied permission, cancellation, and storage errors leave the sender's peer-transfer attempt pending. UI must distinguish `pending peer transfer`, `received locally, awaiting origin sync`, and `server synced`. A transport ACK is never displayed as a backend sync receipt or payment settlement.
 - Backoff is bounded and only while the foreground sync interaction remains active. Do not continuously scan in the background. Persist resumable progress only as the EVL-114 storage contract allows.
 
 ## Coordinator authority
@@ -56,7 +57,7 @@ Only the configured coordinator may author line edits, discounts, payment/compen
 
 ## Backend reconciliation
 
-Bluetooth receipt means only “this peer durably received the batch.” It is separate from the backend receipt. Preserve original batch IDs from local store through peer transfer and later backend upload. When internet returns, the configured coordinator uses EVL-114's idempotent backend reconciliation. Keep local state visibly pending until server confirmation; backend conflicts retain history and require resolution. Backend deduplication, retention, and outbox behavior must be reconciled with EVL-114 before production use.
+Bluetooth receipt means only “this peer durably received the batch.” It is separate from the backend receipt and from the originating device's server-sync outbox. Preserve original batch IDs/actor/device metadata through peer transfer. When internet returns, the originating authenticated actor/device uses EVL-114's idempotent backend reconciliation. The coordinator must not upload another device's batch using its own actor identity. Keep server-sync state pending until server confirmation; backend conflicts retain history and require resolution. Backend deduplication, retention, and outbox behavior must be reconciled with EVL-114 before production use.
 
 ## Error codes
 
