@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { safeDiagnostic } from "./sync-diagnostic.js";
+import { PwaUpdateControl } from "../pwa/PwaUpdateControl.tsx";
+import { reportUpdateSafety } from "../pwa/update-safety.ts";
+import { AppErrorBoundary } from "../pwa/AppErrorBoundary.tsx";
 import { openOfflineDatabase } from "./database.js";
-import { captureCommandBatch, createDemoOrderBatch, createSupabaseClient, syncPendingCommandBatches } from "./command-sync.js";
+import { captureCommandBatch, createDemoOrderBatch, createSupabaseClient, syncPendingCommandBatches } from "./command-sync.ts";
 
 const cachedContextKey = "karma-evl114-offline-context";
 const databaseName = new URLSearchParams(window.location.search).get("db") || "karma-offline-demo-v1";
@@ -31,6 +34,15 @@ function OfflineSyncDemo() {
   const [message, setMessage] = useState("Inicia sesión con la cuenta local de prueba para preparar la caja autorizada.");
   const [failNextReceipt, setFailNextReceipt] = useState(failReceiptOnceFromUrl);
   const [failNextLocalWrite, setFailNextLocalWrite] = useState(false);
+
+  useEffect(() => {
+    const blocked = busy || password.length > 0;
+    reportUpdateSafety(blocked
+      ? { status: "blocked", reason: busy ? "Hay una operación de sincronización activa." : "Hay datos del formulario de acceso sin revisar." }
+      : database && supabase
+        ? { status: "safe", reason: "" }
+        : { status: "unknown", reason: "La base local todavía está abriendo." });
+  }, [busy, password, database, supabase]);
 
   const refreshLocal = useCallback(async () => {
     if (!database) return;
@@ -199,6 +211,7 @@ function OfflineSyncDemo() {
       return;
     }
     const batch = createDemoOrderBatch(deviceContext);
+    setBusy(true);
     try {
       await captureCommandBatch(database, batch, simulateLocalFailure ? {
         beforeLocalInsert: async () => { throw new Error("Simulación: IndexedDB rechazó la escritura local."); },
@@ -206,17 +219,27 @@ function OfflineSyncDemo() {
       setMessage("Venta capturada en RxDB local. Su nombre, precio y desglose de IVA quedaron guardados como snapshots.");
     } catch (error) {
       setMessage(`La escritura local falló; no se marcó pendiente ni se envió a Supabase. ${safeDiagnostic(error).message}`);
+    } finally {
+      try {
+        await refreshLocal();
+      } finally {
+        setBusy(false);
+      }
     }
-    await refreshLocal();
   }
 
   async function signOut() {
     if (!supabase) return;
-    await supabase.auth.signOut();
-    setSession(null);
-    setDeviceContext(null);
-    window.localStorage.removeItem(cachedContextKey);
-    setMessage("Sesión cerrada.");
+    setBusy(true);
+    try {
+      await supabase.auth.signOut();
+      setSession(null);
+      setDeviceContext(null);
+      window.localStorage.removeItem(cachedContextKey);
+      setMessage("Sesión cerrada.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function refreshAuthorization() {
@@ -233,7 +256,7 @@ function OfflineSyncDemo() {
 
   const receiptByCommand = new Map(receipts.map((receipt) => [receipt.commandId, receipt]));
   const blockByCommand = new Map(syncBlocks.map((block) => [block.commandId, block]));
-  return <main style={styles.page}>
+  return <AppErrorBoundary><main style={styles.page}>
     <header style={styles.header}>
       <div>
         <h1 style={{ margin: 0 }}>Karma · Sincronización offline</h1>
@@ -299,7 +322,7 @@ function OfflineSyncDemo() {
     <aside style={styles.note}>
       <strong>Permiso desconectado:</strong> el dispositivo usa su autorización previamente cargada hasta el vencimiento mostrado. Una revocación remota no puede llegar mientras está offline; al reconectar, Postgres vuelve a validar la caja y puede bloquear lotes atrasados para conciliación.
     </aside>
-  </main>;
+  </main><PwaUpdateControl /></AppErrorBoundary>;
 }
 
 const styles = {

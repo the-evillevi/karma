@@ -29,10 +29,19 @@ export default class ComandaApp extends React.Component {
     } catch (e) {}
   }
   componentDidMount() {
+    this.reportPwaUpdateSafety();
     this._l = e => { if (e.key === 'karma-pos-v1') this.setState({ open: this.load(), online: this._online }); };
     window.addEventListener('storage', this._l);
     this._p = setInterval(() => this.setState({ open: this.load(), online: this._online }), 4000);
     this.setState({ online: this._online });
+  }
+  componentDidUpdate() { this.reportPwaUpdateSafety(); }
+  reportPwaUpdateSafety() {
+    const report = this.props.onUpdateSafetyChange;
+    if (typeof report !== 'function') return;
+    const active = this.state.open.some(order => order.prep !== 'entregado');
+    if (active) return report({ status: 'blocked', reason: 'Hay comandas en preparación o entrega. Termínalas o revísalas antes de actualizar la pantalla de cocina.' });
+    return report({ status: 'safe', reason: '' });
   }
   componentWillUnmount() { window.removeEventListener('storage', this._l); clearInterval(this._p); }
   renderVals() {

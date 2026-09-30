@@ -10,11 +10,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
-    "types": ["vite/client"]
+    "allowImportingTsExtensions": true,
+    "types": ["vite/client", "node"]
   },
-  "include": [
-    "src/domain/contracts.ts",
-    "src/env.d.ts",
-    "src/offline-sync/sync-diagnostic.d.ts"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/env.d.ts"]
 }

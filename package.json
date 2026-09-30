@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Karma POS — punto de venta para cafetería (Vite + React)",
+  "description": "Karma POS \u2014 punto de venta para cafeter\u00eda (Vite + React)",
   "packageManager": "pnpm@11.1.2",
   "scripts": {
     "dev": "vite",
@@ -16,15 +16,16 @@
     "build:pwa": "vite build --config vite.config.pwa.js",
     "preview:pwa": "vite preview --config vite.config.pwa.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/domain/contracts.ts src/offline-sync/sync-diagnostic.d.ts",
-    "format:check": "prettier --check vite.config.pwa.js eslint.config.js tsconfig.json src/domain/contracts.ts src/offline-sync/sync-diagnostic.js src/offline-sync/sync-diagnostic.d.ts src/offline-sync/sync-diagnostic.test.js scripts/ci/check-client-bundle.mjs scripts/offline-sync/pwa.playwright.config.js scripts/offline-sync/pwa-shell.spec.js docs/execution/EVL-116.md",
+    "lint": "eslint src/domain src/offline-sync src/pwa",
+    "format:check": "prettier --check vite.config.pwa.js eslint.config.js tsconfig.json src/domain/**/*.ts src/domain/order-domain.js src/offline-sync/**/*.ts src/offline-sync/command-sync.js src/offline-sync/sync-diagnostic.js src/offline-sync/sync-diagnostic.d.ts src/offline-sync/sync-diagnostic.test.js src/pwa/**/*.ts src/pwa/**/*.tsx scripts/ci/check-client-bundle.mjs scripts/ci/run-unit-tests.mjs scripts/offline-sync/pwa.playwright.config.js scripts/offline-sync/pwa-shell.spec.js docs/execution/EVL-116.md docs/execution/reviews/EVL-116.md",
     "test:domain": "node scripts/ci/run-unit-tests.mjs",
     "test:pwa:e2e": "playwright test --config scripts/offline-sync/pwa.playwright.config.js",
     "check:client-bundle": "node scripts/ci/check-client-bundle.mjs",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:domain && pnpm test:components && pnpm build && pnpm check:client-bundle && pnpm build:pwa && pnpm test:pwa:e2e && pnpm check:client-bundle",
     "test:components": "vitest run",
     "build:preview": "node scripts/ci/build-preview.mjs",
-    "test:preview:e2e": "playwright test --config scripts/offline-sync/preview.playwright.config.js"
+    "test:preview:e2e": "playwright test --config scripts/offline-sync/preview.playwright.config.js",
+    "test:typed": "tsx --test src/pwa/*.test.ts src/offline-sync/command-sync.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
@@ -52,6 +53,10 @@
     "prettier": "^3.9.9",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.0",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "@types/node": "^22.20.4",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "tsx": "^4.23.15"
   }
 }

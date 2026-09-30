@@ -6,6 +6,7 @@ import baseConfig from "./vite.config.js";
 // This production-only config adds a precached shell without changing dev mode.
 export default mergeConfig(baseConfig, {
   base: process.env.KARMA_BASE_PATH || "/",
+  define: { "import.meta.env.KARMA_PWA_ENABLED": "true" },
   plugins: [
     {
       name: "karma-demo-preview-notice",
@@ -22,7 +23,8 @@ export default mergeConfig(baseConfig, {
     VitePWA({
       // Keep an update waiting for an explicit, safe reload by the operator.
       registerType: "prompt",
-      injectRegister: "auto",
+      // Register manually so activation can wait for the app's current order state.
+      injectRegister: false,
       manifest: {
         name: "Karma POS",
         short_name: "Karma POS",

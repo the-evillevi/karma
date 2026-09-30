@@ -1,10 +1,12 @@
 import { chromium, test, expect } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 test("production service worker boots the cached POS, Comanda and offline demo after browser restart", async () => {
   const profile = await mkdtemp(join(tmpdir(), "karma-pwa-"));
+  const workerPath = resolve("dist/sw.js");
+  let originalWorker;
   let context;
   try {
     context = await chromium.launchPersistentContext(profile, {
@@ -21,12 +23,67 @@ test("production service worker boots the cached POS, Comanda and offline demo a
         throw new Error("precache missing");
     });
     await expect(page.locator("body")).toContainText("Karma");
+    const privateMessage =
+      "private-customer@example.test secret-service-key-do-not-render";
+    await page.evaluate((message) => {
+      window.dispatchEvent(
+        new ErrorEvent("error", { message, error: new Error(message) }),
+      );
+    }, privateMessage);
+    await expect(page.getByRole("alert")).toContainText(
+      "Una operación no terminó correctamente",
+    );
+    await expect(page.locator("body")).not.toContainText(privateMessage);
+    await page.getByRole("button", { name: "Entendido" }).click();
     await page.reload({ waitUntil: "networkidle" }); // prompt activation: second load is controlled by the installed shell
     await expect
       .poll(() =>
         page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
       )
       .toBe(true);
+    await page
+      .getByRole("button", { name: "Marcela", exact: false })
+      .first()
+      .click();
+    for (let index = 0; index < 4; index += 1)
+      await page.getByRole("button", { name: "1", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Usuarios y configuración" })
+      .click();
+    await page
+      .getByRole("button", { name: "Sofía Delgado", exact: true })
+      .click();
+    await expect(page.getByText("Editar usuario")).toBeVisible();
+    originalWorker = await readFile(workerPath);
+    await writeFile(
+      workerPath,
+      `${originalWorker}\n// update-check-${Date.now()}`,
+    );
+    await page.evaluate(async () => {
+      await (await navigator.serviceWorker.getRegistration())?.update();
+    });
+    await expect(page.getByTestId("pwa-update-control")).toBeVisible();
+    await expect(
+      page.getByLabel("Confirmo que guardé o revisé el trabajo visible"),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Actualizar ahora" }),
+    ).toBeDisabled();
+    await page
+      .getByRole("button", { name: "Cerrar editor de usuario" })
+      .click();
+    const confirmUpdate = page.getByLabel(
+      "Confirmo que guardé o revisé el trabajo visible",
+    );
+    await expect(confirmUpdate).toBeVisible();
+    await confirmUpdate.check();
+    await page.getByRole("button", { name: "Actualizar ahora" }).click();
+    await expect(
+      page.getByRole("button", { name: "+ Nueva venta" }),
+    ).toBeVisible();
+    await page.evaluate(() => localStorage.removeItem("karma-pos-v1"));
+    await writeFile(workerPath, originalWorker);
+    originalWorker = undefined;
     await context.close();
     context = await chromium.launchPersistentContext(profile, {
       headless: true,
@@ -49,6 +106,7 @@ test("production service worker boots the cached POS, Comanda and offline demo a
     }
   } finally {
     if (context) await context.close();
+    if (originalWorker) await writeFile(workerPath, originalWorker);
     await rm(profile, { recursive: true, force: true });
   }
 });
