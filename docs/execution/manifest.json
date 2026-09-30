@@ -216,7 +216,8 @@
         "40d0d1e",
         "4a8959c",
         "ae11b00",
-        "fc9d954"
+        "fc9d954",
+        "14adcf5"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/25",
       "checks": [
@@ -612,16 +613,16 @@
       "id": "EVL-129",
       "chain": "inventory",
       "branch": "codex/inventory/evl-129",
-      "baseBranch": "codex/inventory/evl-128",
+      "baseBranch": "codex/inventory/evl-128-catalog",
       "requires": ["EVL-128", "EVL-122"],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "orders_xhigh",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Luna xhigh explicitID/version recipecatalog+preview/planner. No fixtureautoverification; atomicpreparationconsumption126gate."
     },
     {
       "id": "EVL-153",
@@ -689,14 +690,28 @@
       "branch": "codex/customers/evl-135",
       "baseBranch": "codex/customers/credit-base",
       "requires": ["EVL-123", "EVL-126", "EVL-118"],
-      "stage": "implementing",
-      "agent": "orders_xhigh",
-      "commits": ["40d93b1", "930592f", "1e097ab", "5c81d72"],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Luna xhigh reviewed root isolatedplanner thenimplements profile/statements/ownerlimit/manualpayments UI. No standalonefakecreditsale/prepaidcheckout; atomic126gate remains."
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "40d93b1",
+        "930592f",
+        "1e097ab",
+        "5c81d72",
+        "3da7210",
+        "7524bc3",
+        "a425237"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/27",
+      "checks": [
+        "Root8 customerUI/6domain cases; rootcombined113domain116component10Edge7Chromiumjournal1PWA; format/lint/types/builds/credentialscanspassed",
+        "Customerdomain0medium+; PosApp4unchangedbaselineReportsfindings"
+      ],
+      "review": "privacy_fixed_and_rereviewed_local_scope",
+      "blockers": [
+        "Atomic126customer-credit/prepaid checkout, actualsale linkage, serverauthority/crossdeviceconflicts and productionretention remain open."
+      ],
+      "nextAction": "ReviewedlocaladministrationpublishedPR27; continueatomiccheckoutafter126, nofakecreditsalebutton.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-136",
@@ -878,14 +893,14 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "899b153",
+    "integration": "7558eaf",
     "mainMerged": false,
-    "nextIssue": "EVL-126 atomic operations and EVL-135 profile/accounts",
+    "nextIssue": "EVL-126 complete operational replay and EVL-129 recipes",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed_after_user_reset",
     "usage": {
-      "primaryUsedPercent": 25,
-      "weeklyUsedPercent": 4,
+      "primaryUsedPercent": 39,
+      "weeklyUsedPercent": 6,
       "ordinaryUsageAllowed": true,
       "resetCreditsRemaining": 3
     },
