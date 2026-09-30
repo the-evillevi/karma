@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import SalesStation from './SalesStation.jsx';
 import { captureProductLine } from './catalog/catalog-domain.mjs';
@@ -271,8 +272,7 @@ export default class PosApp extends React.Component {
     const tag = (b, c) => ({ fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 999, background: b, color: c, whiteSpace: 'nowrap', justifySelf: 'start' });
     const prepTags = { 'en-cola': ['En cola', bg, mut], preparando: ['Preparando', tint, acc], listo: ['Listo', acc, paper], entregado: ['Entregado', bg, mut] };
     const syncTags = { sincronizada: ['Sincronizada', 'transparent', '#a8a69c'], pendiente: ['Por sincronizar', tint, acc], conflicto: ['Conflicto', ink, paper] };
-    const stop = e => e.stopPropagation();
-    const V = { loading: s.loading, stop, two: 2, dlgFields: [] };
+    const V = { loading: s.loading, two: 2, dlgFields: [] };
 
     // ---- login
     const pu = s.usersX.find(u => u.id === s.pick) || s.usersX[0];
@@ -328,7 +328,7 @@ export default class PosApp extends React.Component {
     };
     V.showSyncBtn = s.online && s.pending.length > 0 && !s.syncing;
     V.pendingCount = s.pending.length; V.syncNow = () => this.doSync(); V.syncing = s.syncing;
-    V.toasts = s.toasts.map(t => ({ msg: t.msg, dotStyle: { width: 8, height: 8, borderRadius: '50%', flex: 'none', background: t.kind === 'warn' ? tint : acc } }));
+    V.toasts = s.toasts.map(t => ({ msg: t.msg, kind: t.kind }));
 
     // ---- module flags
     V.mPos = s.module === 'pos'; V.mOrders = s.module === 'ordenes'; V.mMenu = s.module === 'menu';
@@ -407,7 +407,7 @@ export default class PosApp extends React.Component {
           options: G.options.filter(op => op.active !== false).map(op => {
             const on = sel.includes(op.id);
             return {
-              text: op.label + (op.price ? ' +$' + op.price : ''), style: chipSm(on),
+              text: op.label + (op.price ? ' +$' + op.price : ''), active: on,
               disabled: on && G.max !== 1 && sel.length <= G.min,
               toggle: () => {
                 const ns = toggleModifierSelection(sel, op.id, { min: G.min, max: G.max });
@@ -1056,25 +1056,21 @@ export default class PosApp extends React.Component {
 <Input id="inventory-search" value={V.invSearch} onChange={V.setInvSearch} placeholder="Buscar insumo o ingrediente…" className="max-w-[340px]" />
 <Button type="button" variant={V.lowToggleActive ? 'secondary' : 'outline'} aria-pressed={V.lowToggleActive} onClick={V.toggleLow}>Solo stock bajo</Button>
 </div>
-<Card className="gap-0 overflow-x-auto p-0"><div className="min-w-[650px]">
-<div style={css("display:grid;grid-template-columns:1fr 150px 120px 110px 120px;gap:10px;padding:10px 16px;border-bottom:1px solid #e2e0d6;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6b6a63;font-weight:500")}><span>Artículo</span><span>Tipo</span><span>Existencia</span><span>Mínimo</span><span>Estado</span></div>
-{(V.stockEmpty) && (<><div style={css("padding:32px;text-align:center;color:#6b6a63;font-size:13px")}>Sin artículos que coincidan.</div></>)}
-{(V.stock).map((s, sI) => (<React.Fragment key={sI}>
-<div style={css("display:grid;grid-template-columns:1fr 150px 120px 110px 120px;gap:10px;padding:11px 16px;border-bottom:1px solid #e2e0d6;font-size:13px;align-items:center")}>
-<span style={css("font-weight:500")}>{s.name}</span><span style={css("color:#6b6a63")}>{s.kind}</span><span>{s.qty}</span><span style={css("color:#6b6a63")}>{s.min}</span><Badge variant={s.tagVariant}>{s.tagLabel}</Badge>
-</div>
-</React.Fragment>))}
-</div></Card>
+<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[650px]">
+<TableHeader><TableRow><TableHead>Artículo</TableHead><TableHead>Tipo</TableHead><TableHead>Existencia</TableHead><TableHead>Mínimo</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
+<TableBody>
+{(V.stockEmpty) && (<TableRow><TableCell colSpan={5} className="h-20 text-center text-muted-foreground">Sin artículos que coincidan.</TableCell></TableRow>)}
+{(V.stock).map((s, sI) => (<TableRow key={sI}>
+<TableCell className="font-medium">{s.name}</TableCell><TableCell className="text-muted-foreground">{s.kind}</TableCell><TableCell>{s.qty}</TableCell><TableCell className="text-muted-foreground">{s.min}</TableCell><TableCell><Badge variant={s.tagVariant}>{s.tagLabel}</Badge></TableCell>
+</TableRow>))}
+</TableBody></Table></Card>
 </>)}
 {(V.tMov) && (<>
-<Card className="gap-0 overflow-x-auto p-0"><div className="min-w-[900px]">
-<div style={css("display:grid;grid-template-columns:110px 1fr 90px 150px 130px 1fr;gap:10px;padding:10px 16px;border-bottom:1px solid #e2e0d6;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6b6a63;font-weight:500")}><span>Tipo</span><span>Artículo</span><span>Cantidad</span><span>Usuario</span><span>Fecha</span><span>Motivo</span></div>
-{(V.movs).map((m, mI) => (<React.Fragment key={mI}>
-<div style={css("display:grid;grid-template-columns:110px 1fr 90px 150px 130px 1fr;gap:10px;padding:11px 16px;border-bottom:1px solid #e2e0d6;font-size:13px;align-items:center")}>
-<Badge variant={m.tagVariant}>{m.tipoLabel}</Badge><span style={css("font-weight:500")}>{m.item}</span><span>{m.qty}</span><span style={css("color:#6b6a63")}>{m.user}</span><span style={css("color:#6b6a63")}>{m.date}</span><span style={css("color:#6b6a63")}>{m.motivo}</span>
-</div>
-</React.Fragment>))}
-</div></Card>
+<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[900px]">
+<TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Artículo</TableHead><TableHead>Cantidad</TableHead><TableHead>Usuario</TableHead><TableHead>Fecha</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader>
+<TableBody>{(V.movs).map((m, mI) => (<TableRow key={mI}>
+<TableCell><Badge variant={m.tagVariant}>{m.tipoLabel}</Badge></TableCell><TableCell className="font-medium">{m.item}</TableCell><TableCell>{m.qty}</TableCell><TableCell className="text-muted-foreground">{m.user}</TableCell><TableCell className="text-muted-foreground">{m.date}</TableCell><TableCell className="text-muted-foreground">{m.motivo}</TableCell>
+</TableRow>))}</TableBody></Table></Card>
 </>)}
 {(V.tRec) && (<>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px")}>
@@ -1130,14 +1126,11 @@ export default class PosApp extends React.Component {
 </React.Fragment>))}
 </Card>
 </div>
-<Card className="gap-0 overflow-x-auto p-0"><div className="min-w-[1000px]">
-<div style={css("display:grid;grid-template-columns:90px 130px 110px 150px 100px 120px 130px;gap:10px;padding:10px 16px;border-bottom:1px solid #e2e0d6;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6b6a63;font-weight:500")}><span>Folio</span><span>Fecha</span><span>Tipo</span><span>Usuario</span><span>Total</span><span>Estado</span><span>Sincronización</span></div>
-{(V.repSales).map((s, sI) => (<React.Fragment key={sI}>
-<Button type="button" variant="ghost" onClick={s.open} className="grid h-auto min-h-12 w-full grid-cols-[90px_130px_110px_150px_100px_120px_130px] justify-stretch gap-2 rounded-none border-b px-4 py-2 text-left last:border-b-0">
-<span style={css("color:#836953;font-weight:500")}>{s.folio}</span><span style={css("color:#6b6a63")}>{s.fecha}</span><span>{s.tipo}</span><span style={css("color:#6b6a63")}>{s.user}</span><span style={css("font-weight:500")}>{s.total}</span><Badge variant={s.statusVariant}>{s.statusLabel}</Badge><Badge variant={s.syncVariant}>{s.syncLabel}</Badge>
-</Button>
-</React.Fragment>))}
-</div></Card>
+<Card className="gap-0 overflow-hidden p-0"><Table className="min-w-[1000px]">
+<TableHeader><TableRow><TableHead>Folio</TableHead><TableHead>Fecha</TableHead><TableHead>Tipo</TableHead><TableHead>Usuario</TableHead><TableHead>Total</TableHead><TableHead>Estado</TableHead><TableHead>Sincronización</TableHead></TableRow></TableHeader>
+<TableBody>{(V.repSales).map((s, sI) => (<TableRow key={sI}>
+<TableCell><Button type="button" variant="link" size="sm" className="h-11 justify-start px-0" aria-label={`Abrir detalle de venta ${s.folio}`} onClick={s.open}>{s.folio}</Button></TableCell><TableCell className="text-muted-foreground">{s.fecha}</TableCell><TableCell>{s.tipo}</TableCell><TableCell className="text-muted-foreground">{s.user}</TableCell><TableCell className="font-medium">{s.total}</TableCell><TableCell><Badge variant={s.statusVariant}>{s.statusLabel}</Badge></TableCell><TableCell><Badge variant={s.syncVariant}>{s.syncLabel}</Badge></TableCell>
+</TableRow>))}</TableBody></Table></Card>
 </div>
 </>)}
 
@@ -1219,42 +1212,49 @@ export default class PosApp extends React.Component {
 </main>
 </div>
 
-{(V.ed) && (<>
-<div style={css("position:fixed;inset:0;background:rgba(20,20,19,.38);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px")} onClick={V.edCancel}>
-<div style={css("width:560px;max-width:100%;max-height:84vh;overflow-y:auto;background:#faf9f5;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:16px;animation:rise .25s ease")} onClick={V.stop}>
-<div style={css("display:flex;align-items:baseline;gap:10px")}>
-<span style={css("font-size:17px;font-weight:500;flex:1")}>{V.edName}</span>
-<span style={css("font-size:14px;color:#6b6a63")}>{V.edPrice}</span>
-</div>
-<div style={css("display:flex;align-items:center;gap:12px")}>
-<span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cantidad</span>
+<Dialog open={V.ed} onOpenChange={open => { if (!open) V.edCancel(); }}>
+{(V.ed) && (<DialogContent
+  className="max-h-[calc(100dvh-2rem)] w-[560px] max-w-[calc(100vw-2rem)] overflow-y-auto p-5"
+  onOpenAutoFocus={() => { this._dialogReturnFocus = document.activeElement; }}
+  onCloseAutoFocus={event => {
+    const opener = this._dialogReturnFocus;
+    this._dialogReturnFocus = null;
+    if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) {
+      event.preventDefault();
+      opener.focus({ preventScroll: true });
+    }
+  }}
+>
+<DialogHeader className="pr-8 text-left">
+<DialogTitle className="flex items-baseline justify-between gap-3">{V.edName}<span className="text-sm font-normal text-muted-foreground">{V.edPrice}</span></DialogTitle>
+<DialogDescription>Actualiza cantidad, modificadores y notas de preparación antes de guardar la orden.</DialogDescription>
+</DialogHeader>
+<div role="group" aria-label={`Cantidad de ${V.edName}`} style={css("display:flex;align-items:center;gap:12px")}>
+<span style={css("font-size:13px;font-weight:500")}>Cantidad</span>
 <div style={css("display:flex;align-items:center;gap:4px")}>
-<button onClick={V.edDec} style={css("width:32px;height:32px;border:1px solid #e2e0d6;background:#faf9f5;border-radius:8px;cursor:pointer;font-size:15px;color:#141413")}>−</button>
+<Button type="button" variant="outline" size="icon" aria-label={`Disminuir cantidad de ${V.edName}`} onClick={V.edDec}>−</Button>
 <span style={css("min-width:32px;text-align:center;font-size:15px;font-weight:500")}>{V.edQty}</span>
-<button onClick={V.edInc} style={css("width:32px;height:32px;border:1px solid #e2e0d6;background:#faf9f5;border-radius:8px;cursor:pointer;font-size:15px;color:#141413")}>+</button>
+<Button type="button" variant="outline" size="icon" aria-label={`Aumentar cantidad de ${V.edName}`} onClick={V.edInc}>+</Button>
 </div>
 </div>
 {(V.edGroups).map((g, gI) => (<React.Fragment key={gI}>
 <div style={css("display:flex;flex-direction:column;gap:8px")}>
 <div style={css("display:flex;gap:8px;align-items:baseline")}><span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>{g.label}</span><span style={css("font-size:11.5px;color:#a8a69c")}>{g.hint}</span></div>
 <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
-{(g.options).map((o, oI) => (<React.Fragment key={oI}>
-          <button style={o.style} disabled={o.disabled} onClick={o.toggle}>{o.text}</button>
-</React.Fragment>))}
+{(g.options).map((o, oI) => (<Button key={oI} type="button" size="sm" variant={o.active ? 'secondary' : 'outline'} disabled={o.disabled} aria-pressed={o.active} onClick={o.toggle}>{o.text}</Button>))}
 </div>
 </div>
 </React.Fragment>))}
 <div style={css("display:flex;flex-direction:column;gap:8px")}>
-<span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Notas de preparación</span>
-<textarea value={V.edNotes} onChange={V.edSetNotes} placeholder="P. ej. sin azúcar, extra caliente…" rows={V.two} style={css("width:100%;padding:10px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none;resize:vertical;min-height:56px")}></textarea>
+<Label htmlFor="prep-notes">Notas de preparación</Label>
+<Textarea id="prep-notes" value={V.edNotes} onChange={V.edSetNotes} placeholder="P. ej. sin azúcar, extra caliente…" rows={V.two} />
 </div>
 <div style={css("display:flex;gap:8px;justify-content:flex-end;border-top:1px solid #e2e0d6;padding-top:14px")}>
-<button onClick={V.edCancel} style={css("padding:11px 18px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:9px;font-size:13.5px;cursor:pointer;color:#141413")}>Cancelar</button>
-<button onClick={V.edConfirm} style={css("padding:11px 22px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:13.5px;font-weight:500;cursor:pointer")}>{V.edConfirmLabel}</button>
+<Button type="button" variant="outline" onClick={V.edCancel}>Cancelar</Button>
+<Button type="button" onClick={V.edConfirm}>{V.edConfirmLabel}</Button>
 </div>
-</div>
-</div>
-</>)}
+</DialogContent>)}
+</Dialog>
 
 <Dialog open={V.hasRepSel} onOpenChange={open => { if (!open) V.closeDetail(); }}>
 <DialogContent
@@ -1338,11 +1338,11 @@ export default class PosApp extends React.Component {
 </DialogContent>
 </Dialog>
 
-<div style={css("position:fixed;right:20px;bottom:20px;z-index:400;display:flex;flex-direction:column;gap:8px;align-items:flex-end")}>
+<div style={css("position:fixed;right:20px;bottom:20px;z-index:400;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:calc(100vw - 32px)")} aria-label="Notificaciones">
 {(V.toasts).map((t, tI) => (<React.Fragment key={tI}>
-<div style={css("background:#141413;color:#faf9f5;border-radius:10px;padding:11px 16px;font-size:13px;display:flex;align-items:center;gap:9px;animation:rise .25s ease;max-width:380px")}>
-<span style={t.dotStyle}></span><span>{t.msg}</span>
-</div>
+<Card role="status" aria-live="polite" aria-atomic="true" className="min-h-11 w-fit max-w-full flex-row items-center gap-3 border-foreground bg-foreground px-4 py-2 text-background shadow-md">
+<Badge variant={t.kind === 'warn' ? 'pending' : 'success'}>{t.kind === 'warn' ? 'Aviso' : 'Listo'}</Badge><span className="min-w-0 whitespace-normal break-words text-sm">{t.msg}</span>
+</Card>
 </React.Fragment>))}
 </div>
 </>)}

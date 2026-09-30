@@ -140,6 +140,7 @@ describe('shared UI primitives', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
 
     expect(await screen.findByRole('button', { name: /^Americano Lattes \$55\.00 Activo$/ })).toBeTruthy();
+    expect((await screen.findByRole('status')).textContent).toContain('guardado en el menú');
   });
 
   it('completes a seeded open-order checkout through labeled shared payment controls', async () => {
