@@ -8,7 +8,7 @@ import './karma-data.js';
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 afterEach(() => { cleanup(); if (originalScrollIntoView) HTMLElement.prototype.scrollIntoView = originalScrollIntoView; else delete HTMLElement.prototype.scrollIntoView; });
 function setup(options = {}) {
-  const sale = { folio: 'A-REFUND', day: 0, status: 'completada', total: 50, totalCents: 5000, tip: 0, tipo: 'En local', fecha: 'Hoy', creo: 'Original', cobro: 'Cashier', sync: 'pendiente', items: [{ name: 'Café', qty: 1, total: 50 }], payments: [{ paymentId: 'pay-1', method: 'cash', netAmountCents: 5000, cashReceivedCents: 10000, changeCents: 5000 }], audit: [] };
+  const sale = { folio: 'A-REFUND', occurredAt: new Date().toISOString(), day: 0, status: 'completada', total: 50, totalCents: 5000, tip: 0, tipo: 'En local', fecha: 'Hora capturada', creo: 'Original', cobro: 'Cashier', sync: 'pendiente', items: [{ name: 'Café', qty: 1, total: 50 }], payments: [{ paymentId: 'pay-1', method: 'cash', netAmountCents: 5000, cashReceivedCents: 10000, changeCents: 5000 }], audit: [] };
   Object.assign(sale, options.sale || {});
   const key = options.props?.accessStorageKey || 'karma-pos-v1';
   const values = new Map([[key, JSON.stringify({ session: 'u1', sales: [sale], open: [], kitchenTickets: [], pending: [] })]]);
