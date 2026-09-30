@@ -216,7 +216,7 @@ describe('shared UI primitives', () => {
 
     let saved = JSON.parse(storage.getItem('karma-pos-v1'));
     expect(saved.sales[0]).toMatchObject({ total: 50, totalCents: 5000, tip: 0, tipCents: 0 });
-    expect(saved.sales[0].payments).toEqual([{ paymentId: 'EVL-186-CASH:payment:1', method: 'cash', methodLabel: 'Efectivo', netAmountCents: 5000, amountCents: 5000, amount: 50, tipCents: 0, cashReceivedCents: 10000, changeCents: 5000 }]);
+    expect(saved.sales[0].payments).toEqual([{ paymentId: 'EVL-186-CASH:payment:1', method: 'cash', methodLabel: 'Efectivo', netAmountCents: 5000, amountCents: 5000, amount: 50, tipCents: 0, recordMode: 'manual', verificationStatus: 'not_applicable', cashReceivedCents: 10000, changeCents: 5000 }]);
     expect(saved.sales[0].tenders).toEqual([{ tenderId: 'EVL-186-CASH:tender:1', method: 'cash', methodLabel: 'Efectivo', tenderedCents: 10000, netAmountCents: 5000, changeCents: 5000, tipCents: 0 }]);
     await user.click(screen.getByRole('button', { name: 'Reportes' }));
     const methodRow = await screen.findByText('Efectivo');
@@ -479,5 +479,90 @@ describe('shared UI primitives', () => {
     await user.type(name, 'Marcela Demo');
     await user.click(screen.getByRole('button', { name: 'Guardar usuario' }));
     expect(await screen.findByRole('button', { name: 'Marcela Demo' })).toBeTruthy();
+  });
+});
+
+describe('manual checkout tips and offline tender capture', () => {
+  it('stores an arbitrary MXN tip exactly in centavos with its equivalent unusual percentage', async () => {
+    const storage = installMemoryStorage();
+    const ticket = {
+      folio: 'A-123-CUSTOM', type: 'mesa', ref: 'Mesa 14', time: '12:00', user: 'Sofía', prep: 'en-cola', sync: 'sincronizada', name: 'Mesa 14', discount: 0,
+      items: [{ prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: {}, modsText: '', notes: '', unit: 60 }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [ticket], kitchenTickets: [ticket] }));
+    const user = userEvent.setup();
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    await user.click((await screen.findAllByRole('button', { name: 'Cobrar' }))[0]);
+    await user.click(await screen.findByRole('button', { name: 'Continuar al pago' }));
+    await user.click(screen.getByRole('button', { name: 'Otra' }));
+    await user.type(screen.getByRole('textbox', { name: 'Monto de propina en pesos' }), '7.25');
+    expect(screen.getByText(/Equivale a 12\.08%/)).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Monto con Efectivo' }).value).toBe('67.25');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    await user.dblClick(await screen.findByRole('button', { name: /Registrar pago/ }));
+    await screen.findByText('Pago registrado', {}, { timeout: 4000 });
+
+    const sale = JSON.parse(storage.getItem('karma-pos-v1')).sales.find(entry => entry.folio === ticket.folio);
+    expect(sale).toMatchObject({ totalCents: 6725, tipCents: 725 });
+    expect(sale.payments).toHaveLength(1);
+    expect(sale.payments[0]).toMatchObject({ method: 'cash', netAmountCents: 6725, tipCents: 725, cashReceivedCents: 6725, changeCents: 0 });
+  });
+
+  it('allows 20% and an arbitrary MXN tip, captures mixed payments offline once, and preserves kitchen work', async () => {
+    const storage = installMemoryStorage();
+    const ticket = {
+      folio: 'A-123-TEST', type: 'mesa', ref: 'Mesa 12', time: '12:00', user: 'Sofía', prep: 'en-cola', sync: 'sincronizada', name: 'Mesa 12', discount: 0,
+      items: [{ prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: {}, modsText: '', notes: 'Leche aparte', unit: 60 }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [ticket], kitchenTickets: [ticket] }));
+    const user = userEvent.setup();
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+
+    await screen.findByRole('button', { name: 'Punto de venta' });
+    await user.click(screen.getByRole('button', { name: 'Simular pérdida de conexión' }));
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    await user.click((await screen.findAllByRole('button', { name: 'Cobrar' }))[0]);
+    await user.click(await screen.findByRole('button', { name: 'Continuar al pago' }));
+
+    await user.click(screen.getByRole('button', { name: 'Otra' }));
+    await user.type(screen.getByRole('textbox', { name: 'Monto de propina en pesos' }), '7.25');
+    expect(screen.getByText(/Equivale a 12\.08%/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '20%' }));
+    expect(screen.getByText('$12.00')).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Monto con Efectivo' }).value).toBe('72.00');
+
+    const cash = screen.getByRole('textbox', { name: 'Monto con Efectivo' });
+    await user.clear(cash);
+    await user.type(cash, '20.00');
+    await user.click(screen.getByRole('button', { name: '+ Dividir en otro método' }));
+    const cardAmount = screen.getByRole('textbox', { name: 'Monto con Tarjeta' });
+    await user.clear(cardAmount);
+    await user.type(cardAmount, '30.00');
+    await user.click(screen.getByRole('button', { name: '+ Dividir en otro método' }));
+    const transferChoices = screen.getAllByRole('button', { name: 'Transferencia' });
+    await user.click(transferChoices.at(-1));
+    const transferAmount = screen.getByRole('textbox', { name: 'Monto con Transferencia' });
+    await user.clear(transferAmount);
+    await user.type(transferAmount, '22.00');
+    expect(screen.getAllByText(/autorización externa no está verificada/).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    const registerPayment = await screen.findByRole('button', { name: /Registrar pago/ });
+    await user.dblClick(registerPayment);
+    expect(await screen.findByText('Pago registrado', {}, { timeout: 4000 })).toBeTruthy();
+    expect(screen.getByText(/autorización externa no está verificada/)).toBeTruthy();
+
+    const saved = JSON.parse(storage.getItem('karma-pos-v1'));
+    const sale = saved.sales.find(entry => entry.folio === ticket.folio);
+    expect(saved.sales.filter(entry => entry.folio === ticket.folio && entry.status === 'completada')).toHaveLength(1);
+    expect(sale).toMatchObject({ totalCents: 7200, tipCents: 1200, externalPaymentVerification: 'manual_unverified', paymentRecordMode: 'manual' });
+    expect(sale.payments.map(payment => [payment.method, payment.netAmountCents])).toEqual([['cash', 2000], ['card', 3000], ['transfer', 2200]]);
+    expect(sale.payments.every(payment => payment.recordMode === 'manual')).toBe(true);
+    expect(sale.payments.filter(payment => payment.method !== 'cash').every(payment => payment.verificationStatus === 'manual_unverified')).toBe(true);
+    expect(sale.payments.reduce((sum, payment) => sum + payment.tipCents, 0)).toBe(1200);
+    expect(saved.kitchenTickets).toMatchObject([{ folio: ticket.folio, prep: 'en-cola', ref: 'Mesa 12', items: [{ notes: 'Leche aparte' }] }]);
+    expect(saved.open).toEqual([]);
   });
 });
