@@ -1,0 +1,11 @@
+{
+  "threshold": "medium",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"issueCount\":0,\"issues\":null}"
+      }
+    ]
+  }
+}
