@@ -215,7 +215,7 @@
       ],
       "review": "bounded_foundation_fixed_rereviewed",
       "blockers": [
-        "Fulllegacyqualitycoverage, safeupdateUI, componentCIintegration andhostedpreview stillimplementationwork."
+        "Legacy type/lint migration coverage and remaining safe update diagnostics review; hosted preview and component CI integrated."
       ],
       "nextAction": "Manuallyresume116remaininggates; reconcilewithreviewed156integrationall4entriesbeforemerge. No118startyet."
     },
@@ -287,8 +287,8 @@
         "EVL-154",
         "EVL-116"
       ],
-      "stage": "implementing",
-      "agent": "implement_design",
+      "stage": "awaiting_input",
+      "agent": null,
       "commits": [
         "84d3d4a",
         "0505fa0",
@@ -297,7 +297,9 @@
         "26cbb43",
         "ca2dd25",
         "c42afe8",
-        "a81e8d3"
+        "a81e8d3",
+        "818b15d",
+        "f4b3466"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/9",
       "checks": [
@@ -306,11 +308,12 @@
         "Root independent 8 Vitest flows and standard build passed on c42afe8",
         "Root integrated report detail Escape/focus-return regression passed"
       ],
-      "review": "controls_batches_reviewed_remaining_mapping_pending",
+      "review": "mapping_batches_reviewed_combined_visual_pending",
       "blockers": [
         "Remaining modal/table/toast mapping and combined visual acceptance; EVL158 owns mobile shell."
       ],
-      "nextAction": "Finish remaining156 mappings; root review before158."
+      "nextAction": "Combined responsive158 visual QA; keep remaining documented mappings and team acceptance open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-158",
@@ -320,14 +323,14 @@
       "requires": [
         "EVL-156"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_design",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Implement responsive shell/shared station from reviewed156 and121 anchors."
     },
     {
       "id": "EVL-115",
@@ -447,14 +450,22 @@
         "EVL-123",
         "EVL-158"
       ],
-      "stage": "implementing",
-      "agent": "implement_catalog",
-      "commits": [],
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "062537e",
+        "fee12e8"
+      ],
       "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Implement actual quick-sale station; recipe/BOM belongsEVL129, not121."
+      "checks": [
+        "Root23catalog tests with real113validator passed no skips",
+        "Root10combinedcomponent flows and preview build passed"
+      ],
+      "review": "station_fixed_rereviewed",
+      "blockers": [
+        "Combined responsive/shared UI158 and production authorization118/persistence126 still pending."
+      ],
+      "nextAction": "Draft station PR; integrate responsive158 then production storage126."
     },
     {
       "id": "EVL-185",
@@ -952,7 +963,7 @@
     "manualResume": true,
     "reason": "User authorized manual continuation after allowance reset",
     "runningAgents": 3,
-    "integration": "6bf5323",
+    "integration": "5993fad",
     "mainMerged": false,
     "nextIssue": "EVL-116",
     "resumeDocument": "docs/execution/RESUME.md",
