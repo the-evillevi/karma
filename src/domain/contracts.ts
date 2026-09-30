@@ -5,7 +5,10 @@ export type Cents = number; // non-negative safe integer; MXN centavos
 export type Role = "duena" | "encargado" | "barra" | "mesero";
 export type Money = { amountCents: Cents; currency: "MXN" };
 
-export interface EventEnvelope<TType extends string = string, TPayload = unknown> {
+export interface EventEnvelope<
+  TType extends string = string,
+  TPayload = unknown,
+> {
   eventId: Id;
   commandId: Id;
   aggregateId: Id;
@@ -39,7 +42,8 @@ export interface OrderLineSnapshot {
 }
 
 export type FinancialStatus = "open" | "partially-paid" | "paid" | "void";
-export type PreparationStatus = "not-sent" | "queued" | "preparing" | "ready" | "served" | "cancelled";
+export type PreparationStatus =
+  "not-sent" | "queued" | "preparing" | "ready" | "served" | "cancelled";
 
 export interface CashPayment {
   paymentId: Id;
@@ -81,7 +85,9 @@ export interface BusinessCommand<TPayload = unknown> {
   payload: TPayload;
 }
 
-export interface CommandBatchDocument<TEvent extends EventEnvelope = EventEnvelope> {
+export interface CommandBatchDocument<
+  TEvent extends EventEnvelope = EventEnvelope,
+> {
   /** Persist this single immutable document as the command's idempotent commit point. */
   commandId: Id;
   aggregateId: Id;

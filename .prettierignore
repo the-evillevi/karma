@@ -1,0 +1,7 @@
+node_modules
+dist
+pnpm-lock.yaml
+src/**/*.jsx
+src/**/*.js
+docs/execution/EVL-113.md
+docs/execution/EVL-114.md

@@ -123,7 +123,7 @@ export default class ComandaApp extends React.Component {
           </div>
           <div style={css('background:#faf9f5;border-top:1px solid #e2e0d6;padding:12px 18px;display:flex;align-items:center;gap:10px')}>
             <span style={css('font-size:12px;color:#6b6a63;flex:1')}>{V.footNote}</span>
-            <a href="/" style={css('font-size:12.5px;font-weight:500')}>Ir a la caja →</a>
+            <a href={import.meta.env.BASE_URL} style={css('font-size:12.5px;font-weight:500')}>Ir a la caja →</a>
           </div>
         </div>
       </div>

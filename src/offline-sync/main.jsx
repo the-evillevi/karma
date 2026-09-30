@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { safeDiagnostic } from "./sync-diagnostic.js";
 import { openOfflineDatabase } from "./database.js";
 import { captureCommandBatch, createDemoOrderBatch, createSupabaseClient, syncPendingCommandBatches } from "./command-sync.js";
 
@@ -107,9 +108,9 @@ function OfflineSyncDemo() {
       try {
         await restoreSession(client);
       } catch (error) {
-        setMessage(error.message);
+        setMessage(safeDiagnostic(error).message);
       }
-    }).catch((error) => setMessage(error.message));
+    }).catch((error) => setMessage(safeDiagnostic(error).message));
     const updateOnline = () => setOnline(navigator.onLine);
     window.addEventListener("online", updateOnline);
     window.addEventListener("offline", updateOnline);
@@ -171,7 +172,7 @@ function OfflineSyncDemo() {
     setBusy(true);
     const result = await supabase.auth.signInWithPassword({ email, password });
     if (result.error) {
-      setMessage(`No se inició sesión: ${result.error.message}`);
+      setMessage(`No se inició sesión: ${safeDiagnostic(result.error).message}`);
       setBusy(false);
       return;
     }
@@ -181,7 +182,7 @@ function OfflineSyncDemo() {
       setDeviceContext(context);
       setMessage("Sesión iniciada; Supabase confirmó la identidad, la sucursal y la caja activa.");
     } catch (error) {
-      setMessage(error.message);
+      setMessage(safeDiagnostic(error).message);
     } finally {
       setBusy(false);
     }
@@ -204,7 +205,7 @@ function OfflineSyncDemo() {
       } : {});
       setMessage("Venta capturada en RxDB local. Su nombre, precio y desglose de IVA quedaron guardados como snapshots.");
     } catch (error) {
-      setMessage(`La escritura local falló; no se marcó pendiente ni se envió a Supabase. ${error.message}`);
+      setMessage(`La escritura local falló; no se marcó pendiente ni se envió a Supabase. ${safeDiagnostic(error).message}`);
     }
     await refreshLocal();
   }
@@ -226,7 +227,7 @@ function OfflineSyncDemo() {
       setMessage("Supabase volvió a verificar el permiso de este dispositivo.");
     } catch (error) {
       setDeviceContext(null);
-      setMessage(error.message);
+      setMessage(safeDiagnostic(error).message);
     }
   }
 

@@ -746,7 +746,7 @@ export default class PosApp extends React.Component {
 <button onClick={V.syncNow} style={css("padding:8px 12px;background:#f6e5df;color:#836953;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;text-align:left")}>Sincronizar ahora ({V.pendingCount})</button>
 </>)}
 <button onClick={V.toggleOnline} style={css("padding:8px 12px;background:transparent;border:1px solid #e2e0d6;border-radius:8px;font-size:12px;color:#6b6a63;cursor:pointer;text-align:left")}>{V.connToggleLabel}</button>
-<a href="/comanda.html" style={css("font-size:12.5px;padding:0 2px")}>Ver comanda de cocina →</a>
+<a href={`${import.meta.env.BASE_URL}comanda.html`} style={css("font-size:12.5px;padding:0 2px")}>Ver comanda de cocina →</a>
 <div style={css("display:flex;align-items:center;gap:9px;border-top:1px solid #e2e0d6;padding-top:12px")}>
 <span style={css("width:32px;height:32px;border-radius:50%;background:#f6e5df;color:#836953;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex:none")}>{V.userInitials}</span>
 <div style={css("flex:1;min-width:0")}><div style={css("font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{V.userName}</div><div style={css("font-size:11.5px;color:#6b6a63")}>{V.userRoleLabel}</div></div>
