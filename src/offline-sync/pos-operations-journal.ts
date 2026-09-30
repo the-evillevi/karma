@@ -1,5 +1,6 @@
 import {
   applyPosOperationToOwnedState,
+  authorizePosOperationCommand,
   PosOperationError,
   PosOperationRevisionConflict,
   replayPosOperationsWithChanges,
@@ -264,6 +265,9 @@ export class PosOperationsJournal {
     let retainedConflict = false;
 
     try {
+      // Check current authority before inspecting an identical retry or a
+      // previously rejected command ID.
+      authorizePosOperationCommand(command, authority);
       const storedCommands = transaction.objectStore(stores.commands);
       const priorStored = await requestResult<
         StoredPosOperationCommand | undefined
@@ -293,6 +297,21 @@ export class PosOperationsJournal {
         )
           throw asStorageError(error);
         throw integrity("Connected aggregate history failed validation.");
+      }
+
+      const priorConflicts = await requestResult<unknown[]>(
+        transaction
+          .objectStore(stores.conflicts)
+          .index("byCommandId")
+          .getAll(command.commandId),
+      );
+      for (const rawConflict of priorConflicts) {
+        const conflict = validateStoredConflict(this.scope, rawConflict);
+        if (stableJson(conflict.command) !== stableJson(command))
+          throw new PosOperationError(
+            "OPERATION_COMMAND_ID_CONFLICT",
+            "Command ID was reused with different immutable content.",
+          );
       }
 
       let applied;
@@ -1333,11 +1352,14 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
         database.createObjectStore(stores.projections, {
           keyPath: ["kind", "aggregateId"],
         });
-      if (!database.objectStoreNames.contains(stores.conflicts))
-        database.createObjectStore(stores.conflicts, {
-          keyPath: "conflictId",
-          autoIncrement: true,
-        });
+      const conflicts = database.objectStoreNames.contains(stores.conflicts)
+        ? request.transaction!.objectStore(stores.conflicts)
+        : database.createObjectStore(stores.conflicts, {
+            keyPath: "conflictId",
+            autoIncrement: true,
+          });
+      if (!conflicts.indexNames.contains("byCommandId"))
+        conflicts.createIndex("byCommandId", "command.commandId");
       if (!database.objectStoreNames.contains(stores.diagnostics))
         database.createObjectStore(stores.diagnostics, {
           keyPath: "diagnosticId",

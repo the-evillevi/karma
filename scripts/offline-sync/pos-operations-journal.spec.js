@@ -451,7 +451,8 @@ test("two tabs serialize multi-aggregate writes and retain a stale revision conf
         }, candidates[index]),
       ),
     );
-    expect(outcomes.sort()).toEqual([
+    const loserIndex = outcomes.indexOf("OPERATION_REVISION_CONFLICT");
+    expect([...outcomes].sort()).toEqual([
       "OPERATION_REVISION_CONFLICT",
       "committed",
     ]);
@@ -460,6 +461,23 @@ test("two tabs serialize multi-aggregate writes and retain a stale revision conf
     expect(saved.conflicts).toHaveLength(1);
     expect(saved.conflicts[0].expected.revision).toBe(0);
     expect(saved.conflicts[0].actualRevision).toBe(1);
+    const changedConflictedCommand = structuredClone(candidates[loserIndex]);
+    changedConflictedCommand.payload.tableId = "changed-after-conflict";
+    const changedConflictCode = await first.evaluate(async (candidate) => {
+      try {
+        await window.operationJournal.append(candidate, {
+          actorId: candidate.actorId,
+          branchId: candidate.branchId,
+          deviceId: candidate.deviceId,
+          role: "duena",
+          capabilities: ["openOrder"],
+        });
+        return "unexpected-success";
+      } catch (error) {
+        return error.code;
+      }
+    }, changedConflictedCommand);
+    expect(changedConflictCode).toBe("OPERATION_COMMAND_ID_CONFLICT");
     await Promise.all([
       first.evaluate(() => window.operationJournal.close()),
       second.evaluate(() => window.operationJournal.close()),

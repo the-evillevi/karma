@@ -424,10 +424,19 @@ export function applyPosOperation(
   candidate: unknown,
   authority: PosOperationAuthority,
 ): PosOperationResult {
+  const command = authorizePosOperationCommand(candidate, authority);
+  return applyValidatedOperation(current, command);
+}
+
+/** Validate a new append/retry against the current verified caller context. */
+export function authorizePosOperationCommand(
+  candidate: unknown,
+  authority: PosOperationAuthority,
+): PosOperationCommand {
   const command = validatePosOperationCommand(candidate);
   validateAuthority(command, authority);
   authorize(command, authority);
-  return applyValidatedOperation(current, command);
+  return command;
 }
 
 /**
@@ -440,9 +449,7 @@ export function applyPosOperationToOwnedState(
   candidate: unknown,
   authority: PosOperationAuthority,
 ): PosOperationResult {
-  const command = validatePosOperationCommand(candidate);
-  validateAuthority(command, authority);
-  authorize(command, authority);
+  const command = authorizePosOperationCommand(candidate, authority);
   return applyValidatedOperation(ownedState, command, true);
 }
 
