@@ -77,7 +77,9 @@ test("production service worker boots the cached POS, Comanda and offline demo a
     );
     await expect(confirmUpdate).toBeVisible();
     await confirmUpdate.check();
+    const restartedDocument = page.waitForEvent("load");
     await page.getByRole("button", { name: "Actualizar ahora" }).click();
+    await restartedDocument;
     await expect(
       page.getByRole("button", { name: "+ Nueva venta" }),
     ).toBeVisible();

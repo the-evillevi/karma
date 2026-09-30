@@ -8,7 +8,7 @@
   "reachableVerified": true,
   "productionReady": false,
   "localProof": "Preview build/bundle scan and demo-labelled POS/kitchen round-trip browser regression passed",
-  "verifiedCommit": "4515b9b",
-  "workflowRun": "36669834771",
-  "hostedProof": "Root browser: demo notice, published demo login, kitchen route and return to restored station"
+  "verifiedCommit": "8644269",
+  "workflowRun": "36675297014",
+  "hostedProof": "Root activated the explicit safe update on the empty synthetic station, then verified the hosted desktop sidebar stays below the 40px demo notice and category/order buttons show selected states with the shared checkout action. Earlier POS/kitchen round trip also passed."
 }

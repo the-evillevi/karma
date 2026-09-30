@@ -1,0 +1,61 @@
+{
+  "baselineCommit": "ef10819184c1fe7769b316c8a259f00c4391d79e",
+  "integrationCommit": "bf1f722",
+  "issueCommit": "e92f1b5",
+  "baseline": {
+    "success": true,
+    "total": 6,
+    "posIssues": [
+      {
+        "id": "javascript/PrototypePollution",
+        "line": 579,
+        "fingerprint": "170abd2f.fc0e7de9.693cee93.84a399d8.5c2b5c9d.fb6e1fba.f0256597.0d627752.170abd2f.4773f344.693cee93.a8c24974.79a7d027.39e5b116.f0256597.5b5a306a"
+      },
+      {
+        "id": "javascript/PrototypePollution",
+        "line": 579,
+        "fingerprint": "170abd2f.fc0e7de9.693cee93.2015d42e.5c2b5c9d.5eccefd7.f0256597.da42f3f1.170abd2f.4773f344.693cee93.2015d42e.5c2b5c9d.39e5b116.f0256597.8b6f8f4b"
+      },
+      {
+        "id": "javascript/PrototypePollution",
+        "line": 581,
+        "fingerprint": "bcb843aa.fc0e7de9.693cee93.345deb24.5c2b5c9d.5eccefd7.f0256597.47e5e904.bcb843aa.4773f344.a6c57d7b.345deb24.3f452f8c.8431f2ca.f0256597.b9d6e5db"
+      },
+      {
+        "id": "javascript/PrototypePollution",
+        "line": 581,
+        "fingerprint": "bcb843aa.fc0e7de9.693cee93.345deb24.5c2b5c9d.5eccefd7.f0256597.47e5e904.bcb843aa.4773f344.693cee93.345deb24.5c2b5c9d.e55739c9.f0256597.1f55c1aa"
+      }
+    ],
+    "modifierIssues": []
+  },
+  "orders": {
+    "success": true,
+    "total": 17,
+    "posIssues": [
+      {
+        "id": "javascript/PrototypePollution",
+        "line": 715,
+        "fingerprint": "170abd2f.fc0e7de9.693cee93.84a399d8.5c2b5c9d.fb6e1fba.f0256597.0d627752.170abd2f.4773f344.693cee93.a8c24974.79a7d027.39e5b116.f0256597.5b5a306a"
+      },
+      {
+        "id": "javascript/PrototypePollution",
+        "line": 715,
+        "fingerprint": "170abd2f.fc0e7de9.693cee93.2015d42e.5c2b5c9d.5eccefd7.f0256597.da42f3f1.170abd2f.4773f344.693cee93.2015d42e.5c2b5c9d.39e5b116.f0256597.8b6f8f4b"
+      },
+      {
+        "id": "javascript/PrototypePollution",
+        "line": 717,
+        "fingerprint": "bcb843aa.fc0e7de9.693cee93.345deb24.5c2b5c9d.5eccefd7.f0256597.47e5e904.bcb843aa.4773f344.a6c57d7b.345deb24.3f452f8c.b54f370d.f0256597.b9d6e5db"
+      },
+      {
+        "id": "javascript/PrototypePollution",
+        "line": 717,
+        "fingerprint": "bcb843aa.fc0e7de9.693cee93.345deb24.5c2b5c9d.5eccefd7.f0256597.47e5e904.bcb843aa.4773f344.693cee93.345deb24.5c2b5c9d.e55739c9.f0256597.1f55c1aa"
+      }
+    ],
+    "modifierIssues": []
+  },
+  "comparison": "The four reported sinks are the unchanged report aggregations by product name and cashier. Baseline lines579/581 correspond to orders715/717 and integration862/864. Both aggregation expressions are byte-identical after trimming indentation. The fresh scans have no findings in captured-modifiers or the new comparison; the modified comparison guard remains verified by prior regressions.",
+  "scope": "Do not modify pre-existing report aggregations or hook/security settings."
+}

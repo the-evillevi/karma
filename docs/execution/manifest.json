@@ -60,7 +60,7 @@
         "EVL-189",
         "EVL-155"
       ],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-orders/karma"
     },
     {
       "name": "payments",
@@ -70,7 +70,7 @@
         "EVL-187",
         "EVL-125"
       ],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-payments/karma"
     },
     {
       "name": "inventory",
@@ -200,41 +200,63 @@
       "requires": [
         "EVL-114"
       ],
-      "stage": "implementing",
-      "agent": "implement_foundation",
+      "stage": "awaiting_foundation",
+      "agent": null,
       "commits": [
         "c38a398",
-        "741aaef"
+        "741aaef",
+        "df4ec46",
+        "331a87b"
       ],
       "pr": "https://github.com/the-evillevi/karma/pull/10",
       "checks": [
         "Root pnpm check passed: scopedformat/lint/types,14Node,builds,bundlescan,PWAoffline restart",
         "Rootstrengthenedlogin/pageerrorofflineproofpassed",
         "Agent /karma/ subpath buildverified",
-        "Remote CI and actualpreview URL stillpending"
+        "Remote CI and actualpreview URL stillpending",
+        "Root standalone19unit stricttypes/build/secret/PWA checks passed",
+        "Root combined51unit10component four-entry builds and positiveupdate/offline proof passed",
+        "Root eight actual hosted RLS/sync cases passed afterrevocationdiagnosticfix",
+        "GitHubquality36671587292 passed"
       ],
-      "review": "bounded_foundation_fixed_rereviewed",
+      "review": "typed_runtime_update_fixed_rereviewed",
       "blockers": [
-        "Legacy type/lint migration coverage and remaining safe update diagnostics review; hosted preview and component CI integrated."
+        "LegacyJS/JSX whole-app type/lint coverage and production authorization118/persistence126 remain open."
       ],
-      "nextAction": "Manuallyresume116remaininggates; reconcilewithreviewed156integrationall4entriesbeforemerge. No118startyet."
+      "nextAction": "Start118 from reviewed runtime; keep116 fulllegacy/production acceptance open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-118",
       "chain": "foundation",
       "branch": "codex/foundation/evl-118",
-      "baseBranch": "codex/foundation/evl-116",
+      "baseBranch": "codex/foundation/access-base",
       "requires": [
         "EVL-116"
       ],
-      "stage": "queued",
+      "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "commits": [
+        "d1b3b1c",
+        "9bea334",
+        "a0bdb8b",
+        "dec7ff9",
+        "971e7cb",
+        "eb64ac0",
+        "70ff145"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/16",
+      "checks": [
+        "Root full combined check passed: 68 unit tests without skips, 27 components, format/lint/scoped types, four-entry builds, secret scans and PWA restart browser proof",
+        "Exact migration hash independently verified unchanged"
+      ],
+      "review": "bounded_policy_client_fixed_and_rereviewed",
+      "blockers": [
+        "Migration remains unapplied; private EVL-114 fixture is stale and compatible EVL-118 hosted proof is not run.",
+        "Actual POS role boundaries, draft-preserving identity switch and production enrollment/recovery are incomplete."
+      ],
+      "nextAction": "Complete production UI authority and compatible private synthetic fixtures, apply only exact approved migration to karma-pos after gates, independently verify hosted RPC/roles/concurrency/revocation before EVL-126.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-126",
@@ -319,18 +341,29 @@
       "id": "EVL-158",
       "chain": "design",
       "branch": "codex/design/evl-158",
-      "baseBranch": "codex/design/evl-156",
+      "baseBranch": "codex/design/base",
       "requires": [
         "EVL-156"
       ],
-      "stage": "implementing",
-      "agent": "implement_design",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Implement responsive shell/shared station from reviewed156 and121 anchors."
+      "stage": "awaiting_input",
+      "agent": null,
+      "commits": [
+        "ddf2a93",
+        "705dd91",
+        "8bf3782"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/14",
+      "checks": [
+        "Root22combinedcomponents5responsive2previewroutes passed",
+        "Rootdesktop/tablet/narrowphone/landscapevisual reviewed",
+        "Finaltablekeyboardboundarytargetedregressionpassed"
+      ],
+      "review": "fixed_and_rereviewed_responsive_visual_slice",
+      "blockers": [
+        "Humanoperator/softwarekeyboard/zoomcontrastacceptance andremaining156mappings pending."
+      ],
+      "nextAction": "Draft responsive stack; preserve visual evidence and production foundation gates.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-115",
@@ -472,18 +505,26 @@
       "id": "EVL-185",
       "chain": "orders",
       "branch": "codex/orders/evl-185",
-      "baseBranch": "main",
+      "baseBranch": "codex/orders/base",
       "requires": [
         "EVL-126"
       ],
-      "stage": "implementing",
-      "agent": "implement_catalog",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Fix paid preparation actual app regression from reviewed integration; production durability126 gate remains open."
+      "stage": "awaiting_foundation",
+      "agent": null,
+      "commits": [
+        "a53d707",
+        "7fe4b88"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/12",
+      "checks": [
+        "Root17componenttests54unitnoskipsfourentrybuildpassed"
+      ],
+      "review": "fixed_and_rereviewed_actual_app",
+      "blockers": [
+        "Trusted authorization118 and production durability126 remain open."
+      ],
+      "nextAction": "Draft actual paid-kitchen fix; durable storage and browser acceptance remain open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-188",
@@ -495,14 +536,26 @@
         "EVL-113",
         "EVL-126"
       ],
-      "stage": "queued",
+      "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "commits": [
+        "5366d2b",
+        "e92f1b5"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/17",
+      "checks": [
+        "Root combined 31 component tests and four-entry build passed after merge reconciliation",
+        "Root earlier 68 unit tests passed without skips; domain unchanged by188",
+        "git diff --check passed",
+        "Root final PWA rebuild, restart browser proof and credential scan passed",
+        "Security follow-up: root 32 combined component tests, three targeted modifier unit cases, four-entry build, credential scan and diff checks passed"
+      ],
+      "review": "fixed_and_rereviewed_captured_prices_and_storage_key_guard",
+      "blockers": [
+        "Trusted authorization118 and durable persistence126 are open. Formal version/tax113 catalog contract is not yet wired to this prototype history."
+      ],
+      "nextAction": "Resume orders122 after foundation gates; preserve captured facts and never infer missing historical prices.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-122",
@@ -561,18 +614,25 @@
       "id": "EVL-186",
       "chain": "payments",
       "branch": "codex/payments/evl-186",
-      "baseBranch": "main",
+      "baseBranch": "codex/payments/base",
       "requires": [
         "EVL-126"
       ],
-      "stage": "queued",
+      "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "commits": [
+        "74a8cd3"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/13",
+      "checks": [
+        "Root20componenttests60unitnoskipsfourentrybuildpassed"
+      ],
+      "review": "fixed_and_rereviewed_net_payment_actual_app",
+      "blockers": [
+        "Real Excel export130 and trusted118/durable126 remain open."
+      ],
+      "nextAction": "Draft bounded cash net fix; export and production foundation acceptance remain open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-123",
@@ -584,14 +644,23 @@
         "EVL-122",
         "EVL-118"
       ],
-      "stage": "queued",
+      "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "commits": [
+        "cd2562e",
+        "c8777ef"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/15",
+      "checks": [
+        "Root combined 26 component tests passed after manual-history fix",
+        "git diff --check passed"
+      ],
+      "review": "fixed_and_rereviewed_manual_payment_history",
+      "blockers": [
+        "Trusted role checks and durable checkout remain EVL-118/126. Corrections, exports and terminal authorization remain EVL-125/130/133."
+      ],
+      "nextAction": "Continue payment corrections after prerequisites; manual capture checkpoint is reviewed, not full production acceptance.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-187",
@@ -962,12 +1031,12 @@
   ],
   "sessionCheckpoint": {
     "manualResume": true,
-    "reason": "User authorized manual continuation after allowance reset",
-    "runningAgents": 3,
-    "integration": "876808e",
+    "reason": "Near current allowance boundary (90% at last check); all delegates completed clean committed handoffs.",
+    "runningAgents": 0,
+    "integration": "0b6132f",
     "mainMerged": false,
-    "nextIssue": "EVL-116",
+    "nextIssue": "EVL-118 then EVL-126; resume payment/order chains from reviewed stacks.",
     "resumeDocument": "docs/execution/RESUME.md",
-    "status": "resumed"
+    "status": "saved_manual_resume"
   }
 }

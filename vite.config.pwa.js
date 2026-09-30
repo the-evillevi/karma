@@ -19,7 +19,7 @@ export default mergeConfig(baseConfig, {
         return html.replace(
           /(<body[^>]*>)/,
           `$1
-          <style>:root{--karma-viewport-height:calc(100vh - 40px)}.karma-preview-notice{height:40px;position:sticky;top:0;z-index:40;background:#836953;color:#faf9f5;display:flex;align-items:center;justify-content:center;padding:0 8px;font:500 12px/1.2 Arial,sans-serif}</style>
+          <style>:root{--karma-app-offset:40px;--karma-viewport-height:calc(100vh - 40px)}.karma-preview-notice{height:40px;position:sticky;top:0;z-index:40;background:#836953;color:#faf9f5;display:flex;align-items:center;justify-content:center;padding:0 8px;font:500 12px/1.2 Arial,sans-serif}</style>
           <aside class="karma-preview-notice" aria-label="Entorno de demostración">Demo · Datos de prueba · Sin cobros reales</aside>`,
         );
       },
