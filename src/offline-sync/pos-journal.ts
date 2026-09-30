@@ -109,6 +109,11 @@ export interface AppendPosSnapshotResult {
   duplicate: boolean;
 }
 
+interface ValidatedAggregateState {
+  revision: number;
+  projection: PosOrderProjection | null;
+}
+
 export class PosJournalError extends Error {
   readonly code: string;
 
@@ -157,7 +162,10 @@ const storeNames = {
   diagnostics: "diagnostics",
 } as const;
 
-const openJournals = new Map<string, Promise<PosJournal>>();
+const openJournals = new WeakMap<
+  IDBFactory,
+  Map<string, Promise<PosJournal>>
+>();
 
 export async function openPosJournal(
   scope: PosJournalScope,
@@ -182,18 +190,27 @@ export async function openPosJournal(
     journalScope,
     cryptoProvider,
   );
-  const cacheKey = `${databaseName}:${factory === globalThis.indexedDB ? "default" : "injected"}`;
-  const cached = openJournals.get(cacheKey);
+  let factoryJournals = openJournals.get(factory);
+  if (!factoryJournals) {
+    factoryJournals = new Map();
+    openJournals.set(factory, factoryJournals);
+  }
+  const cached = factoryJournals.get(databaseName);
   if (cached) return cached;
 
   const opening = openDatabase(factory, databaseName).then(
-    (database) => new PosJournal(database, journalScope, cacheKey),
+    (database) =>
+      new PosJournal(database, journalScope, () => {
+        if (factoryJournals?.get(databaseName) === opening)
+          factoryJournals.delete(databaseName);
+      }),
   );
-  openJournals.set(cacheKey, opening);
+  factoryJournals.set(databaseName, opening);
   try {
     return await opening;
   } catch (error) {
-    openJournals.delete(cacheKey);
+    if (factoryJournals.get(databaseName) === opening)
+      factoryJournals.delete(databaseName);
     throw error;
   }
 }
@@ -322,8 +339,10 @@ export class PosJournal {
   constructor(
     private readonly database: IDBDatabase,
     readonly scope: PosJournalScope,
-    private readonly cacheKey: string,
-  ) {}
+    private readonly removeFromCache: () => void,
+  ) {
+    this.database.onversionchange = () => this.invalidate();
+  }
 
   async appendSnapshot(
     input: PosSnapshotCommandInput,
@@ -381,108 +400,105 @@ export class PosJournal {
       commandRequest.onsuccess = () => {
         const existing = commandRequest.result as PosJournalCommand | undefined;
         if (existing) {
+          try {
+            validateStoredCommand(existing);
+            assertCommandInScope(existing, this.scope);
+          } catch (error) {
+            abort(asIntegrityError(error, "Retried command is malformed."));
+            return;
+          }
           if (!sameCommandContent(existing, commandInput)) {
             abort(new PosCommandIdentityConflictError(commandInput.commandId));
             return;
           }
-          const projectionRequest = transaction
-            .objectStore(storeNames.projections)
-            .get(aggregateKey);
-          projectionRequest.onerror = () => {
-            failure = projectionRequest.error ?? storageError();
-          };
-          projectionRequest.onsuccess = () => {
-            const projection = projectionRequest.result as
-              PosOrderProjection | undefined;
-            if (!projection) {
-              abort(
-                new PosJournalIntegrityError(
-                  "Saved command has no local projection.",
-                ),
-              );
-              return;
-            }
-            result = { command: existing, projection, duplicate: true };
-          };
-          return;
         }
 
-        const previousConflictRequest = transaction
-          .objectStore(storeNames.conflicts)
-          .get(commandInput.commandId);
-        previousConflictRequest.onerror = () => {
-          failure = previousConflictRequest.error ?? storageError();
-        };
-        previousConflictRequest.onsuccess = () => {
-          const previousConflict = previousConflictRequest.result as
-            PosRevisionConflict | undefined;
-          if (previousConflict) {
-            if (!sameJson(previousConflict.command, commandInput)) {
-              abort(
-                new PosCommandIdentityConflictError(commandInput.commandId),
-              );
-              return;
-            }
-            failure = new PosRevisionConflictError(
-              previousConflict.expectedRevision,
-              previousConflict.currentRevision,
-            );
-            return;
-          }
-
-          const heads = transaction.objectStore(storeNames.heads);
-          const headRequest = heads.get(aggregateKey);
-          headRequest.onerror = () => {
-            failure = headRequest.error ?? storageError();
-          };
-          headRequest.onsuccess = () => {
-            const head = headRequest.result as
-              { aggregateKey: string; revision: number } | undefined;
-            const currentRevision = head?.revision ?? 0;
-            if (currentRevision !== commandInput.expectedRevision) {
-              const conflict: PosRevisionConflict = {
-                command: commandInput,
-                expectedRevision: commandInput.expectedRevision,
-                currentRevision,
-                detectedAt: new Date().toISOString(),
-              };
-              const diagnostic: PosDiagnostic = {
-                diagnosticId: `revision:${commandInput.commandId}`,
-                kind: "conflict",
-                code: "LOCAL_REVISION_CONFLICT",
-                recordedAt: conflict.detectedAt,
-                commandId: commandInput.commandId,
-              };
-              try {
-                transaction.objectStore(storeNames.conflicts).add(conflict);
-                transaction.objectStore(storeNames.diagnostics).put(diagnostic);
-                failure = new PosRevisionConflictError(
-                  commandInput.expectedRevision,
-                  currentRevision,
-                );
-              } catch (error) {
-                abort(error);
-              }
-              return;
-            }
-
-            const projectionRequest = transaction
-              .objectStore(storeNames.projections)
-              .get(aggregateKey);
-            projectionRequest.onerror = () => {
-              failure = projectionRequest.error ?? storageError();
-            };
-            projectionRequest.onsuccess = () => {
-              const previous = projectionRequest.result as
-                PosOrderProjection | undefined;
-              if ((previous?.revision ?? 0) !== currentRevision) {
+        readAggregateStateInTransaction(
+          transaction,
+          this.scope,
+          aggregateKey,
+          (aggregateState) => {
+            if (existing) {
+              if (!aggregateState.projection) {
                 abort(
                   new PosJournalIntegrityError(
-                    "Saved order projection and revision differ.",
+                    "Retried command is missing from its aggregate history.",
                   ),
                 );
                 return;
               }
+              result = {
+                command: existing,
+                projection: aggregateState.projection,
+                duplicate: true,
+              };
+              return;
+            }
+
+            const previousConflictRequest = transaction
+              .objectStore(storeNames.conflicts)
+              .get(commandInput.commandId);
+            previousConflictRequest.onerror = () => {
+              failure = previousConflictRequest.error ?? storageError();
+            };
+            previousConflictRequest.onsuccess = () => {
+              const previousConflict = previousConflictRequest.result as
+                PosRevisionConflict | undefined;
+              if (previousConflict) {
+                try {
+                  validateRevisionConflict(previousConflict, this.scope);
+                } catch (error) {
+                  abort(
+                    asIntegrityError(
+                      error,
+                      "Saved revision conflict is malformed.",
+                    ),
+                  );
+                  return;
+                }
+                if (!sameJson(previousConflict.command, commandInput)) {
+                  abort(
+                    new PosCommandIdentityConflictError(commandInput.commandId),
+                  );
+                  return;
+                }
+                failure = new PosRevisionConflictError(
+                  previousConflict.expectedRevision,
+                  previousConflict.currentRevision,
+                );
+                return;
+              }
+
+              const currentRevision = aggregateState.revision;
+              if (currentRevision !== commandInput.expectedRevision) {
+                const conflict: PosRevisionConflict = {
+                  command: commandInput,
+                  expectedRevision: commandInput.expectedRevision,
+                  currentRevision,
+                  detectedAt: new Date().toISOString(),
+                };
+                const diagnostic: PosDiagnostic = {
+                  diagnosticId: `revision:${commandInput.commandId}`,
+                  kind: "conflict",
+                  code: "LOCAL_REVISION_CONFLICT",
+                  recordedAt: conflict.detectedAt,
+                  commandId: commandInput.commandId,
+                };
+                try {
+                  transaction.objectStore(storeNames.conflicts).add(conflict);
+                  transaction
+                    .objectStore(storeNames.diagnostics)
+                    .put(diagnostic);
+                  failure = new PosRevisionConflictError(
+                    commandInput.expectedRevision,
+                    currentRevision,
+                  );
+                } catch (error) {
+                  abort(error);
+                }
+                return;
+              }
+
               const command: PosJournalCommand = {
                 ...commandInput,
                 aggregateKey,
@@ -491,7 +507,7 @@ export class PosJournal {
               let projection: PosOrderProjection;
               try {
                 projection = reducePosSnapshotCommand(
-                  previous ?? null,
+                  aggregateState.projection,
                   command,
                 );
               } catch (error) {
@@ -501,7 +517,9 @@ export class PosJournal {
 
               try {
                 commands.add(command);
-                heads.put({ aggregateKey, revision: command.revision });
+                transaction
+                  .objectStore(storeNames.heads)
+                  .put({ aggregateKey, revision: command.revision });
                 transaction.objectStore(storeNames.projections).put({
                   ...projection,
                   aggregateKey,
@@ -513,8 +531,9 @@ export class PosJournal {
                 );
               }
             };
-          };
-        };
+          },
+          abort,
+        );
       };
     });
   }
@@ -526,7 +545,7 @@ export class PosJournal {
     return new Promise((resolve, reject) => {
       let failure: unknown;
       const transaction = this.database.transaction(
-        [storeNames.commands, storeNames.receipts],
+        [storeNames.commands, storeNames.receipts, storeNames.blocks],
         "readwrite",
       );
       transaction.oncomplete = () => (failure ? reject(failure) : resolve());
@@ -559,7 +578,20 @@ export class PosJournal {
           );
           return;
         }
+        try {
+          validateStoredCommand(commandRequest.result as PosJournalCommand);
+          assertCommandInScope(
+            commandRequest.result as PosJournalCommand,
+            this.scope,
+          );
+        } catch (error) {
+          abort(
+            asIntegrityError(error, "Receipt command is outside its scope."),
+          );
+          return;
+        }
         const receipts = transaction.objectStore(storeNames.receipts);
+        const blocks = transaction.objectStore(storeNames.blocks);
         const existingRequest = receipts.get(receipt.commandId);
         existingRequest.onerror = () => {
           failure = existingRequest.error ?? storageError();
@@ -568,12 +600,16 @@ export class PosJournal {
           const existing = existingRequest.result as
             PosServerReceipt | undefined;
           if (existing) {
-            if (!sameJson(existing, receipt))
+            if (!sameJson(existing, receipt)) {
               abort(new PosCommandIdentityConflictError(receipt.commandId));
+            } else {
+              blocks.delete(receipt.commandId);
+            }
             return;
           }
           try {
             receipts.add(receipt);
+            blocks.delete(receipt.commandId);
           } catch (error) {
             abort(error instanceof PosJournalError ? error : storageError());
           }
@@ -617,6 +653,18 @@ export class PosJournal {
               "UNKNOWN_LOCAL_COMMAND",
               "Cannot block an unknown local command.",
             ),
+          );
+          return;
+        }
+        try {
+          validateStoredCommand(commandRequest.result as PosJournalCommand);
+          assertCommandInScope(
+            commandRequest.result as PosJournalCommand,
+            this.scope,
+          );
+        } catch (error) {
+          abort(
+            asIntegrityError(error, "Blocked command is outside its scope."),
           );
           return;
         }
@@ -707,6 +755,8 @@ export class PosJournal {
       const transaction = this.database.transaction(
         [
           storeNames.commands,
+          storeNames.heads,
+          storeNames.projections,
           storeNames.receipts,
           storeNames.blocks,
           storeNames.conflicts,
@@ -722,21 +772,18 @@ export class PosJournal {
           return;
         }
         try {
-          const commands = (values.commands as PosJournalCommand[]).sort(
+          const commands = values.commands as PosJournalCommand[];
+          const projections = validateAllDerivedState(
+            commands,
+            values.heads as unknown[],
+            values.projections as unknown[],
+            this.scope,
+          );
+          commands.sort(
             (left, right) =>
               left.aggregateKey.localeCompare(right.aggregateKey) ||
               left.revision - right.revision,
           );
-          for (const command of commands) {
-            if (
-              command.branchId !== this.scope.branchId ||
-              command.deviceId !== this.scope.deviceId
-            )
-              throw new PosJournalIntegrityError(
-                "Command is stored outside its branch/device database.",
-              );
-          }
-          const projections = replayPosJournalCommands(commands);
           const receipts = values.receipts as PosServerReceipt[];
           const blocks = values.blocks as PosSyncBlock[];
           const conflicts = values.conflicts as PosRevisionConflict[];
@@ -745,25 +792,55 @@ export class PosJournal {
             commands.map((command) => command.commandId),
           );
           for (const receipt of receipts) {
-            validateReceipt(receipt);
+            try {
+              validateReceipt(receipt);
+            } catch (error) {
+              throw asIntegrityError(
+                error,
+                "Saved server receipt is malformed.",
+              );
+            }
             if (!commandIds.has(receipt.commandId))
               throw new PosJournalIntegrityError(
                 "Receipt references an unknown local command.",
               );
           }
           for (const block of blocks) {
-            validateSyncBlock(block);
+            try {
+              validateSyncBlock(block);
+            } catch (error) {
+              throw asIntegrityError(error, "Saved sync block is malformed.");
+            }
             if (!commandIds.has(block.commandId))
               throw new PosJournalIntegrityError(
                 "Sync block references an unknown local command.",
               );
           }
-          for (const conflict of conflicts)
-            validateRevisionConflict(conflict, this.scope);
-          for (const diagnostic of diagnostics) validateDiagnostic(diagnostic);
+          for (const conflict of conflicts) {
+            try {
+              validateRevisionConflict(conflict, this.scope);
+            } catch (error) {
+              throw asIntegrityError(
+                error,
+                "Saved revision conflict is malformed.",
+              );
+            }
+          }
+          for (const diagnostic of diagnostics) {
+            try {
+              validateDiagnostic(diagnostic);
+            } catch (error) {
+              throw asIntegrityError(error, "Saved diagnostic is malformed.");
+            }
+          }
           const receiptIds = new Set(
             receipts.map((receipt) => receipt.commandId),
           );
+          const blockIds = new Set(blocks.map((block) => block.commandId));
+          if ([...receiptIds].some((commandId) => blockIds.has(commandId)))
+            throw new PosJournalIntegrityError(
+              "A command cannot be both acknowledged and actively blocked.",
+            );
           const blockById = new Map(
             blocks.map((block) => [block.commandId, block]),
           );
@@ -800,6 +877,8 @@ export class PosJournal {
       };
       for (const name of [
         storeNames.commands,
+        storeNames.heads,
+        storeNames.projections,
         storeNames.receipts,
         storeNames.blocks,
         storeNames.conflicts,
@@ -810,13 +889,17 @@ export class PosJournal {
           values[
             name === storeNames.commands
               ? "commands"
-              : name === storeNames.receipts
-                ? "receipts"
-                : name === storeNames.blocks
-                  ? "blocks"
-                  : name === storeNames.conflicts
-                    ? "conflicts"
-                    : "diagnostics"
+              : name === storeNames.heads
+                ? "heads"
+                : name === storeNames.projections
+                  ? "projections"
+                  : name === storeNames.receipts
+                    ? "receipts"
+                    : name === storeNames.blocks
+                      ? "blocks"
+                      : name === storeNames.conflicts
+                        ? "conflicts"
+                        : "diagnostics"
           ] = request.result;
         };
         request.onerror = () => {
@@ -827,10 +910,17 @@ export class PosJournal {
   }
 
   close(): void {
+    this.invalidate();
+  }
+
+  private invalidate(): void {
     if (this.closed) return;
     this.closed = true;
-    this.database.close();
-    openJournals.delete(this.cacheKey);
+    try {
+      this.database.close();
+    } finally {
+      this.removeFromCache();
+    }
   }
 
   private assertOpen(): void {
@@ -842,53 +932,371 @@ export class PosJournal {
   }
 }
 
+function readAggregateStateInTransaction(
+  transaction: IDBTransaction,
+  scope: PosJournalScope,
+  aggregateKey: string,
+  onSuccess: (state: ValidatedAggregateState) => void,
+  onFailure: (error: unknown) => void,
+): void {
+  let history: PosJournalCommand[] | undefined;
+  let head: unknown;
+  let projection: unknown;
+  let remainingReads = 3;
+  const finishRead = () => {
+    remainingReads -= 1;
+    if (remainingReads !== 0) return;
+    try {
+      onSuccess(
+        validateAggregateState(
+          scope,
+          aggregateKey,
+          history ?? [],
+          head,
+          projection,
+        ),
+      );
+    } catch (error) {
+      onFailure(error);
+    }
+  };
+
+  try {
+    const historyRequest = transaction
+      .objectStore(storeNames.commands)
+      .index("byAggregateRevision")
+      .getAll(
+        IDBKeyRange.bound(
+          [aggregateKey, 1],
+          [aggregateKey, Number.MAX_SAFE_INTEGER],
+        ),
+      );
+    const headRequest = transaction
+      .objectStore(storeNames.heads)
+      .get(aggregateKey);
+    const projectionRequest = transaction
+      .objectStore(storeNames.projections)
+      .get(aggregateKey);
+
+    historyRequest.onerror = () =>
+      onFailure(historyRequest.error ?? storageError());
+    historyRequest.onsuccess = () => {
+      history = historyRequest.result as PosJournalCommand[];
+      finishRead();
+    };
+    headRequest.onerror = () => onFailure(headRequest.error ?? storageError());
+    headRequest.onsuccess = () => {
+      head = headRequest.result;
+      finishRead();
+    };
+    projectionRequest.onerror = () =>
+      onFailure(projectionRequest.error ?? storageError());
+    projectionRequest.onsuccess = () => {
+      projection = projectionRequest.result;
+      finishRead();
+    };
+  } catch (error) {
+    onFailure(error);
+  }
+}
+
+function validateAggregateState(
+  scope: PosJournalScope,
+  aggregateKey: string,
+  commands: readonly PosJournalCommand[],
+  headValue: unknown,
+  projectionValue: unknown,
+): ValidatedAggregateState {
+  try {
+    return validateAggregateStateUnchecked(
+      scope,
+      aggregateKey,
+      commands,
+      headValue,
+      projectionValue,
+    );
+  } catch (error) {
+    throw asIntegrityError(error, "Saved aggregate state is malformed.");
+  }
+}
+
+function validateAggregateStateUnchecked(
+  scope: PosJournalScope,
+  aggregateKey: string,
+  commands: readonly PosJournalCommand[],
+  headValue: unknown,
+  projectionValue: unknown,
+): ValidatedAggregateState {
+  for (const command of commands) {
+    validateStoredCommand(command);
+    assertCommandInScope(command, scope);
+    if (command.aggregateKey !== aggregateKey)
+      throw new PosJournalIntegrityError(
+        "Aggregate index returned a command from another aggregate.",
+      );
+  }
+  const replayed = replayPosJournalCommands(commands);
+  if (replayed.length > 1)
+    throw new PosJournalIntegrityError(
+      "Aggregate history contains multiple order projections.",
+    );
+  const projection = replayed[0] ?? null;
+  const expectedRevision = projection?.revision ?? 0;
+
+  if (!projection) {
+    if (headValue !== undefined || projectionValue !== undefined)
+      throw new PosJournalIntegrityError(
+        "Aggregate head or projection exists without immutable command history.",
+      );
+    return { revision: 0, projection: null };
+  }
+
+  if (!headValue || !projectionValue)
+    throw new PosJournalIntegrityError(
+      "Aggregate head or projection is missing from immutable command history.",
+    );
+  if (typeof headValue !== "object" || Array.isArray(headValue))
+    throw new PosJournalIntegrityError("Aggregate head is malformed.");
+  const head = headValue as { aggregateKey?: unknown; revision?: unknown };
+  assertOnlyKeys(head, ["aggregateKey", "revision"]);
+  if (
+    head.aggregateKey !== aggregateKey ||
+    head.revision !== expectedRevision ||
+    !Number.isSafeInteger(head.revision)
+  )
+    throw new PosJournalIntegrityError(
+      "Aggregate head differs from immutable command history.",
+    );
+
+  if (typeof projectionValue !== "object" || Array.isArray(projectionValue))
+    throw new PosJournalIntegrityError("Saved order projection is malformed.");
+  const savedProjection = projectionValue as PosOrderProjection & {
+    aggregateKey?: unknown;
+  };
+  assertOnlyKeys(savedProjection, [
+    "aggregateKey",
+    "aggregateId",
+    "branchId",
+    "revision",
+    "order",
+    "lastCommand",
+  ]);
+  const expectedProjection = { ...projection, aggregateKey };
+  if (!sameJson(savedProjection, expectedProjection))
+    throw new PosJournalIntegrityError(
+      "Saved order projection differs from immutable command history.",
+    );
+  return { revision: expectedRevision, projection };
+}
+
+function validateAllDerivedState(
+  commands: readonly PosJournalCommand[],
+  headValues: readonly unknown[],
+  projectionValues: readonly unknown[],
+  scope: PosJournalScope,
+): PosOrderProjection[] {
+  try {
+    return validateAllDerivedStateUnchecked(
+      commands,
+      headValues,
+      projectionValues,
+      scope,
+    );
+  } catch (error) {
+    throw asIntegrityError(error, "Saved journal state is malformed.");
+  }
+}
+
+function validateAllDerivedStateUnchecked(
+  commands: readonly PosJournalCommand[],
+  headValues: readonly unknown[],
+  projectionValues: readonly unknown[],
+  scope: PosJournalScope,
+): PosOrderProjection[] {
+  const commandGroups = new Map<string, PosJournalCommand[]>();
+  for (const command of commands) {
+    validateStoredCommand(command);
+    assertCommandInScope(command, scope);
+    const group = commandGroups.get(command.aggregateKey) ?? [];
+    group.push(command);
+    commandGroups.set(command.aggregateKey, group);
+  }
+
+  const heads = indexDerivedRecords(headValues, "head", scope);
+  const projections = indexDerivedRecords(
+    projectionValues,
+    "projection",
+    scope,
+  );
+  const aggregateKeys = new Set([
+    ...commandGroups.keys(),
+    ...heads.keys(),
+    ...projections.keys(),
+  ]);
+  for (const aggregateKey of aggregateKeys) {
+    validateAggregateState(
+      scope,
+      aggregateKey,
+      commandGroups.get(aggregateKey) ?? [],
+      heads.get(aggregateKey),
+      projections.get(aggregateKey),
+    );
+  }
+  return replayPosJournalCommands(commands);
+}
+
+function indexDerivedRecords(
+  values: readonly unknown[],
+  recordType: "head" | "projection",
+  scope: PosJournalScope,
+): Map<string, unknown> {
+  const indexed = new Map<string, unknown>();
+  const prefix = `${scope.branchId}\u0000`;
+  for (const value of values) {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new PosJournalIntegrityError(`Saved ${recordType} is malformed.`);
+    const record = value as { aggregateKey?: unknown };
+    if (
+      typeof record.aggregateKey !== "string" ||
+      !record.aggregateKey.startsWith(prefix)
+    )
+      throw new PosJournalIntegrityError(
+        `Saved ${recordType} is outside the active branch scope.`,
+      );
+    const aggregateId = record.aggregateKey.slice(prefix.length);
+    try {
+      assertId(aggregateId, "aggregateId");
+    } catch {
+      throw new PosJournalIntegrityError(
+        `Saved ${recordType} key is malformed.`,
+      );
+    }
+    if (indexed.has(record.aggregateKey))
+      throw new PosJournalIntegrityError(`Duplicate saved ${recordType} key.`);
+    indexed.set(record.aggregateKey, value);
+  }
+  return indexed;
+}
+
+function assertCommandInScope(
+  command: PosJournalCommand,
+  scope: PosJournalScope,
+): void {
+  if (
+    command.branchId !== scope.branchId ||
+    command.deviceId !== scope.deviceId
+  )
+    throw new PosJournalIntegrityError(
+      "Command is stored outside its branch/device database.",
+    );
+}
+
+function asIntegrityError(error: unknown, message: string): PosJournalError {
+  return error instanceof PosJournalIntegrityError
+    ? error
+    : new PosJournalIntegrityError(message);
+}
+
 function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
       request = factory.open(name, 1);
-    } catch {
-      reject(storageError());
+    } catch (error) {
+      reject(openFailure(error));
       return;
     }
     request.onupgradeneeded = () => {
       const database = request.result;
-      const commands = database.createObjectStore(storeNames.commands, {
-        keyPath: "commandId",
-      });
-      commands.createIndex(
-        "byAggregateRevision",
-        ["aggregateKey", "revision"],
-        { unique: true },
-      );
-      commands.createIndex("byActorOccurredAt", ["actorId", "occurredAt"]);
-      database.createObjectStore(storeNames.heads, { keyPath: "aggregateKey" });
-      database.createObjectStore(storeNames.projections, {
-        keyPath: "aggregateKey",
-      });
-      database.createObjectStore(storeNames.receipts, { keyPath: "commandId" });
-      database.createObjectStore(storeNames.blocks, { keyPath: "commandId" });
-      database.createObjectStore(storeNames.conflicts, {
-        keyPath: "command.commandId",
-      });
-      database.createObjectStore(storeNames.diagnostics, {
-        keyPath: "diagnosticId",
-      });
+      const upgrade = request.transaction;
+      if (!upgrade) return;
+      const commands = database.objectStoreNames.contains(storeNames.commands)
+        ? upgrade.objectStore(storeNames.commands)
+        : database.createObjectStore(storeNames.commands, {
+            keyPath: "commandId",
+          });
+      if (!commands.indexNames.contains("byAggregateRevision"))
+        commands.createIndex(
+          "byAggregateRevision",
+          ["aggregateKey", "revision"],
+          { unique: true },
+        );
+      if (!commands.indexNames.contains("byActorOccurredAt"))
+        commands.createIndex("byActorOccurredAt", ["actorId", "occurredAt"]);
+      if (!database.objectStoreNames.contains(storeNames.heads))
+        database.createObjectStore(storeNames.heads, {
+          keyPath: "aggregateKey",
+        });
+      if (!database.objectStoreNames.contains(storeNames.projections))
+        database.createObjectStore(storeNames.projections, {
+          keyPath: "aggregateKey",
+        });
+      if (!database.objectStoreNames.contains(storeNames.receipts))
+        database.createObjectStore(storeNames.receipts, {
+          keyPath: "commandId",
+        });
+      if (!database.objectStoreNames.contains(storeNames.blocks))
+        database.createObjectStore(storeNames.blocks, { keyPath: "commandId" });
+      if (!database.objectStoreNames.contains(storeNames.conflicts))
+        database.createObjectStore(storeNames.conflicts, {
+          keyPath: "command.commandId",
+        });
+      if (!database.objectStoreNames.contains(storeNames.diagnostics))
+        database.createObjectStore(storeNames.diagnostics, {
+          keyPath: "diagnosticId",
+        });
     };
-    request.onerror = () => reject(storageError());
-    request.onblocked = () =>
+    let settled = false;
+    request.onerror = () => {
+      if (settled) return;
+      settled = true;
+      reject(openFailure(request.error));
+    };
+    request.onblocked = () => {
+      if (settled) return;
+      settled = true;
       reject(
         new PosJournalError(
           "LOCAL_DATABASE_UPGRADE_BLOCKED",
           "Another open POS tab is preventing local storage from opening.",
         ),
       );
+    };
     request.onsuccess = () => {
       const database = request.result;
-      database.onversionchange = () => database.close();
+      if (settled) {
+        database.close();
+        return;
+      }
+      if (database.version !== POS_JOURNAL_SCHEMA_VERSION) {
+        settled = true;
+        database.close();
+        reject(
+          new PosJournalError(
+            "LOCAL_SCHEMA_VERSION_UNSUPPORTED",
+            "Local POS data was written by a different application version and cannot be opened safely.",
+          ),
+        );
+        return;
+      }
+      settled = true;
       resolve(database);
     };
   });
+}
+
+function openFailure(error: unknown): PosJournalError {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "VersionError"
+  )
+    return new PosJournalError(
+      "LOCAL_SCHEMA_VERSION_UNSUPPORTED",
+      "Local POS data was written by a newer application version and cannot be opened safely.",
+    );
+  return storageError();
 }
 
 function validateScope(scope: PosJournalScope): void {

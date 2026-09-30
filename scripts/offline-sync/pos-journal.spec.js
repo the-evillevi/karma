@@ -166,6 +166,284 @@ test("same command retries are idempotent; changed payload conflicts; IDB failur
   }
 });
 
+test("versionchange invalidates cached journals; blocked late opens close without downgrading", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "karma-pos-journal-lifecycle-"));
+  const scope = {
+    branchId: `branch-${crypto.randomUUID()}`,
+    deviceId: `device-${crypto.randomUUID()}`,
+  };
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(profile, {
+      headless: true,
+    });
+    const page = await context.newPage();
+    await page.goto(origin, { waitUntil: "domcontentloaded" });
+    await initializeJournal(page, scope);
+    await append(
+      page,
+      makeCommand(scope, {
+        commandId: `command-${crypto.randomUUID()}`,
+        actorId: "actor-a",
+        expectedRevision: 0,
+      }),
+    );
+
+    const lifecycle = await page.evaluate(async (databaseScope) => {
+      const module = window.posJournalModule;
+      const first = window.posJournal;
+      const databaseName = first.database.name;
+      const alternateFactory = {
+        open: (...args) => indexedDB.open(...args),
+      };
+      const alternate = await module.openPosJournal(databaseScope, {
+        indexedDBFactory: alternateFactory,
+      });
+      const separateFactoryCache = alternate !== first;
+
+      const blockerRequest = indexedDB.open(databaseName);
+      const blocker = await new Promise((resolve, reject) => {
+        blockerRequest.onsuccess = () => resolve(blockerRequest.result);
+        blockerRequest.onerror = () => reject(blockerRequest.error);
+      });
+
+      let resolveLateSuccess;
+      const lateSuccess = new Promise((resolve) => {
+        resolveLateSuccess = resolve;
+      });
+      const upgradeFactory = {
+        open: (name) => {
+          const request = indexedDB.open(name, 2);
+          request.addEventListener("success", () => resolveLateSuccess());
+          return request;
+        },
+      };
+      let blockedCode;
+      try {
+        await module.openPosJournal(databaseScope, {
+          indexedDBFactory: upgradeFactory,
+        });
+      } catch (error) {
+        blockedCode = error.code;
+      }
+      blocker.close();
+      await lateSuccess;
+
+      let firstClosedCode;
+      try {
+        await first.readSnapshot();
+      } catch (error) {
+        firstClosedCode = error.code;
+      }
+      let alternateClosedCode;
+      try {
+        await alternate.readSnapshot();
+      } catch (error) {
+        alternateClosedCode = error.code;
+      }
+
+      const deleteRequest = indexedDB.deleteDatabase(databaseName);
+      const deleteResult = await new Promise((resolve, reject) => {
+        deleteRequest.onsuccess = () => resolve("deleted");
+        deleteRequest.onerror = () => reject(deleteRequest.error);
+        deleteRequest.onblocked = () =>
+          reject(new Error("database remained open"));
+      });
+      const reopened = await module.openPosJournal(databaseScope);
+      const reopenedCount = (await reopened.readSnapshot()).commands.length;
+      reopened.close();
+      return {
+        blockedCode,
+        firstClosedCode,
+        alternateClosedCode,
+        separateFactoryCache,
+        deleteResult,
+        reopenedCount,
+      };
+    }, scope);
+
+    expect(lifecycle).toEqual({
+      blockedCode: "LOCAL_DATABASE_UPGRADE_BLOCKED",
+      firstClosedCode: "LOCAL_DATABASE_CLOSED",
+      alternateClosedCode: "LOCAL_DATABASE_CLOSED",
+      separateFactoryCache: true,
+      deleteResult: "deleted",
+      reopenedCount: 0,
+    });
+  } finally {
+    if (context) await context.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
+test("a future database version is preserved and rejected without downgrade", async () => {
+  const profile = await mkdtemp(
+    join(tmpdir(), "karma-pos-journal-future-version-"),
+  );
+  const scope = {
+    branchId: `branch-${crypto.randomUUID()}`,
+    deviceId: `device-${crypto.randomUUID()}`,
+  };
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(profile, {
+      headless: true,
+    });
+    const page = await context.newPage();
+    await page.goto(origin, { waitUntil: "domcontentloaded" });
+    await initializeJournal(page, scope);
+    const result = await page.evaluate(async (databaseScope) => {
+      const journal = window.posJournal;
+      const databaseName = journal.database.name;
+      journal.close();
+      const futureRequest = indexedDB.open(databaseName, 2);
+      const futureDatabase = await new Promise((resolve, reject) => {
+        futureRequest.onupgradeneeded = () => {
+          const database = futureRequest.result;
+          database.createObjectStore("future-data", { keyPath: "id" });
+        };
+        futureRequest.onsuccess = () => resolve(futureRequest.result);
+        futureRequest.onerror = () => reject(futureRequest.error);
+      });
+      futureDatabase.close();
+
+      let openCode;
+      try {
+        await window.posJournalModule.openPosJournal(databaseScope);
+      } catch (error) {
+        openCode = error.code;
+      }
+      const verifyRequest = indexedDB.open(databaseName);
+      const storedVersion = await new Promise((resolve, reject) => {
+        verifyRequest.onsuccess = () => {
+          resolve(verifyRequest.result.version);
+          verifyRequest.result.close();
+        };
+        verifyRequest.onerror = () => reject(verifyRequest.error);
+      });
+      return { openCode, storedVersion };
+    }, scope);
+    expect(result).toEqual({
+      openCode: "LOCAL_SCHEMA_VERSION_UNSUPPORTED",
+      storedVersion: 2,
+    });
+  } finally {
+    if (context) await context.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
+test("tampered saved heads or projections fail closed for replay, retry and append", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "karma-pos-journal-integrity-"));
+  let context;
+  try {
+    context = await chromium.launchPersistentContext(profile, {
+      headless: true,
+    });
+    const page = await context.newPage();
+    await page.goto(origin, { waitUntil: "domcontentloaded" });
+
+    for (const corruptedStore of ["aggregateHeads", "orderProjections"]) {
+      const scope = {
+        branchId: `branch-${crypto.randomUUID()}`,
+        deviceId: `device-${crypto.randomUUID()}`,
+      };
+      await initializeJournal(page, scope);
+      const command = makeCommand(scope, {
+        commandId: `command-${crypto.randomUUID()}`,
+        actorId: "actor-original",
+        expectedRevision: 0,
+      });
+      await append(page, command);
+
+      await page.evaluate(async (storeName) => {
+        const journal = window.posJournal;
+        const databaseName = journal.database.name;
+        const aggregateKey = `${journal.scope.branchId}\u0000order-1`;
+        journal.close();
+        const request = indexedDB.open(databaseName, 1);
+        const database = await new Promise((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const transaction = database.transaction(storeName, "readwrite");
+        const store = transaction.objectStore(storeName);
+        const recordRequest = store.get(aggregateKey);
+        recordRequest.onsuccess = () => {
+          const record = recordRequest.result;
+          if (storeName === "aggregateHeads") record.revision = 9;
+          else
+            record.order.customer = {
+              name: "tampered",
+              phone: null,
+              address: null,
+            };
+          store.put(record);
+        };
+        await new Promise((resolve, reject) => {
+          transaction.oncomplete = resolve;
+          transaction.onabort = () => reject(transaction.error);
+          transaction.onerror = () => reject(transaction.error);
+        });
+        database.close();
+      }, corruptedStore);
+
+      await initializeJournal(page, scope);
+      const outcomes = await page.evaluate(async (candidate) => {
+        const outcome = async (action) => {
+          try {
+            await action();
+            return "unexpected-success";
+          } catch (error) {
+            return error.code;
+          }
+        };
+        return {
+          snapshot: await outcome(() => window.posJournal.readSnapshot()),
+          retry: await outcome(() =>
+            window.posJournal.appendSnapshot(candidate),
+          ),
+          append: await outcome(() =>
+            window.posJournal.appendSnapshot({
+              ...candidate,
+              commandId: `${candidate.commandId}-next`,
+              expectedRevision: 1,
+            }),
+          ),
+        };
+      }, command);
+      expect(outcomes).toEqual({
+        snapshot: "LOCAL_JOURNAL_INTEGRITY_ERROR",
+        retry: "LOCAL_JOURNAL_INTEGRITY_ERROR",
+        append: "LOCAL_JOURNAL_INTEGRITY_ERROR",
+      });
+
+      const persistedCommands = await page.evaluate(async () => {
+        const journal = window.posJournal;
+        const databaseName = journal.database.name;
+        journal.close();
+        const request = indexedDB.open(databaseName, 1);
+        const database = await new Promise((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const transaction = database.transaction("commands", "readonly");
+        const countRequest = transaction.objectStore("commands").count();
+        const count = await new Promise((resolve, reject) => {
+          countRequest.onsuccess = () => resolve(countRequest.result);
+          countRequest.onerror = () => reject(countRequest.error);
+        });
+        database.close();
+        return count;
+      });
+      expect(persistedCommands).toBe(1);
+    }
+  } finally {
+    if (context) await context.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
 test("two tabs serialize revisions and preserve the losing snapshot for review", async () => {
   const profile = await mkdtemp(join(tmpdir(), "karma-pos-journal-tabs-"));
   const scope = {
@@ -245,7 +523,7 @@ test("two tabs serialize revisions and preserve the losing snapshot for review",
   }
 });
 
-test("receipts, blocked states and safe diagnostics survive journal reload", async () => {
+test("a verified receipt clears an earlier block and safe diagnostics survive reload", async () => {
   const profile = await mkdtemp(join(tmpdir(), "karma-pos-journal-state-"));
   const scope = {
     branchId: `branch-${crypto.randomUUID()}`,
@@ -260,29 +538,23 @@ test("receipts, blocked states and safe diagnostics survive journal reload", asy
     await page.goto(origin, { waitUntil: "domcontentloaded" });
     await initializeJournal(page, scope);
     const acknowledged = makeCommand(scope, {
-      commandId: `ack-${crypto.randomUUID()}`,
+      commandId: `receipt-${crypto.randomUUID()}`,
       actorId: "actor-a",
       expectedRevision: 0,
     });
-    const blocked = makeCommand(scope, {
-      commandId: `blocked-${crypto.randomUUID()}`,
-      actorId: "actor-b",
-      expectedRevision: 1,
-    });
     await append(page, acknowledged);
-    await append(page, blocked);
     await page.evaluate(
-      async ({ commandId, blockedCommandId }) => {
+      async ({ commandId }) => {
         // This fixture verifies the local record format only; no remote request is made here.
+        await window.posJournal.recordSyncBlock({
+          commandId,
+          code: "NETWORK_UNAVAILABLE",
+          blockedAt: "2026-09-30T12:00:04Z",
+        });
         await window.posJournal.recordServerReceipt({
           commandId,
           serverReceivedAt: "2026-09-30T12:00:05Z",
           outcome: "inserted",
-        });
-        await window.posJournal.recordSyncBlock({
-          commandId: blockedCommandId,
-          code: "42501",
-          blockedAt: "2026-09-30T12:00:06Z",
         });
         await window.posJournal.recordDiagnostic({
           diagnosticId: "safe-diagnostic-1",
@@ -291,20 +563,16 @@ test("receipts, blocked states and safe diagnostics survive journal reload", asy
           recordedAt: "2026-09-30T12:00:07Z",
         });
       },
-      {
-        commandId: acknowledged.commandId,
-        blockedCommandId: blocked.commandId,
-      },
+      { commandId: acknowledged.commandId },
     );
     await page.evaluate(() => window.posJournal.close());
     await initializeJournal(page, scope);
     const snapshot = await read(page);
     expect(snapshot.queue.map((entry) => entry.state)).toEqual([
       "acknowledged",
-      "blocked",
     ]);
     expect(snapshot.receipts).toHaveLength(1);
-    expect(snapshot.blocks[0].code).toBe("42501");
+    expect(snapshot.blocks).toHaveLength(0);
     expect(snapshot.diagnostics[0].code).toBe("NETWORK_UNAVAILABLE");
     await page.evaluate(() => window.posJournal.close());
   } finally {
