@@ -53,7 +53,7 @@
     {
       "name": "reports",
       "issues": ["EVL-130", "EVL-127"],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-reports/karma"
     },
     {
       "name": "customers",
@@ -202,8 +202,8 @@
     {
       "id": "EVL-126",
       "chain": "foundation",
-      "branch": "codex/foundation/evl-126-operations",
-      "baseBranch": "codex/foundation/evl-126-compat",
+      "branch": "codex/foundation/evl-126-operations-journal",
+      "baseBranch": "codex/foundation/evl-126-operations",
       "requires": ["EVL-118"],
       "stage": "implementing",
       "agent": "foundation_xhigh",
@@ -217,20 +217,24 @@
         "4a8959c",
         "ae11b00",
         "fc9d954",
-        "14adcf5"
+        "14adcf5",
+        "413928e",
+        "49390d0",
+        "7375d91"
       ],
-      "pr": "https://github.com/the-evillevi/karma/pull/25",
+      "pr": "https://github.com/the-evillevi/karma/pull/28",
       "checks": [
         "Root7/7 Chromium journal proof and0medium+ journal scan; combinedformat/lint/types/domain86/86 and7/7 Chromium passed",
         "CI repaired missing deterministic access fixture and added Edge/journal lanes; rerun pending",
         "GitHub quality rerun PASSED after deterministic fixture repair;118run36740648986,126run36740649771 including Edge/journal lanes",
-        "Root5 adapter domain and27 sharedUI plus2 strengthenedactualrich/legacycheckoutcases;0medium+newsource;GitHubquality36753787540passed"
+        "Root5 adapter domain and27 sharedUI plus2 strengthenedactualrich/legacycheckoutcases;0medium+newsource;GitHubquality36753787540passed",
+        "Root19operationalcases/types/lint/Snyk0medium+; fullcombined132domain116components10Edge7journal1PWApassed."
       ],
-      "review": "compatible_view_fixed_and_rereviewed_operations_in_progress",
+      "review": "operations_fixed_and_rereviewed_storage_in_progress",
       "blockers": [
         "Forward versioned server write/read contract and operational integration remain pending; applied114/118 immutable."
       ],
-      "nextAction": "Luna xhigh implements typed atomic operational contracts/pure replay; noUIwiring untilcompletebusinessfamilies/server/localtransactions reviewed. Replay preserves committedhistory withoutcurrentrolechecks; newappend/uploadreauthorize.",
+      "nextAction": "Luna xhigh atomic operational IDB journal from49390d0; fullclosure/head/projection validation and actualChromium proof. NoSQL/UI/remoteack yet.",
       "artifactsReady": true
     },
     {
@@ -617,9 +621,11 @@
       "requires": ["EVL-128", "EVL-122"],
       "stage": "implementing",
       "agent": "orders_xhigh",
-      "commits": [],
+      "commits": ["0da84f3"],
       "pr": null,
-      "checks": [],
+      "checks": [
+        "Luna6recipefocused104domainbuildpass; configurationUIinprogressrootreviewpending."
+      ],
       "review": "pending",
       "blockers": [],
       "nextAction": "Luna xhigh explicitID/version recipecatalog+preview/planner. No fixtureautoverification; atomicpreparationconsumption126gate."
@@ -657,17 +663,23 @@
     {
       "id": "EVL-130",
       "chain": "reports",
-      "branch": "codex/reports/evl-130",
-      "baseBranch": "main",
+      "branch": "codex/reports/evl-130-periods",
+      "baseBranch": "codex/reports/evl-130",
       "requires": ["EVL-125", "EVL-135", "EVL-153"],
-      "stage": "queued",
+      "stage": "implementing",
       "agent": null,
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "commits": ["b39c1a7", "3ecb8be"],
+      "pr": "https://github.com/the-evillevi/karma/pull/29",
+      "checks": [
+        "Root3domain29screensactualChromiumCSVdownload+independentCSVparser; finalCSV0medium+/PosApp4unchangedbaseline",
+        "Combined135domain118components10Edge7journal1PWA/fullbuildchecksPASS"
+      ],
+      "review": "export_fixed_and_rereviewed_periods_pending",
+      "blockers": [
+        "Real/customperiod selection and financialreconciliation, authenticatedserverreceipts and nativeExcelacceptance remain open."
+      ],
+      "nextAction": "Rootownsreportperiodsbranch; actualCSVslicedraftPR29published. Implementrealtimestamps/timezone/ranges, neverinvent legacydates.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-127",
@@ -893,14 +905,14 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "7558eaf",
+    "integration": "0a453e3",
     "mainMerged": false,
-    "nextIssue": "EVL-126 complete operational replay and EVL-129 recipes",
+    "nextIssue": "126atomicjournal;129recipeconfiguration;130realperiods",
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "resumed_after_user_reset",
     "usage": {
-      "primaryUsedPercent": 39,
-      "weeklyUsedPercent": 6,
+      "primaryUsedPercent": 53,
+      "weeklyUsedPercent": 8,
       "ordinaryUsageAllowed": true,
       "resetCreditsRemaining": 3
     },
