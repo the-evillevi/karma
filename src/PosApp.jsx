@@ -1,4 +1,5 @@
 import React from 'react';
+import { createSalesCsv } from './reports/sales-export.ts';
 import { css } from './css.js';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1120,7 +1121,7 @@ export default class PosApp extends React.Component {
       }
       const ml = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' };
       const sale = {
-        folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: ck.originalActorName, createdTime: ck.createdTime, actorId: ck.originalActorId, cobro: ck.actorName, paidByActorId: ck.actorId, paidByActorName: ck.actorName,
+        folio, occurredAt: new Date().toISOString(), day: 0, fecha: 'Hoy · ' + this.now(), creo: ck.originalActorName, createdTime: ck.createdTime, actorId: ck.originalActorId, cobro: ck.actorName, paidByActorId: ck.actorId, paidByActorName: ck.actorName,
         tipo: ck.type, items: ck.lines.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: centsToMoney(l.unitPriceCents * l.qty) })),
         lineSnapshots: ck.lines.map(l => ({
           lineId: l.lineId, productId: l.productId, name: l.name, qty: l.qty, unitPriceCents: l.unitPriceCents,
@@ -1181,6 +1182,34 @@ export default class PosApp extends React.Component {
         sales: this.state.sales.map(x => x.sync === 'pendiente' ? { ...x, sync: 'sincronizada' } : x)
       }, () => this.toast('Sincronización completa — ' + 0 + ' operaciones pendientes'));
     }, 1600);
+  }
+  exportSales() {
+    if (!this.requireAction('viewReports')) return;
+    const current = this.state;
+    const limit = current.range === 'hoy' ? 0 : current.range === '7d' ? 6 : 30;
+    const selected = current.sales.filter(sale => (sale.day || 0) <= limit);
+    const actor = this.user();
+    const context = this.isSecureMode() ? this.accessContext() : null;
+    try {
+      const at = new Date().toISOString();
+      const report = createSalesCsv(selected, {
+        snapshotId: `sales-export:${at}`, capturedAt: at,
+        branchId: context?.branchId || 'demo-local', deviceId: context?.deviceId || 'demo-register', actorId: actor.id,
+        timeZone: this.props.branchTimeZone || 'America/Mexico_City',
+        selectionLabel: `Vista local ${current.range}; selección por días relativos del prototipo`,
+      });
+      const blob = new Blob([report.csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement('a');
+        anchor.href = url; anchor.download = `karma-ventas-${at.slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+        anchor.click();
+      } catch (error) { URL.revokeObjectURL(url); throw error; }
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.toast(`Archivo CSV generado con ${report.saleCount} registros de venta.${report.unknownDateCount ? ` ${report.unknownDateCount} sin fecha real; revisa esa evidencia antes de usarla en un corte.` : ''}`);
+    } catch {
+      this.toast('No se pudo generar el archivo. Revisa los importes, fechas y pagos guardados antes de exportar.', 'warn');
+    }
   }
   requestReprint(folio, kind) {
     if (!this.can('reprintWithReason')) { this.notAllowed('solicitar una reimpresión'); return; }
@@ -1763,7 +1792,7 @@ export default class PosApp extends React.Component {
 
     // ---- module flags
     V.mPos = s.module === 'pos'; V.mOrders = s.module === 'ordenes'; V.mMenu = s.module === 'menu';
-    V.mInv = s.module === 'inventario'; V.mCustomers = s.module === 'clientes' && this.can('viewCustomerAccounts'); V.mRep = s.module === 'reportes'; V.mCfg = s.module === 'config';
+    V.mInv = s.module === 'inventario'; V.mCustomers = s.module === 'clientes' && this.can('viewCustomerAccounts'); V.mRep = s.module === 'reportes' && this.can('viewReports'); V.mCfg = s.module === 'config';
     V.mCheckout = s.module === 'checkout' && !!s.ck;
 
     // ---- POS catalog
@@ -2336,9 +2365,9 @@ export default class PosApp extends React.Component {
       } catch { return stTags[sale.status][0] + ' · devoluciones por revisar'; }
     };
     V.repSales = rs.map(x => ({ folio: x.folio, fecha: x.fecha, tipo: x.tipo, user: x.cobro, total: this.fmt(x.total), statusLabel: compensationLabel(x), statusVariant: stTags[x.status][1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronizada', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) }));
-    V.exportar = () => this.toast('ventas_abboth_' + s.range + '.xlsx exportado (simulado)');
+    V.exportar = () => this.exportSales();
     const sel = s.sales.find(x => x.folio === s.repSel);
-    V.hasRepSel = !!sel;
+    V.hasRepSel = !!sel && this.can('viewReports');
     if (sel) {
       V.dFolio = sel.folio; V.dStatusLabel = compensationLabel(sel); V.dStatusVariant = stTags[sel.status][1];
       V.dMeta = sel.fecha + ' · ' + sel.tipo + ' — creó ' + sel.creo + ' · cobró ' + sel.cobro + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'sincronizada');
@@ -2979,7 +3008,7 @@ export default class PosApp extends React.Component {
 <div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
 {(V.ranges).map((r, rI) => (<Button key={rI} type="button" size="sm" variant={r.active ? 'default' : 'outline'} aria-pressed={r.active} onClick={r.pick}>{r.label}</Button>))}
 </div>
-<Button type="button" variant="outline" className="ml-auto" onClick={V.exportar}>Exportar a Excel</Button>
+<Button type="button" variant="outline" className="ml-auto" onClick={V.exportar}>Exportar CSV para Excel</Button>
 </div>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px")}>
 <Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Ventas</div><div style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;margin-top:8px")}>{V.repVentas}</div></Card>
