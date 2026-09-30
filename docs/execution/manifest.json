@@ -105,7 +105,7 @@
         "EVL-124",
         "EVL-133"
       ],
-      "worktree": null
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-hardware/karma"
     },
     {
       "name": "pilot",
@@ -222,14 +222,24 @@
       "branch": "codex/design/evl-154",
       "baseBranch": "main",
       "requires": [],
-      "stage": "implementing",
-      "agent": "implement_design",
-      "commits": [],
-      "pr": null,
-      "checks": [],
-      "review": "pending",
-      "blockers": [],
-      "nextAction": "Agent implements bounded first issue; coordinator review follows."
+      "stage": "awaiting_input",
+      "agent": null,
+      "commits": [
+        "fed6ab5",
+        "38b721d",
+        "8f8edd0"
+      ],
+      "pr": "https://github.com/the-evillevi/karma/pull/1",
+      "checks": [
+        "Source/token/contrast review",
+        "git diff --check"
+      ],
+      "review": "passed_after_fixes",
+      "blockers": [
+        "Team acceptance and merge pending; Carlos flow validation is EVL-115."
+      ],
+      "nextAction": "After EVL-116, implement EVL-156 using the provisional reviewed reference.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-156",
@@ -668,14 +678,14 @@
       "branch": "codex/hardware/evl-117",
       "baseBranch": "main",
       "requires": [],
-      "stage": "queued",
-      "agent": null,
+      "stage": "implementing",
+      "agent": "implement_design",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
       "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "nextAction": "Hardware feasibility documentation and verification harness; physical validation gated."
     },
     {
       "id": "EVL-124",
