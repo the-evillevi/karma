@@ -723,9 +723,12 @@ test.describe("EVL-126 server order operations v1", () => {
       append(owner.client, session, second),
     ]);
     expect(results.filter((result) => !result.error)).toHaveLength(1);
-    expect(
-      results.filter((result) => result.error?.code === "40001"),
-    ).toHaveLength(1);
+    const conflicts = results.filter(
+      (result) => result.error?.code === "PT409",
+    );
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]?.status).toBe(409);
+    expect(conflicts[0]?.error?.message).toBe("OPERATION_REVISION_CONFLICT");
     const persisted = await findVisibleOrder(owner.client, session, orderId);
     expect(persisted?.revision).toBe(2);
     expect(["TABLE-A", "TABLE-B"]).toContain(persisted?.tableId);

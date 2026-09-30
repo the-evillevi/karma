@@ -107,6 +107,8 @@ declare
   v_result record;
   v_retry record;
   v_read record;
+  v_stale jsonb;
+  v_stale_rejected boolean := false;
   v_received_at timestamptz;
   v_server_sequence bigint;
   v_orders jsonb;
@@ -249,11 +251,42 @@ begin
     raise exception 'Sanitized cash read did not return the expected current view';
   end if;
 
-  raise notice 'EVL-126 PostgreSQL order, retry, exact keys, timestamps, and read checks passed';
+  v_stale := pg_catalog.jsonb_set(
+    v_command, '{commandId}', to_jsonb('smoke-stale-details'::text), false
+  );
+  v_stale := pg_catalog.jsonb_set(
+    v_stale, '{payload,tableId}', to_jsonb('TABLE-STALE'::text), false
+  );
+  begin
+    perform * from public.append_pos_operation_v1(
+      v_stale, '22222222-2222-4222-8222-222222222222', 'lease-smoke'
+    );
+    raise exception 'Stale order revision was accepted' using errcode = 'P0002';
+  exception when sqlstate 'PT409' then
+    v_stale_rejected := true;
+  end;
+  if not v_stale_rejected then
+    raise exception 'Stale order revision did not return PT409';
+  end if;
+
+  raise notice 'EVL-126 PostgreSQL order, retry, PT409 conflict, exact keys, timestamps, and read checks passed';
 end;
 $$;
 
 reset role;
+
+do $$
+begin
+  if (select last_sequence from pos_private.pos_operation_branch_sequences where branch_id = 'evl126-smoke') <> 2
+    or (select revision from pos_private.pos_operation_aggregate_heads where branch_id = 'evl126-smoke' and aggregate_id = 'smoke-order') <> 2
+    or (select last_sequence from pos_private.pos_operation_aggregate_heads where branch_id = 'evl126-smoke' and aggregate_id = 'smoke-order') <> 2
+    or (select projection ->> 'tableId' from pos_private.pos_operation_projections where branch_id = 'evl126-smoke' and aggregate_id = 'smoke-order') is distinct from 'TABLE-1'
+    or exists (select 1 from pos_private.pos_operation_commands where command_id = 'smoke-stale-details')
+    or exists (select 1 from pos_private.pos_operation_aggregate_events where command_id = 'smoke-stale-details') then
+    raise exception 'PT409 stale revision changed sequence, head, command, event, or projection state';
+  end if;
+end;
+$$;
 
 create temp table smoke_before as
 select
