@@ -210,6 +210,40 @@ test("prevents a second sale charge or reusing a received payment across debt an
   );
 });
 
+test("allows a manager to archive only a zero-balance account without changing its history", () => {
+  let state = registered();
+  state = append(state, "credit.limit", { limitCents: 1000 });
+  state = append(state, "debt.charge", movement(1000, "sale-before-archive"));
+  const manager = { actorId: "manager-1", role: "encargado" };
+  const archiveCommand = (revision) =>
+    command("profile.archive", {}, revision, {
+      commandId: "manager-archive-customer",
+      actorId: manager.actorId,
+      actorName: "Encargado",
+      roleSnapshot: manager.role,
+    });
+  assert.throws(
+    () => planCustomerCommand(state, archiveCommand(3), manager),
+    /unsettled_balance/,
+  );
+
+  state = append(
+    state,
+    "debt.repayment",
+    manualPayment(1000, "receipt-before-archive"),
+  );
+  const priorEvents = structuredClone(state.events);
+  const archived = planCustomerCommand(
+    state,
+    archiveCommand(4),
+    manager,
+  ).ledger;
+  assert.equal(customerAccounts(archived)[0].archived, true);
+  assert.deepEqual(archived.events.slice(0, priorEvents.length), priorEvents);
+  assert.equal(archived.events.at(-1).actorId, manager.actorId);
+  assert.equal(archived.events.at(-1).kind, "profile.archive");
+});
+
 test("rejects corrupt/unsupported history, unsafe amounts, extra secrets and fractional centavos", () => {
   const state = registered();
   const broken = structuredClone(state);

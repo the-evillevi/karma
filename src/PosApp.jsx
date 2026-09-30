@@ -43,6 +43,15 @@ import {
   inventorySummary,
   validateInventoryState,
 } from './inventory/inventory-ledger.mjs';
+import {
+  createCustomerLedger,
+  customerAccounts,
+  customerAmountCents,
+  customerLimitCents,
+  customerStatement,
+  planCustomerCommand,
+  validateCustomerLedger,
+} from './customers/customer-ledger.mjs';
 
 
 const compensationMethodLabels = new Map([['cash', 'Efectivo'], ['card', 'Tarjeta'], ['transfer', 'Transferencia']]);
@@ -76,6 +85,29 @@ function inventoryOperatorError(error) {
     ['invalid_state', 'El registro local requiere revisión. No se aplicó el movimiento.'],
   ]);
   return messages.get(error?.code) || 'No se pudo guardar el movimiento. Revisa el inventario e intenta de nuevo.';
+}
+
+function customerOperatorError(error) {
+  const messages = new Map([
+    ['invalid_amount', 'Captura un importe MXN válido con hasta dos decimales.'],
+    ['invalid_text', 'Revisa el nombre, teléfono o referencia capturados.'],
+    ['invalid_record', 'Revisa los datos del movimiento antes de guardar.'],
+    ['invalid_timestamp', 'No se pudo registrar la hora del movimiento. Vuelve a intentarlo.'],
+    ['unsupported_action', 'Esta operación no está disponible en esta vista.'],
+    ['not_authorized', 'Tu rol o sesión actual no autoriza esta operación.'],
+    ['stale_revision', 'La cuenta cambió desde que abriste el formulario. Revísala y vuelve a intentarlo.'],
+    ['command_conflict', 'Esta referencia ya se usó con otros datos. Revisa el estado de cuenta antes de continuar.'],
+    ['unknown_customer', 'El perfil ya no está disponible. Actualiza la lista y vuelve a intentarlo.'],
+    ['credit_limit_exceeded', 'El cargo excedería el límite de crédito aprobado.'],
+    ['limit_below_debt', 'El límite no puede quedar por debajo de la deuda actual.'],
+    ['unsettled_balance', 'No se puede archivar un perfil con deuda o prepago disponible.'],
+    ['sale_already_linked', 'Esta venta ya está vinculada a la cuenta.'],
+    ['payment_already_linked', 'Esta referencia de pago ya aparece en otro movimiento.'],
+    ['invalid_reversal', 'No se encontró un movimiento válido para corregir.'],
+    ['excess_reversal', 'La corrección excede el importe original disponible.'],
+    ['invalid_history', 'El registro local de clientes requiere revisión. No se aplicaron cambios.'],
+  ]);
+  return messages.get(error?.code) || 'No se pudo guardar el cambio local de la cuenta. Revisa e intenta de nuevo.';
 }
 
 function textField(value, maxLength = 160) {
@@ -245,6 +277,12 @@ export default class PosApp extends React.Component {
       try { inventoryState = validateInventoryState(sv.inventoryState); }
       catch { inventoryError = 'El registro guardado de inventario no es válido. No se aplicaron saldos ni movimientos.'; }
     }
+    let customerLedger = null;
+    let customerLedgerError = '';
+    if (Object.prototype.hasOwnProperty.call(sv, 'customerLedger')) {
+      try { customerLedger = validateCustomerLedger(sv.customerLedger); }
+      catch { customerLedgerError = 'El registro guardado de clientes requiere revisión. No se aplicaron cambios.'; }
+    }
     this._folio = sv.folioSeq || 1051;
     const savedOrder = sv.order || this.blank();
     const restoredOrder = restoreStoredOrder(savedOrder);
@@ -267,6 +305,7 @@ export default class PosApp extends React.Component {
       usersX: this._secureStorage ? [] : sv.usersX || D.users.map(u => ({ ...u })),
       movs: D.movements.slice(),
       inventoryState, inventoryError,
+      customerLedger, customerLedgerError, customerSearch: '', customerSelectedId: null,
       ed: null, dlg: null, ck: null,
       cat: 'concafe', search: '',
       admCat: 'all', admSearch: '', admSel: null, admForm: null,
@@ -318,6 +357,10 @@ export default class PosApp extends React.Component {
               try { return { inventoryState: validateInventoryState(v.inventoryState), inventoryError: '' }; }
               catch { return { inventoryState: null, inventoryError: 'El registro guardado de inventario no es válido. No se aplicaron saldos ni movimientos.' }; }
             })() : {}),
+            ...(Object.prototype.hasOwnProperty.call(v, 'customerLedger') ? (() => {
+              try { return { customerLedger: validateCustomerLedger(v.customerLedger), customerLedgerError: '' }; }
+              catch { return { customerLedger: null, customerLedgerError: 'El registro guardado de clientes requiere revisión. No se aplicaron cambios.' }; }
+            })() : {}),
           });
         } catch (_) {}
       }
@@ -353,6 +396,7 @@ export default class PosApp extends React.Component {
       open: s.open, kitchenTickets: s.kitchenTickets,
       sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq,
       ...(s.inventoryState ? { inventoryState: s.inventoryState } : {}),
+      ...(s.customerLedger ? { customerLedger: s.customerLedger } : {}),
     };
   }
   writePersistedState(s = this.state, folioSeq = this._folio) {
@@ -362,7 +406,10 @@ export default class PosApp extends React.Component {
       const raw = localStorage.getItem(key);
       if (raw !== null) {
         const latest = JSON.parse(raw);
-        if (latest && typeof latest === 'object' && Object.prototype.hasOwnProperty.call(latest, 'inventoryState')) outgoing.inventoryState = latest.inventoryState;
+        if (latest && typeof latest === 'object') {
+          if (Object.prototype.hasOwnProperty.call(latest, 'inventoryState')) outgoing.inventoryState = latest.inventoryState;
+          if (Object.prototype.hasOwnProperty.call(latest, 'customerLedger')) outgoing.customerLedger = latest.customerLedger;
+        }
       }
       localStorage.setItem(key, JSON.stringify(outgoing));
       return true;
@@ -452,7 +499,7 @@ export default class PosApp extends React.Component {
       this.notAllowed(action);
       return false;
     }
-    const reasonRequired = ['cancelWithReason', 'refundSaleWithReason', 'cancelPreparationWithReason', 'discountWithReason', 'reprintWithReason', 'editMenu', 'adjustInventory'].includes(resolveAccessAction(action));
+    const reasonRequired = ['cancelWithReason', 'refundSaleWithReason', 'cancelPreparationWithReason', 'discountWithReason', 'reprintWithReason', 'editMenu', 'adjustInventory', 'manageCustomerProfiles', 'setCustomerCreditLimit', 'recordCustomerAccountPayment'].includes(resolveAccessAction(action));
     if (this.isSecureMode() && reasonRequired && reason !== undefined) {
       if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 250) {
         this.toast('Captura un motivo de entre 1 y 250 caracteres.', 'warn');
@@ -477,14 +524,14 @@ export default class PosApp extends React.Component {
   navAllowed(m) {
     if (this.isSecureMode()) {
       if (m === 'config') return this.can('manageUsers') || this.can('configureTables');
-      const action = ({ pos: 'openOrder', ordenes: 'openOrder', menu: 'editMenu', inventario: 'viewStock', reportes: 'viewReports', config: 'manageUsers' })[m];
+      const action = ({ pos: 'openOrder', ordenes: 'openOrder', menu: 'editMenu', inventario: 'viewStock', reportes: 'viewReports', clientes: 'viewCustomerAccounts', config: 'manageUsers' })[m];
       return Boolean(action && this.can(action));
     }
     const r = this.role();
     const L = {
       pos: ['dueno', 'encargado', 'cajero'], ordenes: ['dueno', 'encargado', 'cajero', 'cocina'],
       menu: ['dueno', 'encargado'], inventario: ['dueno', 'encargado', 'cajero'],
-      reportes: ['dueno', 'encargado'], config: ['dueno', 'encargado']
+      reportes: ['dueno', 'encargado'], clientes: ['dueno', 'encargado'], config: ['dueno', 'encargado']
     };
     return (L[m] || []).includes(r);
   }
@@ -1315,6 +1362,141 @@ export default class PosApp extends React.Component {
   }
   retryInventoryInitialization() { this.setState({ inventoryError: '' }, () => this.initializeInventoryState()); }
   inventoryField(fields, key) { return fields.find(field => field.key === key); }
+  customerCommandId() {
+    return globalThis.crypto?.randomUUID ? `customer:${globalThis.crypto.randomUUID()}` : `customer:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  }
+  customerRecordId() {
+    return globalThis.crypto?.randomUUID ? `customer-profile:${globalThis.crypto.randomUUID()}` : `customer-profile:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  }
+  ensureCustomerLedger() {
+    if (this._customerLedgerInitializing) return;
+    this._customerLedgerInitializing = true;
+    try {
+      const key = this._storageKey || 'karma-pos-v1';
+      const raw = localStorage.getItem(key);
+      const persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) throw new Error('saved POS state must be a record');
+      let customerLedger;
+      if (Object.prototype.hasOwnProperty.call(persisted, 'customerLedger')) {
+        customerLedger = validateCustomerLedger(persisted.customerLedger);
+      } else if (this.state.customerLedger) {
+        throw new Error('saved customer ledger is missing');
+      } else {
+        customerLedger = createCustomerLedger();
+      }
+      const operational = this.latestOperationalState(persisted);
+      if (!Object.prototype.hasOwnProperty.call(persisted, 'customerLedger')) {
+        try { localStorage.setItem(key, JSON.stringify({ ...persisted, customerLedger })); }
+        catch { throw new Error('local customer ledger could not be initialized'); }
+      }
+      if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
+      this.setState({ ...operational, customerLedger, customerLedgerError: '' });
+    } catch {
+      this.setState({ customerLedger: null, customerLedgerError: 'No se pudo cargar el registro local de clientes. Reintenta; los datos dañados no se reemplazan automáticamente.' });
+    } finally {
+      this._customerLedgerInitializing = false;
+    }
+  }
+  retryCustomerLedger() { this.setState({ customerLedgerError: '' }, () => this.ensureCustomerLedger()); }
+  customerPermissionFor(kind) {
+    if (['profile.create', 'profile.update', 'profile.archive'].includes(kind)) return 'manageCustomerProfiles';
+    if (kind === 'credit.limit') return 'setCustomerCreditLimit';
+    if (['debt.repayment', 'prepaid.deposit'].includes(kind)) return 'recordCustomerAccountPayment';
+    return null;
+  }
+  openCustomerCommand(kind, customerId = null) {
+    const permission = this.customerPermissionFor(kind);
+    if (!permission || !this.requireAction(permission)) return;
+    const ledger = this.state.customerLedger;
+    if (!ledger) { this.toast('El registro de clientes no está disponible.', 'warn'); return; }
+    const account = customerId ? customerAccounts(ledger).find(candidate => candidate.customerId === customerId) : null;
+    if (customerId && (!account || account.archived)) { this.toast('El perfil ya no está disponible para cambios.', 'warn'); return; }
+    const editing = kind === 'profile.update';
+    const fields = kind === 'profile.create' || editing ? [
+      { key: 'name', label: 'Nombre para mostrar', value: editing ? account.name : '', maxLength: 120 },
+      { key: 'phone', label: 'Teléfono (opcional)', value: editing ? account.phone || '' : '', maxLength: 40 },
+    ] : kind === 'credit.limit' ? [
+      { key: 'amount', label: 'Límite aprobado (MXN)', value: (account.creditLimitCents / 100).toFixed(2), maxLength: 32, ph: '0.00' },
+    ] : ['debt.repayment', 'prepaid.deposit'].includes(kind) ? [
+      { key: 'amount', label: 'Importe recibido (MXN)', value: '', maxLength: 32, ph: '0.00' },
+      { key: 'paymentId', label: 'Referencia del pago', value: '', maxLength: 120 },
+      { key: 'paymentMethod', type: 'select', label: 'Forma recibida', value: 'cash', options: [
+        { value: 'cash', label: 'Efectivo' }, { value: 'card', label: 'Tarjeta' }, { value: 'transfer', label: 'Transferencia' },
+      ] },
+    ] : [];
+    const titles = {
+      'profile.create': 'Nuevo perfil de cliente', 'profile.update': 'Editar perfil de cliente', 'profile.archive': 'Archivar perfil de cliente',
+      'credit.limit': 'Aprobar límite de crédito', 'debt.repayment': 'Registrar pago de deuda', 'prepaid.deposit': 'Registrar saldo prepago recibido',
+    };
+    const bodies = {
+      'profile.create': 'Guarda solo nombre para mostrar y teléfono opcional. El perfil y el motivo se conservarán en el registro local.',
+      'profile.update': 'El cambio de nombre o teléfono se añadirá al historial sin reescribir movimientos anteriores.',
+      'profile.archive': `El perfil y el historial se conservarán. Solo se puede archivar con deuda y saldo prepago en cero. ${account?.name || ''}`,
+      'credit.limit': `El límite inicial es cero. Solo la Dueña puede aprobarlo y no puede quedar por debajo de la deuda actual (${this.fmt((account?.debtCents || 0) / 100)}).`,
+      'debt.repayment': 'Registra un importe que confirmas haber recibido para reducir la deuda. El sistema conserva el medio y referencia; no verifica pagos externos ni confirma liquidación bancaria.',
+      'prepaid.deposit': 'Registra un importe que confirmas haber recibido para agregar saldo prepago. El sistema conserva el medio y referencia; no verifica pagos externos ni confirma liquidación bancaria.',
+    };
+    this.setState({ dlg: {
+      title: titles[kind], body: bodies[kind], needReason: true, danger: kind === 'profile.archive',
+      confirmLabel: kind === 'profile.create' ? 'Crear perfil' : kind === 'profile.update' ? 'Guardar cambios' : kind === 'profile.archive' ? 'Archivar perfil' : kind === 'credit.limit' ? 'Guardar límite' : 'Registrar pago',
+      commandId: this.customerCommandId(), commandOccurredAt: new Date().toISOString(),
+      customerCommandKind: kind, customerId: account?.customerId || this.customerRecordId(),
+      expectedCustomerRevision: account?.revision || 0,
+      fields,
+      onConfirm: dialog => this.confirmCustomerCommand(dialog),
+    } });
+  }
+  confirmCustomerCommand(dialog) {
+    const reason = typeof dialog.reason === 'string' ? dialog.reason.trim() : '';
+    if (!reason || reason.length > 250) { this.toast('Captura un motivo de entre 1 y 250 caracteres.', 'warn'); return 'keep'; }
+    const kind = dialog.customerCommandKind;
+    const permission = this.customerPermissionFor(kind);
+    if (!permission || !this.requireAction(permission, reason)) return 'keep';
+    const actor = this.user();
+    const role = actor && (this.isSecureMode() ? actor.role : seededRoleToAccessRole(actor.role));
+    if (!actor || !role) { this.toast('La sesión actual no permite registrar cambios de clientes.', 'warn'); return 'keep'; }
+    try {
+      const key = this._storageKey || 'karma-pos-v1';
+      const raw = localStorage.getItem(key);
+      const persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted) || !Object.prototype.hasOwnProperty.call(persisted, 'customerLedger')) throw new Error('customer ledger missing');
+      const ledger = validateCustomerLedger(persisted.customerLedger);
+      const operational = this.latestOperationalState(persisted);
+      const value = field => this.inventoryField(dialog.fields || [], field)?.value;
+      let payload;
+      if (kind === 'profile.create' || kind === 'profile.update') {
+        payload = { name: typeof value('name') === 'string' ? value('name').trim() : '', phone: typeof value('phone') === 'string' && value('phone').trim() ? value('phone').trim() : null };
+      } else if (kind === 'profile.archive') payload = {};
+      else if (kind === 'credit.limit') payload = { limitCents: customerLimitCents(value('amount')) };
+      else if (kind === 'debt.repayment' || kind === 'prepaid.deposit') {
+        payload = {
+          amountCents: customerAmountCents(value('amount')),
+          saleId: null,
+          paymentId: typeof value('paymentId') === 'string' ? value('paymentId').trim() : '',
+          paymentMethod: value('paymentMethod'),
+          receiptStatus: 'operator_reported_unverified',
+        };
+      } else { this.toast('Esta operación requiere un flujo de cobro atómico que aún no está habilitado.', 'warn'); return 'keep'; }
+      const command = {
+        commandId: dialog.commandId, customerId: dialog.customerId, kind,
+        expectedRevision: dialog.expectedCustomerRevision,
+        actorId: actor.id, actorName: actor.name, roleSnapshot: role,
+        occurredAt: dialog.commandOccurredAt || new Date().toISOString(), reason, payload,
+      };
+      const result = planCustomerCommand(ledger, command, { actorId: actor.id, role });
+      if (result.changed) {
+        try { localStorage.setItem(key, JSON.stringify({ ...persisted, customerLedger: result.ledger })); }
+        catch { this.toast('No se pudo guardar el cambio. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+      }
+      if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
+      this.setState({ ...operational, customerLedger: result.ledger, customerLedgerError: '', customerSelectedId: dialog.customerId });
+      this.toast(result.duplicate ? 'Este movimiento ya estaba registrado; no se duplicó.' : 'Cambio guardado en el historial local.');
+      return undefined;
+    } catch (error) {
+      this.toast(customerOperatorError(error), 'warn');
+      return 'keep';
+    }
+  }
   openInventoryDialog(kind, itemId = null) {
     if (!this.requireAction('adjustInventory')) return;
     const state = this.state.inventoryState;
@@ -1442,12 +1624,12 @@ export default class PosApp extends React.Component {
       else this.up({ session: null, pin: '', pinErr: '' });
     };
     V.goPos = () => this.navAllowed('pos') ? this.up({ module: 'pos', ck: null }) : this.notAllowed('usar la estación de venta');
-    const mods = [['pos', 'Punto de venta'], ['ordenes', 'Órdenes abiertas'], ['menu', 'Menú'], ['inventario', 'Inventario'], ['reportes', 'Reportes'], ['config', 'Usuarios y configuración']];
+    const mods = [['pos', 'Punto de venta'], ['ordenes', 'Órdenes abiertas'], ['menu', 'Menú'], ['inventario', 'Inventario'], ['clientes', 'Clientes y cuentas'], ['reportes', 'Reportes'], ['config', 'Usuarios y configuración']];
     V.navItems = mods.map(([id, label]) => {
       const active = s.module === id; const allowed = this.navAllowed(id);
       return {
         label, active, allowed, hasBadge: id === 'ordenes' && s.open.length > 0, badge: s.open.length,
-        go: () => this.navAllowed(id) ? this.up({ module: id, ck: null, repSel: null }) : this.notAllowed('abrir «' + label + '»')
+        go: () => this.navAllowed(id) ? this.up({ module: id, ck: null, repSel: null }, id === 'clientes' ? () => this.ensureCustomerLedger() : undefined) : this.notAllowed('abrir «' + label + '»')
       };
     });
     V.online = s.online; V.offline = !s.online && !!me && !s.loading;
@@ -1469,7 +1651,7 @@ export default class PosApp extends React.Component {
 
     // ---- module flags
     V.mPos = s.module === 'pos'; V.mOrders = s.module === 'ordenes'; V.mMenu = s.module === 'menu';
-    V.mInv = s.module === 'inventario'; V.mRep = s.module === 'reportes'; V.mCfg = s.module === 'config';
+    V.mInv = s.module === 'inventario'; V.mCustomers = s.module === 'clientes' && this.can('viewCustomerAccounts'); V.mRep = s.module === 'reportes'; V.mCfg = s.module === 'config';
     V.mCheckout = s.module === 'checkout' && !!s.ck;
 
     // ---- POS catalog
@@ -1902,6 +2084,78 @@ export default class PosApp extends React.Component {
     V.regMerma = () => this.openInventoryDialog('waste');
     V.regAjuste = () => this.openInventoryDialog('adjustment');
 
+    // ---- customer accounts
+    let customerRows = [];
+    let customerReadError = '';
+    if (s.customerLedger) {
+      try { customerRows = customerAccounts(s.customerLedger); }
+      catch { customerReadError = 'El registro local de clientes requiere revisión. No se muestran saldos.'; }
+    }
+    V.customerReady = !!s.customerLedger && !customerReadError;
+    V.customerError = s.customerLedgerError || customerReadError;
+    V.retryCustomers = () => this.retryCustomerLedger();
+    V.customerCanManage = this.can('manageCustomerProfiles') && V.customerReady;
+    V.customerCanSetLimit = this.can('setCustomerCreditLimit') && V.customerReady;
+    V.customerCanRecordPayment = this.can('recordCustomerAccountPayment') && V.customerReady;
+    V.customerSearch = s.customerSearch;
+    V.setCustomerSearch = event => this.setState({ customerSearch: event.target.value });
+    V.newCustomer = () => this.openCustomerCommand('profile.create');
+    const filteredCustomers = customerRows
+      .filter(customer => !s.customerSearch || customer.name.toLocaleLowerCase('es-MX').includes(s.customerSearch.toLocaleLowerCase('es-MX')) || (customer.phone || '').includes(s.customerSearch))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es-MX'));
+    V.customersEmpty = filteredCustomers.length === 0;
+    V.customers = filteredCustomers.map(customer => ({
+      id: customer.customerId, name: customer.name, phone: customer.phone || '—', archived: customer.archived,
+      debt: this.fmt(customer.debtCents / 100), limit: this.fmt(customer.creditLimitCents / 100), prepaid: this.fmt(customer.prepaidCents / 100),
+      selected: customer.customerId === s.customerSelectedId,
+      view: () => this.setState({ customerSelectedId: customer.customerId }),
+      edit: () => this.openCustomerCommand('profile.update', customer.customerId),
+      limitAction: () => this.openCustomerCommand('credit.limit', customer.customerId),
+      repayment: () => this.openCustomerCommand('debt.repayment', customer.customerId),
+      deposit: () => this.openCustomerCommand('prepaid.deposit', customer.customerId),
+      archive: () => this.openCustomerCommand('profile.archive', customer.customerId),
+    }));
+    const selectedCustomer = customerRows.find(customer => customer.customerId === s.customerSelectedId);
+    V.selectedCustomer = selectedCustomer ? {
+      ...selectedCustomer,
+      debt: this.fmt(selectedCustomer.debtCents / 100),
+      limit: this.fmt(selectedCustomer.creditLimitCents / 100),
+      prepaid: this.fmt(selectedCustomer.prepaidCents / 100),
+      close: () => this.setState({ customerSelectedId: null }),
+    } : null;
+    V.customerEvents = [];
+    if (selectedCustomer && V.customerReady) {
+      const events = customerStatement(s.customerLedger, selectedCustomer.customerId);
+      const byId = new Map(events.map(event => [event.commandId, event]));
+      let debtCents = 0, prepaidCents = 0, creditLimitCents = 0;
+      V.customerEvents = events.map(event => {
+        let debtDelta = 0, prepaidDelta = 0, movement = event.kind, change = '—', reference = '—';
+        if (event.kind === 'debt.charge') { debtDelta = event.payload.amountCents; movement = 'Cargo a cuenta · pendiente del flujo atómico'; change = '+ ' + this.fmt(debtDelta / 100) + ' deuda'; }
+        else if (event.kind === 'debt.repayment') { debtDelta = -event.payload.amountCents; movement = 'Pago de deuda registrado'; change = '− ' + this.fmt(event.payload.amountCents / 100) + ' deuda'; reference = `${({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' })[event.payload.paymentMethod]} · ${event.payload.paymentId} · externo sin verificar`; }
+        else if (event.kind === 'prepaid.deposit') { prepaidDelta = event.payload.amountCents; movement = 'Saldo prepago recibido'; change = '+ ' + this.fmt(prepaidDelta / 100) + ' prepago'; reference = `${({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' })[event.payload.paymentMethod]} · ${event.payload.paymentId} · externo sin verificar`; }
+        else if (event.kind === 'prepaid.apply') { prepaidDelta = -event.payload.amountCents; movement = 'Aplicación prepago · pendiente del flujo atómico'; change = '− ' + this.fmt(event.payload.amountCents / 100) + ' prepago'; }
+        else if (event.kind === 'credit.limit') { creditLimitCents = event.payload.limitCents; movement = 'Límite de crédito actualizado'; change = this.fmt(creditLimitCents / 100) + ' máximo'; }
+        else if (event.kind === 'profile.create') movement = 'Perfil creado';
+        else if (event.kind === 'profile.update') movement = 'Perfil actualizado';
+        else if (event.kind === 'profile.archive') movement = 'Perfil archivado';
+        else if (event.kind === 'balance.reverse') {
+          const original = byId.get(event.payload.reversesCommandId);
+          movement = 'Corrección de movimiento';
+          reference = `Revierte ${event.payload.reversesCommandId}`;
+          if (original?.kind === 'debt.charge') { debtDelta = -event.payload.amountCents; change = '− ' + this.fmt(event.payload.amountCents / 100) + ' deuda'; }
+          else if (original?.kind === 'debt.repayment') { debtDelta = event.payload.amountCents; change = '+ ' + this.fmt(event.payload.amountCents / 100) + ' deuda'; }
+          else if (original?.kind === 'prepaid.deposit') { prepaidDelta = -event.payload.amountCents; change = '− ' + this.fmt(event.payload.amountCents / 100) + ' prepago'; }
+          else if (original?.kind === 'prepaid.apply') { prepaidDelta = event.payload.amountCents; change = '+ ' + this.fmt(event.payload.amountCents / 100) + ' prepago'; }
+        }
+        debtCents += debtDelta; prepaidCents += prepaidDelta;
+        return {
+          id: event.commandId, movement, change, debt: this.fmt(debtCents / 100), prepaid: this.fmt(prepaidCents / 100),
+          actor: event.actorName, date: new Date(event.occurredAt).toLocaleString('es-MX'), reference,
+          reason: event.reason, sync: 'Guardado local · sincronización pendiente',
+        };
+      });
+    }
+
     // ---- reports
     V.ranges = [['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['30d', 'Últimos 30 días']].map(([id, label]) => ({ label, active: s.range === id, pick: () => this.setState({ range: id }) }));
     const lim = s.range === 'hoy' ? 0 : s.range === '7d' ? 6 : 30;
@@ -2123,7 +2377,7 @@ export default class PosApp extends React.Component {
       V.dlgConfirmDisabled = !!dg.splitError || (!!dg.splitItems?.length && !dg.splitPreview);
       V.dlgFields = (dg.fields || []).map(f => ({
         key: f.key, type: f.type || 'input', label: f.label, value: f.value, options: f.options || [], ph: f.ph || '', maxLength: f.maxLength,
-        inputMode: f.key === 'monto' || f.key === 'quantityText' ? 'decimal' : undefined,
+        inputMode: f.key === 'monto' || f.key === 'quantityText' || f.key === 'amount' ? 'decimal' : undefined,
         set: eventOrValue => {
           const value = typeof eventOrValue === 'string' ? eventOrValue : eventOrValue.target.value;
           if (f.key === 'itemId' && this.state.dlg?.onInventoryItemChange) { this.state.dlg.onInventoryItemChange(value); return; }
@@ -2527,6 +2781,49 @@ export default class PosApp extends React.Component {
 </React.Fragment>))}
 </div>
 </>)}
+</div>
+</>)}
+
+{(V.mCustomers) && (<>
+<div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:16px")}>
+<div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
+<h1 style={css("font-size:19px;font-weight:500;margin:0")}>Clientes y cuentas</h1>
+<Button type="button" className="ml-auto" onClick={V.newCustomer} disabled={!V.customerCanManage}>+ Nuevo perfil</Button>
+</div>
+<p role="note" className="text-xs text-muted-foreground">Perfiles mínimos y saldos separados de ventas. Los cambios se guardan en esta estación y quedan pendientes de sincronización. Los pagos externos se registran manualmente; su liquidación no se verifica aquí.</p>
+{V.customerError && <Card role="alert" className="gap-2 border-destructive/40 p-3"><span>{V.customerError}</span><Button type="button" variant="outline" onClick={V.retryCustomers}>Reintentar carga</Button></Card>}
+{V.customerReady && <>
+<div style={css("display:flex;gap:10px;flex-wrap:wrap")}>
+<Label className="sr-only" htmlFor="customer-search">Buscar cliente</Label>
+<Input id="customer-search" value={V.customerSearch} onChange={V.setCustomerSearch} placeholder="Buscar por nombre o teléfono…" className="max-w-[360px]" />
+</div>
+<div className="text-xs text-muted-foreground lg:hidden">Desliza horizontalmente para ver saldos y acciones →</div>
+<Card className="gap-0 overflow-hidden p-0"><Table containerProps={{ 'aria-label': 'Perfiles y saldos de clientes', tabIndex: 0 }} className="min-w-[1080px]">
+<TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Teléfono</TableHead><TableHead>Deuda</TableHead><TableHead>Límite aprobado</TableHead><TableHead>Prepago</TableHead><TableHead>Estado</TableHead><TableHead>Acciones</TableHead></TableRow></TableHeader>
+<TableBody>
+{V.customersEmpty && <TableRow><TableCell colSpan={7} className="h-20 text-center text-muted-foreground">{V.customerSearch ? 'No hay perfiles que coincidan.' : 'Todavía no hay perfiles de clientes.'}</TableCell></TableRow>}
+{V.customers.map(customer => <TableRow key={customer.id} aria-selected={customer.selected}>
+<TableCell className="font-medium"><Button type="button" variant="link" className="h-11 justify-start px-0 text-left" aria-pressed={customer.selected} onClick={customer.view}>{customer.name}</Button></TableCell>
+<TableCell className="text-muted-foreground">{customer.phone}</TableCell><TableCell>{customer.debt}</TableCell><TableCell className="text-muted-foreground">{customer.limit}</TableCell><TableCell>{customer.prepaid}</TableCell>
+<TableCell><Badge variant={customer.archived ? 'secondary' : 'outline'}>{customer.archived ? 'Archivado' : 'Activo'}</Badge></TableCell>
+<TableCell><div className="flex flex-wrap gap-1"><Button type="button" size="sm" variant="outline" onClick={customer.view}>Estado de cuenta</Button>{!customer.archived && <>
+{V.customerCanManage && <Button type="button" size="sm" variant="outline" onClick={customer.edit}>Editar perfil</Button>}
+{V.customerCanSetLimit && <Button type="button" size="sm" variant="outline" onClick={customer.limitAction}>Límite de crédito</Button>}
+{V.customerCanRecordPayment && <><Button type="button" size="sm" variant="outline" onClick={customer.repayment}>Registrar pago de deuda</Button><Button type="button" size="sm" variant="outline" onClick={customer.deposit}>Registrar saldo prepago</Button></>}
+{V.customerCanManage && <Button type="button" size="sm" variant="outline" onClick={customer.archive}>Archivar perfil</Button>}
+</>}</div></TableCell>
+</TableRow>)}
+</TableBody></Table></Card>
+{V.selectedCustomer && <Card className="gap-3 p-4">
+<div className="flex flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><div className="font-medium">Estado de cuenta · {V.selectedCustomer.name}</div><div className="text-xs text-muted-foreground">Deuda {V.selectedCustomer.debt} · límite {V.selectedCustomer.limit} · prepago {V.selectedCustomer.prepaid}</div></div><Button type="button" variant="outline" onClick={V.selectedCustomer.close}>Cerrar estado de cuenta</Button></div>
+<div className="text-xs text-muted-foreground lg:hidden">Desliza horizontalmente para revisar el historial →</div>
+<Table containerProps={{ 'aria-label': `Movimientos de la cuenta de ${V.selectedCustomer.name}`, tabIndex: 0 }} className="min-w-[1200px]">
+<TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Movimiento</TableHead><TableHead>Cambio</TableHead><TableHead>Saldo de deuda</TableHead><TableHead>Saldo prepago</TableHead><TableHead>Registró</TableHead><TableHead>Forma y referencia</TableHead><TableHead>Motivo</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
+<TableBody>{V.customerEvents.length === 0 ? <TableRow><TableCell colSpan={9} className="h-16 text-center text-muted-foreground">Sin movimientos registrados.</TableCell></TableRow> : V.customerEvents.map(event => <TableRow key={event.id}>
+<TableCell className="text-muted-foreground">{event.date}</TableCell><TableCell className="font-medium">{event.movement}</TableCell><TableCell>{event.change}</TableCell><TableCell>{event.debt}</TableCell><TableCell>{event.prepaid}</TableCell><TableCell className="text-muted-foreground">{event.actor}</TableCell><TableCell className="text-muted-foreground">{event.reference}</TableCell><TableCell className="text-muted-foreground">{event.reason}</TableCell><TableCell className="text-muted-foreground">{event.sync}</TableCell>
+</TableRow>)}</TableBody></Table>
+</Card>}
+</>}
 </div>
 </>)}
 

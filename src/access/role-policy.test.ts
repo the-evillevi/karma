@@ -24,6 +24,20 @@ test("server role matrix supports the allowed work and denies every privileged o
   assert.equal(canPerform("mesero", "openOrder"), true);
   assert.equal(canPerform("mesero", "viewStock"), true);
   assert.equal(canPerform("mesero", "prepareOrder"), true);
+  assert.equal(canPerform("duena", "viewCustomerAccounts"), true);
+  assert.equal(canPerform("encargado", "viewCustomerAccounts"), true);
+  assert.equal(canPerform("encargado", "manageCustomerProfiles"), true);
+  assert.equal(canPerform("encargado", "recordCustomerAccountPayment"), true);
+  assert.equal(canPerform("encargado", "setCustomerCreditLimit"), false);
+  for (const action of [
+    "viewCustomerAccounts",
+    "manageCustomerProfiles",
+    "setCustomerCreditLimit",
+    "recordCustomerAccountPayment",
+  ] as const) {
+    assert.equal(canPerform("barra", action), false, action);
+    assert.equal(canPerform("mesero", action), false, action);
+  }
   for (const action of [
     "checkout",
     "cancelWithReason",
@@ -53,5 +67,9 @@ test("unverified and legacy role labels never become secure role values implicit
   assert.equal(resolveAccessAction("cancelar"), "cancelWithReason");
   assert.equal(resolveAccessAction("ajuste"), "adjustInventory");
   assert.equal(resolveAccessAction("configureTables"), "configureTables");
+  assert.equal(
+    resolveAccessAction("setCustomerCreditLimit"),
+    "setCustomerCreditLimit",
+  );
   assert.equal(resolveAccessAction("unknown"), null);
 });

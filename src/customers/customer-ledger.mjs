@@ -20,6 +20,7 @@ const financialKinds = new Set([
 const managerKinds = new Set([
   "profile.create",
   "profile.update",
+  "profile.archive",
   "debt.repayment",
   "prepaid.deposit",
 ]);
