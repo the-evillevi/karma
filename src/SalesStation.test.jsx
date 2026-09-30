@@ -45,6 +45,44 @@ it('captures a product by keyboard, updates quantities and restores the saved de
   expect(screen.getByRole('button', { name: 'Cobrar $0.00' })).toBeTruthy();
 });
 
+it('exposes and updates selected category and order type through pressed button states', async () => {
+  storageWith({ session: 'u1', online: false });
+  const user = userEvent.setup();
+  mountStation();
+
+  const coffeeCategory = await screen.findByRole('button', { name: 'Con café' });
+  const latteCategory = screen.getByRole('button', { name: 'Lattes' });
+  expect(coffeeCategory.getAttribute('aria-pressed')).toBe('true');
+  expect(latteCategory.getAttribute('aria-pressed')).toBe('false');
+  await user.click(latteCategory);
+  expect(coffeeCategory.getAttribute('aria-pressed')).toBe('false');
+  expect(latteCategory.getAttribute('aria-pressed')).toBe('true');
+
+  const localType = screen.getByRole('button', { name: 'En local' });
+  const tableType = screen.getByRole('button', { name: 'Mesa' });
+  expect(localType.getAttribute('aria-pressed')).toBe('true');
+  expect(tableType.getAttribute('aria-pressed')).toBe('false');
+  await user.click(tableType);
+  expect(localType.getAttribute('aria-pressed')).toBe('false');
+  expect(tableType.getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('textbox', { name: 'Número de mesa' })).toBeTruthy();
+});
+
+it('restores stable identities for legacy order lines before quantity updates', async () => {
+  const seed = window.KARMA.seedOrders[0];
+  const originalLines = seed.items.map(item => ({ ...item }));
+  const storage = storageWith({ session: 'u1', order: { ...seed, items: originalLines } });
+  const user = userEvent.setup();
+  mountStation();
+
+  await user.click(await screen.findByRole('button', { name: `Aumentar ${originalLines[0].name}` }));
+  const persisted = JSON.parse(storage.getItem('karma-pos-v1')).order.items;
+  expect(persisted.map(item => item.lineId)).toHaveLength(originalLines.length);
+  expect(new Set(persisted.map(item => item.lineId)).size).toBe(originalLines.length);
+  expect(persisted[0].qty).toBe(originalLines[0].qty + 1);
+  expect(persisted.slice(1).map(item => item.qty)).toEqual(originalLines.slice(1).map(item => item.qty));
+});
+
 it('keeps an invalid saved price repairable and rejects a new invalid menu save', async () => {
   const products = window.KARMA.products.map((p, i) => i === 0 ? { ...p, price: -1 } : { ...p });
   const storage = storageWith({ session: 'u1', prods: products });
