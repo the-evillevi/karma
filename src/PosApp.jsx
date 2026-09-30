@@ -270,11 +270,6 @@ export default class PosApp extends React.Component {
     setTimeout(() => {
       const st = this.state;
       if (st.ck?.folio !== folio || st.ck?.step !== 'processing') return;
-      const usesCard = ck.pays.some(p => p.method === 'tarjeta' && (parseFloat(p.amount) || 0) > 0);
-      if (!this.state.online && usesCard) {
-        this.setCk({ step: 'result', ok: false, error: 'La terminal bancaria no responde sin conexión. Reintenta cuando vuelva la señal, o cambia a efectivo o transferencia.' });
-        return;
-      }
       if (st.sales.some(sale => sale.folio === folio && sale.status === 'completada')) return;
       let persisted = {};
       try { persisted = JSON.parse(localStorage.getItem('karma-pos-v1')) || {}; } catch (e) {}
@@ -293,6 +288,8 @@ export default class PosApp extends React.Component {
           methodLabel: ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method],
           netAmountCents: p.netAmountCents, amountCents: p.netAmountCents,
           amount: centsToMoney(p.netAmountCents), tipCents: p.tipCents,
+          recordMode: 'manual',
+          verificationStatus: p.method === 'cash' ? 'not_applicable' : 'manual_unverified',
           ...(p.method === 'cash' ? { cashReceivedCents: p.tenderedCents, changeCents: p.changeCents } : {}),
         })),
         tenders: m.payments.filter(p => p.tenderedCents > 0).map(p => ({
@@ -306,6 +303,8 @@ export default class PosApp extends React.Component {
         })),
         tip: centsToMoney(m.tipCents), tipCents: m.tipCents, total: centsToMoney(m.totalCents), totalCents: m.totalCents,
         currency: 'MXN', status: 'completada', sync: st.online ? 'sincronizada' : 'pendiente',
+        paymentRecordMode: 'manual',
+        externalPaymentVerification: m.payments.some(p => p.netAmountCents > 0 && p.method !== 'cash') ? 'manual_unverified' : 'not_applicable',
         audit: [[this.now(), 'Orden creada', this.user().name], [this.now(), 'Pago neto registrado (' + m.payments.filter(p => p.netAmountCents > 0).map(p => ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method]).join(' + ') + ')', this.user().name]]
       };
       this.up({
@@ -614,9 +613,12 @@ export default class PosApp extends React.Component {
         if (nk.pays.length === 1) { const m2 = this.ckMath({ ...nk, pays: [{ ...nk.pays[0], amount: '0' }] }); nk.pays = [{ ...nk.pays[0], amount: m2.total.toFixed(2) }]; }
         this.setState({ ck: nk });
       };
-      V.tipBtns = [['0', 'Sin propina'], ['5', '5%'], ['10', '10%'], ['15', '15%'], ['otro', 'Otra']].map(([id, label]) => ({ label, active: ck.tipSel === id, pick: () => retune({ tipSel: id }) }));
+      V.tipBtns = [['0', 'Sin propina'], ['5', '5%'], ['10', '10%'], ['15', '15%'], ['20', '20%'], ['otro', 'Otra']].map(([id, label]) => ({ label, active: ck.tipSel === id, pick: () => retune({ tipSel: id }) }));
       V.showTipCustom = ck.tipSel === 'otro' && (s.flags.propCustom !== false);
       V.tipCustom = ck.tipCustom; V.setTipCustom = e => retune({ tipCustom: e.target.value });
+      V.tipEquivalent = V.showTipCustom && m.baseCents > 0
+        ? `Equivale a ${(m.tipCents / m.baseCents * 100).toFixed(2)}% del subtotal después del descuento.`
+        : '';
       const methodList = [['efectivo', 'Efectivo', s.flags.fpEfectivo], ['tarjeta', 'Tarjeta', s.flags.fpTarjeta], ['transferencia', 'Transferencia', s.flags.fpTransfer]].filter(x => x[2] !== false);
       V.pays = ck.pays.map(p => ({
         amount: p.amount,
@@ -648,6 +650,8 @@ export default class PosApp extends React.Component {
         tendered: this.fmt(centsToMoney(p.tenderedCents)),
         change: this.fmt(centsToMoney(p.changeCents)),
       }));
+      V.hasManualExternalPayment = (m.payments || []).some(p => p.netAmountCents > 0 && p.method !== 'cash');
+      V.manualExternalPaymentNote = 'Tarjeta y transferencia se registran manualmente; su autorización externa no está verificada.';
       V.ckNext = () => { if (ck.step === 'review') this.setCk({ step: 'pay' }); else if (ck.step === 'pay' && m.valid) this.setCk({ step: 'confirm' }); };
       V.ckBack = () => this.setCk({ step: ck.step === 'confirm' ? 'pay' : 'review' });
       V.ckExit = () => this.up({ ck: null, module: ck.fromStation ? 'pos' : 'ordenes' });
@@ -659,7 +663,7 @@ export default class PosApp extends React.Component {
       V.ckPrint = () => this.toast('Ticket enviado a la impresora de caja');
       V.ckNew = () => this.up({ ck: null, module: 'pos' });
     } else {
-      Object.assign(V, { ckFolio: '', ckTypeLabel: '', ckSteps: [], ckLines: [], ckItemCount: 0, ckSubtotal: '', ckHasDiscount: false, ckDiscount: '', ckTip: '', ckTotal: '', ckReview: false, ckPay: false, ckConfirm: false, ckProcessing: false, ckResult: false, ckOk: false, ckFail: false, ckError: '', tipBtns: [], showTipCustom: false, tipCustom: '', setTipCustom: () => {}, pays: [], addPay: () => {}, paid: '', remaining: '', hasChange: false, change: '', hasPayMsg: false, payMsg: '', payValid: false, confirmPays: [], ckNext: () => {}, ckBack: () => {}, ckExit: () => {}, ckRegister: () => {}, ckRetry: () => {}, ckChangeMethod: () => {}, hasResultChange: false, resultChange: '', resultSyncNote: '', ckPrint: () => {}, ckNew: () => {} });
+      Object.assign(V, { ckFolio: '', ckTypeLabel: '', ckSteps: [], ckLines: [], ckItemCount: 0, ckSubtotal: '', ckHasDiscount: false, ckDiscount: '', ckTip: '', ckTotal: '', ckReview: false, ckPay: false, ckConfirm: false, ckProcessing: false, ckResult: false, ckOk: false, ckFail: false, ckError: '', tipBtns: [], showTipCustom: false, tipCustom: '', tipEquivalent: '', setTipCustom: () => {}, pays: [], addPay: () => {}, paid: '', remaining: '', hasChange: false, change: '', hasPayMsg: false, payMsg: '', payValid: false, confirmPays: [], hasManualExternalPayment: false, manualExternalPaymentNote: '', ckNext: () => {}, ckBack: () => {}, ckExit: () => {}, ckRegister: () => {}, ckRetry: () => {}, ckChangeMethod: () => {}, hasResultChange: false, resultChange: '', resultSyncNote: '', ckPrint: () => {}, ckNew: () => {} });
     }
 
     // ---- menu admin
@@ -755,6 +759,18 @@ export default class PosApp extends React.Component {
       V.dMeta = sel.fecha + ' · ' + sel.tipo + ' — creó ' + sel.creo + ' · cobró ' + sel.cobro + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'sincronizada');
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
       V.dItems = sel.items.map(i => ({ qty: i.qty, name: i.name, mods: i.mods, hasMods: !!i.mods, total: this.fmt(i.total) }));
+      const isExternalPayment = payment => {
+        const method = String(payment?.methodLabel || payment?.method || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        return ['card', 'tarjeta', 'transfer', 'transferencia'].includes(method);
+      };
+      const externalPayments = (Array.isArray(sel.payments) ? sel.payments : []).filter(isExternalPayment);
+      const externallyUnverified = sel.externalPaymentVerification === 'manual_unverified'
+        || externalPayments.some(payment => payment.verificationStatus === 'manual_unverified');
+      V.dPaymentVerificationMessage = externallyUnverified
+        ? 'Registro manual · autorización externa no verificada.'
+        : externalPayments.length > 0
+          ? 'Verificación externa sin dato registrado en este historial.'
+          : '';
       const salePaymentRows = Array.isArray(sel.tenders) ? sel.tenders : sel.payments;
       V.dPays = salePaymentRows.map(p => ({
         method: p.methodLabel || ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', credit: 'Crédito' })[p.method] || p.method,
@@ -766,7 +782,7 @@ export default class PosApp extends React.Component {
       V.dTip = this.fmt(sel.tip); V.dTotal = this.fmt(sel.total);
       V.dAudit = sel.audit.map(a => ({ t: a[0], e: a[1], u: a[2] }));
       V.closeDetail = () => this.setState({ repSel: null });
-    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
+    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPaymentVerificationMessage: '', dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
 
     // ---- users & config
     V.cfgTabs = [['usuarios', 'Usuarios'], ['config', 'Configuración']].map(([id, label]) => ({ label, active: s.cfgTab === id, pick: () => this.setState({ cfgTab: id }) }));
@@ -821,8 +837,8 @@ export default class PosApp extends React.Component {
     V.cfgCards = [
       { title: 'Datos del negocio', rows: [row('Nombre', 'Abboth'), row('Sucursal', 'Centro · única'), row('Moneda', 'MXN — pesos mexicanos'), row('Redes', '@Abboth.mx')], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Impresión', rows: [row('Tickets', 'EPSON TM-T20 · Caja'), row('Comandas', 'Estrella SP700 · Cocina'), { label: 'Imprimir comanda automáticamente', ...togg('autoprint') }], hasAction: false, action: () => {}, actionLabel: '' },
-      { title: 'Formas de pago', rows: [{ label: 'Efectivo', ...togg('fpEfectivo') }, { label: 'Tarjeta (terminal)', ...togg('fpTarjeta') }, { label: 'Transferencia', ...togg('fpTransfer') }], hasAction: false, action: () => {}, actionLabel: '' },
-      { title: 'Propinas', rows: [row('Sugerencias', '5% · 10% · 15%'), { label: 'Permitir propina personalizada', ...togg('propCustom') }], hasAction: false, action: () => {}, actionLabel: '' },
+      { title: 'Formas de pago', rows: [{ label: 'Efectivo', ...togg('fpEfectivo') }, { label: 'Tarjeta (registro manual)', ...togg('fpTarjeta') }, { label: 'Transferencia', ...togg('fpTransfer') }], hasAction: false, action: () => {}, actionLabel: '' },
+      { title: 'Propinas', rows: [row('Sugerencias', '5% · 10% · 15% · 20%'), { label: 'Permitir propina personalizada', ...togg('propCustom') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Reglas de cancelación', rows: [{ label: 'Requerir motivo', ...togg('cancelMotivo') }, { label: 'Autorización de encargado', ...togg('cancelAut') }], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Respaldo y recuperación', rows: [row('Último respaldo', 'Hoy · 03:00'), row('Copias locales', '7 días retenidos')], hasAction: true, actionLabel: 'Respaldar ahora', action: () => this.toast('Respaldo local creado — Hoy · ' + this.now()) },
       { title: 'Sincronización', rows: [row('Estado', s.online ? 'Conectado' : 'Sin conexión'), row('Operaciones pendientes', String(s.pending.length)), row('Último contacto', s.online ? 'Hace unos segundos' : 'Hoy · 12:26')], hasAction: true, actionLabel: 'Forzar sincronización', action: () => this.doSync() }
@@ -1016,9 +1032,10 @@ export default class PosApp extends React.Component {
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500;margin-bottom:8px")}>Propina</div>
 <div style={css("display:flex;gap:6px;flex-wrap:wrap;align-items:center")}>
 {(V.tipBtns).map((t, tI) => (<Button key={tI} type="button" size="sm" variant={t.active ? 'default' : 'outline'} aria-pressed={t.active} onClick={t.pick}>{t.label}</Button>))}
-{(V.showTipCustom) && (<div className="flex items-center gap-2"><Label className="sr-only" htmlFor="checkout-tip">Monto de propina en pesos</Label><Input id="checkout-tip" value={V.tipCustom} onChange={V.setTipCustom} placeholder="Monto MXN" inputMode="decimal" className="w-32" /></div>)}
+{(V.showTipCustom) && (<div className="flex flex-wrap items-center gap-2"><Label className="sr-only" htmlFor="checkout-tip">Monto de propina en pesos</Label><Input id="checkout-tip" value={V.tipCustom} onChange={V.setTipCustom} placeholder="Monto MXN" inputMode="decimal" className="w-32" />{V.tipEquivalent && <span className="text-xs text-muted-foreground" aria-live="polite">{V.tipEquivalent}</span>}</div>)}
 </div>
 </div>
+{(V.hasManualExternalPayment) && (<div role="status" className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{V.manualExternalPaymentNote}</div>)}
 <div style={css("display:flex;flex-direction:column;gap:10px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Pago</div>
 {(V.pays).map((p, pI) => (<React.Fragment key={pI}>
@@ -1056,6 +1073,7 @@ export default class PosApp extends React.Component {
 {(V.hasChange) && (<><div style={css("display:flex;justify-content:space-between;font-size:13px;color:#836953;padding:2px 0")}><span>Cambio a entregar</span><span>{V.change}</span></div></>)}
 </div>
 <div style={css("font-size:12.5px;color:#6b6a63")}>Al confirmar se registrará el pago y la cuenta se cerrará. Esta acción queda en el historial de auditoría.</div>
+{(V.hasManualExternalPayment) && (<div role="status" className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{V.manualExternalPaymentNote}</div>)}
 <div style={css("display:flex;gap:8px")}>
 <Button type="button" variant="outline" onClick={V.ckBack}>Atrás</Button>
 <Button type="button" size="lg" onClick={V.ckRegister}>Registrar pago {V.ckTotal}</Button>
@@ -1073,6 +1091,7 @@ export default class PosApp extends React.Component {
 <span style={css("width:52px;height:52px;border-radius:50%;background:#836953;color:#faf9f5;display:inline-flex;align-items:center;justify-content:center;font-size:24px")}>✓</span>
 <div style={css("font-size:17px;font-weight:500")}>Pago registrado</div>
 <div style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;line-height:1")}>{V.ckTotal}</div>
+{(V.hasManualExternalPayment) && (<div role="status" className="max-w-sm text-xs text-muted-foreground">{V.manualExternalPaymentNote}</div>)}
 {(V.hasResultChange) && (<><div style={css("font-size:13.5px;color:#836953")}>Entrega {V.resultChange} de cambio</div></>)}
 <div style={css("font-size:12.5px;color:#6b6a63")}>{V.resultSyncNote}</div>
 <div style={css("display:flex;gap:8px;margin-top:6px")}>
@@ -1407,6 +1426,7 @@ export default class PosApp extends React.Component {
 <DialogDescription className="leading-relaxed">{V.dMeta}</DialogDescription>
 </DialogHeader>
 {(V.dHasMotivo) && (<><div style={css("font-size:12.5px;color:#836953;background:#f6e5df;border-radius:8px;padding:8px 12px")}>Motivo: {V.dMotivo}</div></>)}
+{(V.dPaymentVerificationMessage) && (<div role="status" className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{V.dPaymentVerificationMessage}</div>)}
 <div style={css("display:flex;flex-direction:column")}>
 {(V.dItems).map((i, iI) => (<React.Fragment key={iI}>
 <div style={css("display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #e2e0d6;font-size:13px")}>
