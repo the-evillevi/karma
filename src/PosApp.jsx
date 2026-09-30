@@ -16,6 +16,7 @@ import { normalizeCatalog } from '../scripts/catalog/catalog-normalizer.mjs';
 import { saveMenuProduct } from './catalog/menu-products.mjs';
 import { toggleModifierSelection } from './catalog/sales-selection.mjs';
 import { cancelKitchenTicket, upsertKitchenTicket } from './domain/kitchen-queue.js';
+import { calculateTender, centsToMoney, moneyToCents, paymentMethodTotalsCents, paymentNetCents } from './domain/payment-tender.js';
 
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
 // it (keypad key, product card, sales row). Merges base + hover style on hover.
@@ -192,18 +193,33 @@ export default class PosApp extends React.Component {
   }
   startCheckout(folio, lines, discount, type, fromStation) {
     const sourceSnapshot = this.checkoutSourceSnapshot({ folio, fromStation }, this.state);
-    const sub = lines.reduce((a, l) => a + (l.unit != null ? l.unit : this.lineUnit(l)) * l.qty, 0);
-    const disc = Math.min(discount || 0, sub);
-    const base = sub - disc;
+    let subCents;
+    let discCents;
+    try {
+      subCents = lines.reduce((sum, line) => {
+        if (!Number.isSafeInteger(line.qty) || line.qty < 1) throw new RangeError('quantity must be a positive safe integer');
+        const lineCents = moneyToCents(line.unit != null ? line.unit : this.lineUnit(line)) * line.qty;
+        const next = sum + lineCents;
+        if (!Number.isSafeInteger(next)) throw new RangeError('order total exceeds safe centavos');
+        return next;
+      }, 0);
+      discCents = Math.min(moneyToCents(discount || 0), subCents);
+    } catch (error) {
+      this.toast('No se puede abrir el cobro: revisa productos, cantidades, precios y descuento de la orden.', 'warn');
+      return;
+    }
+    const baseCents = subCents - discCents;
     const tipSel = String(this.props.propinaInicial ?? '0');
-    const tipAmt = base * (parseInt(tipSel, 10) || 0) / 100;
+    const tipCents = Math.round(baseCents * (parseInt(tipSel, 10) || 0) / 100);
+    const totalCents = baseCents + tipCents;
     this.up({
       module: 'checkout',
       ck: {
         folio, fromStation, sourceSnapshot, type, step: 'review', ok: null, error: '', change: 0,
         lines: lines.map(l => ({ name: l.name || (this.state.prods.find(p => p.id === l.prodId) || {}).name, qty: l.qty, modsText: l.modsText != null ? l.modsText : this.modsText(l), unit: l.unit != null ? l.unit : this.lineUnit(l) })),
-        sub, disc, tipSel, tipCustom: '',
-        pays: [{ id: 1, method: 'efectivo', amount: (base + tipAmt).toFixed(2) }]
+        subCents, discCents, tipSel, tipCustom: '',
+        sub: centsToMoney(subCents), disc: centsToMoney(discCents),
+        pays: [{ id: 1, method: 'efectivo', amount: centsToMoney(totalCents).toFixed(2) }]
       }
     });
   }
@@ -213,16 +229,34 @@ export default class PosApp extends React.Component {
     return JSON.stringify({ kind: 'new', record: null });
   }
   ckMath(ck) {
-    const base = ck.sub - ck.disc;
-    const tip = ck.tipSel === 'otro' ? (parseFloat(ck.tipCustom) || 0) : base * (parseInt(ck.tipSel, 10) || 0) / 100;
-    const total = base + tip;
-    const paid = ck.pays.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-    const remaining = Math.max(0, total - paid);
-    const over = paid - total;
-    const hasCash = ck.pays.some(p => p.method === 'efectivo' && (parseFloat(p.amount) || 0) > 0);
-    const change = over > 0.001 && hasCash ? over : 0;
-    const valid = paid >= total - 0.001 && total > 0 && (over <= 0.001 || hasCash);
-    return { base, tip, total, paid, remaining, over, hasCash, change, valid };
+    let subCents; let discCents; let baseCents; let tipCents; let totalCents;
+    try {
+      subCents = ck.subCents ?? moneyToCents(ck.sub);
+      discCents = ck.discCents ?? moneyToCents(ck.disc);
+      if (discCents > subCents) throw new RangeError('discount exceeds subtotal');
+      baseCents = subCents - discCents;
+      tipCents = ck.tipSel === 'otro'
+        ? moneyToCents(ck.tipCustom || '0')
+        : Math.round(baseCents * (parseInt(ck.tipSel, 10) || 0) / 100);
+      totalCents = baseCents + tipCents;
+      if (!Number.isSafeInteger(totalCents)) throw new RangeError('order total exceeds safe centavos');
+    } catch (error) {
+      return { valid: false, error: 'Revisa los importes: usa cantidades MXN no negativas con máximo dos decimales.', base: 0, tip: 0, total: 0, paid: 0, remaining: 0, over: 0, change: 0, hasCash: false, payments: [] };
+    }
+    const tender = calculateTender(totalCents, ck.pays, { tipCents });
+    const tenderedCents = tender.tenderedCents || 0;
+    const changeCents = tender.changeCents || 0;
+    const hasCash = ck.pays.some(p => {
+      if (p.method !== 'efectivo') return false;
+      try { return moneyToCents(p.amount) > 0; } catch { return false; }
+    });
+    return {
+      ...tender,
+      baseCents, tipCents, totalCents, tenderedCents, changeCents, hasCash,
+      base: centsToMoney(baseCents), tip: centsToMoney(tipCents), total: centsToMoney(totalCents),
+      paid: centsToMoney(tenderedCents), remaining: centsToMoney(tender.remainingCents || 0),
+      over: centsToMoney(changeCents), change: centsToMoney(changeCents), valid: tender.valid,
+    };
   }
   setCk(patch) { this.setState(s => ({ ck: { ...s.ck, ...patch } })); }
   register() {
@@ -253,9 +287,26 @@ export default class PosApp extends React.Component {
       const sale = {
         folio, day: 0, fecha: 'Hoy · ' + this.now(), creo: this.user().name, cobro: this.user().name,
         tipo: ck.type, items: ck.lines.map(l => ({ name: l.name, qty: l.qty, mods: l.modsText, total: l.unit * l.qty })),
-        payments: ck.pays.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => ({ method: ml[p.method], amount: parseFloat(p.amount) })),
-        tip: m.tip, total: m.total, status: 'completada', sync: st.online ? 'sincronizada' : 'pendiente',
-        audit: [[this.now(), 'Orden creada', this.user().name], [this.now(), 'Pago registrado (' + ck.pays.filter(p => parseFloat(p.amount) > 0).map(p => ml[p.method]).join(' + ') + ')', this.user().name]]
+        payments: m.payments.filter(p => p.netAmountCents > 0).map(p => ({
+          paymentId: `${folio}:payment:${p.id}`,
+          method: p.method,
+          methodLabel: ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method],
+          netAmountCents: p.netAmountCents, amountCents: p.netAmountCents,
+          amount: centsToMoney(p.netAmountCents), tipCents: p.tipCents,
+          ...(p.method === 'cash' ? { cashReceivedCents: p.tenderedCents, changeCents: p.changeCents } : {}),
+        })),
+        tenders: m.payments.filter(p => p.tenderedCents > 0).map(p => ({
+          tenderId: `${folio}:tender:${p.id}`,
+          method: p.method,
+          methodLabel: ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method],
+          tenderedCents: p.tenderedCents,
+          netAmountCents: p.netAmountCents,
+          changeCents: p.changeCents,
+          tipCents: p.tipCents,
+        })),
+        tip: centsToMoney(m.tipCents), tipCents: m.tipCents, total: centsToMoney(m.totalCents), totalCents: m.totalCents,
+        currency: 'MXN', status: 'completada', sync: st.online ? 'sincronizada' : 'pendiente',
+        audit: [[this.now(), 'Orden creada', this.user().name], [this.now(), 'Pago neto registrado (' + m.payments.filter(p => p.netAmountCents > 0).map(p => ({ cash: ml.efectivo, card: ml.tarjeta, transfer: ml.transferencia })[p.method]).join(' + ') + ')', this.user().name]]
       };
       this.up({
         sales: [sale, ...st.sales],
@@ -572,17 +623,31 @@ export default class PosApp extends React.Component {
         methods: methodList.map(([id, label]) => ({ label, active: p.method === id, pick: () => this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, method: id } : x) }) })),
         amountLabel: 'Monto con ' + (methodList.find(([id]) => id === p.method)?.[1] || 'método de pago'),
         setAmount: e => this.setCk({ pays: this.state.ck.pays.map(x => x.id === p.id ? { ...x, amount: e.target.value } : x) }),
-        fillRest: () => { const cur = parseFloat(p.amount) || 0; const m2 = this.ckMath(ck); this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, amount: (cur + m2.remaining).toFixed(2) } : x) }); },
+        fillRest: () => {
+          const m2 = this.ckMath(ck);
+          let otherTenderCents = 0;
+          for (const entry of ck.pays.filter(x => x.id !== p.id)) {
+            try { otherTenderCents += moneyToCents(entry.amount); } catch { /* Blank/invalid rows remain flagged until edited. */ }
+          }
+          const amountCents = Math.max(0, (m2.totalCents || 0) - otherTenderCents);
+          this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, amount: centsToMoney(amountCents).toFixed(2) } : x) });
+        },
         canRemove: ck.pays.length > 1,
         remove: () => this.setCk({ pays: ck.pays.filter(x => x.id !== p.id) })
       }));
       V.addPay = () => this.setCk({ pays: [...ck.pays, { id: Date.now(), method: 'tarjeta', amount: m.remaining.toFixed(2) }] });
       V.paid = this.fmt(m.paid); V.remaining = this.fmt(m.remaining);
       V.hasChange = m.change > 0; V.change = this.fmt(m.change);
-      V.hasPayMsg = !m.valid && m.paid > 0;
-      V.payMsg = m.over > 0.001 && !m.hasCash ? 'El monto capturado excede el total y no hay efectivo para dar cambio.' : 'El monto cubierto aún no coincide con el total de la orden.';
+      V.hasPayMsg = !m.valid;
+      V.payMsg = m.error || (m.over > 0 && !m.hasCash ? 'El monto capturado excede el total y no hay efectivo para dar cambio.' : 'El monto cubierto aún no coincide con el total de la orden.');
       V.payValid = m.valid;
-      V.confirmPays = ck.pays.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => ({ method: ({ efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' })[p.method], amount: this.fmt(parseFloat(p.amount)) }));
+      V.confirmPays = (m.payments || []).filter(p => p.tenderedCents > 0).map(p => ({
+        method: ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' })[p.method],
+        amount: this.fmt(centsToMoney(p.netAmountCents)),
+        hasCashChange: p.method === 'cash' && p.changeCents > 0,
+        tendered: this.fmt(centsToMoney(p.tenderedCents)),
+        change: this.fmt(centsToMoney(p.changeCents)),
+      }));
       V.ckNext = () => { if (ck.step === 'review') this.setCk({ step: 'pay' }); else if (ck.step === 'pay' && m.valid) this.setCk({ step: 'confirm' }); };
       V.ckBack = () => this.setCk({ step: ck.step === 'confirm' ? 'pay' : 'review' });
       V.ckExit = () => this.up({ ck: null, module: ck.fromStation ? 'pos' : 'ordenes' });
@@ -673,9 +738,9 @@ export default class PosApp extends React.Component {
     V.repTickets = done.length;
     V.repProps = this.fmt(done.reduce((a, x) => a + x.tip, 0));
     V.repCanc = rs.length - done.length;
-    const mm = {}; done.forEach(x => x.payments.forEach(p => mm[p.method] = (mm[p.method] || 0) + p.amount));
-    const mmax = Math.max(1, ...Object.values(mm));
-    V.methods = Object.keys(mm).map(k => ({ label: k, amount: this.fmt(mm[k]), barStyle: { height: 5, borderRadius: 999, background: acc, width: (mm[k] / mmax * 100).toFixed(0) + '%' } }));
+    const mmCents = paymentMethodTotalsCents(done);
+    const mmax = Math.max(1, ...Object.values(mmCents));
+    V.methods = Object.keys(mmCents).map(k => ({ label: k, amount: this.fmt(centsToMoney(mmCents[k])), barStyle: { height: 5, borderRadius: 999, background: acc, width: (mmCents[k] / mmax * 100).toFixed(0) + '%' } }));
     const tp = {}; done.forEach(x => x.items.forEach(i => { tp[i.name] = tp[i.name] || { q: 0, a: 0 }; tp[i.name].q += i.qty; tp[i.name].a += i.total; }));
     V.topProds = Object.keys(tp).sort((a, b) => tp[b].a - tp[a].a).slice(0, 6).map(k => ({ name: k, qty: tp[k].q, amount: this.fmt(tp[k].a) }));
     const bu = {}; done.forEach(x => { bu[x.cobro] = bu[x.cobro] || { t: 0, a: 0 }; bu[x.cobro].t += 1; bu[x.cobro].a += x.total; });
@@ -690,7 +755,14 @@ export default class PosApp extends React.Component {
       V.dMeta = sel.fecha + ' · ' + sel.tipo + ' — creó ' + sel.creo + ' · cobró ' + sel.cobro + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'sincronizada');
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
       V.dItems = sel.items.map(i => ({ qty: i.qty, name: i.name, mods: i.mods, hasMods: !!i.mods, total: this.fmt(i.total) }));
-      V.dPays = sel.payments.map(p => ({ method: p.method, amount: this.fmt(p.amount) }));
+      const salePaymentRows = Array.isArray(sel.tenders) ? sel.tenders : sel.payments;
+      V.dPays = salePaymentRows.map(p => ({
+        method: p.methodLabel || ({ cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', credit: 'Crédito' })[p.method] || p.method,
+        amount: this.fmt(centsToMoney(paymentNetCents(p) ?? 0)),
+        hasCashChange: Number.isSafeInteger(p.tenderedCents ?? p.cashReceivedCents) && Number.isSafeInteger(p.changeCents) && p.changeCents > 0,
+        tendered: Number.isSafeInteger(p.tenderedCents ?? p.cashReceivedCents) ? this.fmt(centsToMoney(p.tenderedCents ?? p.cashReceivedCents)) : '',
+        change: Number.isSafeInteger(p.changeCents) ? this.fmt(centsToMoney(p.changeCents)) : '',
+      }));
       V.dTip = this.fmt(sel.tip); V.dTotal = this.fmt(sel.total);
       V.dAudit = sel.audit.map(a => ({ t: a[0], e: a[1], u: a[2] }));
       V.closeDetail = () => this.setState({ repSel: null });
@@ -963,7 +1035,7 @@ export default class PosApp extends React.Component {
 <Button type="button" variant="link" className="self-start px-0" onClick={V.addPay}>+ Dividir en otro método</Button>
 </div>
 <div style={css("display:flex;gap:18px;font-size:13px;color:#6b6a63;flex-wrap:wrap")}>
-<span>Pagado <span style={css("color:#141413;font-weight:500")}>{V.paid}</span></span>
+<span>Recibido <span style={css("color:#141413;font-weight:500")}>{V.paid}</span></span>
 <span>Restante <span style={css("color:#141413;font-weight:500")}>{V.remaining}</span></span>
 {(V.hasChange) && (<><span>Cambio <span style={css("color:#836953;font-weight:500")}>{V.change}</span></span></>)}
 </div>
@@ -977,7 +1049,8 @@ export default class PosApp extends React.Component {
 <div style={css("font-size:15px;font-weight:500")}>Confirmación final</div>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 {(V.confirmPays).map((cp, cpI) => (<React.Fragment key={cpI}>
-<div style={css("display:flex;justify-content:space-between;font-size:13.5px;border-bottom:1px solid #e2e0d6;padding:7px 0")}><span>{cp.method}</span><span style={css("font-weight:500")}>{cp.amount}</span></div>
+<div style={css("display:flex;justify-content:space-between;font-size:13.5px;border-bottom:1px solid #e2e0d6;padding:7px 0")}><span>{cp.method} · neto</span><span style={css("font-weight:500")}>{cp.amount}</span></div>
+{(cp.hasCashChange) && (<div style={css("display:flex;justify-content:space-between;font-size:12px;color:#6b6a63;margin-top:-5px")}><span>Recibido {cp.tendered} · cambio {cp.change}</span><span></span></div>)}
 </React.Fragment>))}
 <div style={css("display:flex;justify-content:space-between;font-size:13px;color:#6b6a63;padding:6px 0")}><span>Propina</span><span>{V.ckTip}</span></div>
 {(V.hasChange) && (<><div style={css("display:flex;justify-content:space-between;font-size:13px;color:#836953;padding:2px 0")}><span>Cambio a entregar</span><span>{V.change}</span></div></>)}
@@ -1345,7 +1418,8 @@ export default class PosApp extends React.Component {
 </div>
 <div style={css("display:flex;flex-direction:column;gap:4px")}>
 {(V.dPays).map((p, pI) => (<React.Fragment key={pI}>
-<div style={css("display:flex;justify-content:space-between;font-size:13px")}><span style={css("color:#6b6a63")}>{p.method}</span><span>{p.amount}</span></div>
+<div style={css("display:flex;justify-content:space-between;font-size:13px")}><span style={css("color:#6b6a63")}>{p.method} · neto</span><span>{p.amount}</span></div>
+{(p.hasCashChange) && (<div style={css("display:flex;justify-content:space-between;font-size:12px;color:#6b6a63")}><span>Recibido {p.tendered} · cambio {p.change}</span><span></span></div>)}
 </React.Fragment>))}
 <div style={css("display:flex;justify-content:space-between;font-size:13px")}><span style={css("color:#6b6a63")}>Propina</span><span>{V.dTip}</span></div>
 <div style={css("display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #e2e0d6;padding-top:8px;margin-top:4px")}><span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Total</span><span style={css("font-family:Georgia,serif;font-style:italic;font-size:26px")}>{V.dTotal}</span></div>

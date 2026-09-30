@@ -170,6 +170,96 @@ describe('shared UI primitives', () => {
     expect(await screen.findByText('Pago registrado', {}, { timeout: 4000 })).toBeTruthy();
   });
 
+  it('records net cash, returned change, and the net method total in reports', async () => {
+    const storage = installMemoryStorage();
+    const order = {
+      folio: 'EVL-186-CASH', type: 'local', mesa: '', name: '', discount: 0,
+      items: [{ lineId: 'line-cash', prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: {}, modsText: '', notes: '', unit: 50 }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', order, open: [], sales: [] }));
+    const user = userEvent.setup();
+
+    const pos = render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: /^Cobrar / }));
+    await user.click(await screen.findByRole('button', { name: 'Continuar al pago' }));
+    const cashInput = await screen.findByRole('textbox', { name: 'Monto con Efectivo' });
+    await user.clear(cashInput);
+    await user.type(cashInput, '100');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(await screen.findByText(/Cambio/)).toBeTruthy();
+    await user.click(await screen.findByRole('button', { name: /Registrar pago/ }));
+    expect(await screen.findByText('Pago registrado', {}, { timeout: 4000 })).toBeTruthy();
+
+    let saved = JSON.parse(storage.getItem('karma-pos-v1'));
+    expect(saved.sales[0]).toMatchObject({ total: 50, totalCents: 5000, tip: 0, tipCents: 0 });
+    expect(saved.sales[0].payments).toEqual([{ paymentId: 'EVL-186-CASH:payment:1', method: 'cash', methodLabel: 'Efectivo', netAmountCents: 5000, amountCents: 5000, amount: 50, tipCents: 0, cashReceivedCents: 10000, changeCents: 5000 }]);
+    expect(saved.sales[0].tenders).toEqual([{ tenderId: 'EVL-186-CASH:tender:1', method: 'cash', methodLabel: 'Efectivo', tenderedCents: 10000, netAmountCents: 5000, changeCents: 5000, tipCents: 0 }]);
+    await user.click(screen.getByRole('button', { name: 'Reportes' }));
+    const methodRow = await screen.findByText('Efectivo');
+    expect(methodRow.parentElement.textContent).toContain('$50.00');
+    saved = JSON.parse(storage.getItem('karma-pos-v1'));
+    expect(saved.sales[0].payments[0].amountCents).toBe(5000);
+    pos.unmount();
+    cleanup();
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: 'Reportes' }));
+    const reloadedMethodRow = await screen.findByText('Efectivo');
+    expect(reloadedMethodRow.parentElement.textContent).toContain('$50.00');
+  });
+
+  it('keeps a fully returned cash tender when its net contribution is zero', async () => {
+    const storage = installMemoryStorage();
+    const order = {
+      folio: 'EVL-186-ZERO-CASH', type: 'local', mesa: '', name: '', discount: 0,
+      items: [{ lineId: 'line-zero-cash', prodId: 'concafe-americano', name: 'Americano', qty: 1, mods: {}, modsText: '', notes: '', unit: 50 }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', order, open: [], sales: [] }));
+    const user = userEvent.setup();
+
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+    await user.click(await screen.findByRole('button', { name: /^Cobrar / }));
+    await user.click(await screen.findByRole('button', { name: 'Continuar al pago' }));
+    const cashInput = await screen.findByRole('textbox', { name: 'Monto con Efectivo' });
+    await user.clear(cashInput);
+    await user.click(screen.getByRole('button', { name: 'Restante' }));
+    expect(cashInput.value).toBe('50.00');
+    await user.clear(cashInput);
+    await user.type(cashInput, '20');
+    await user.click(screen.getByRole('button', { name: '+ Dividir en otro método' }));
+    const cardInput = await screen.findByRole('textbox', { name: 'Monto con Tarjeta' });
+    await user.clear(cardInput);
+    await user.type(cardInput, '50');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(await screen.findByText(/Efectivo · neto/)).toBeTruthy();
+    expect(screen.getByText(/Recibido \$20\.00 · cambio \$20\.00/)).toBeTruthy();
+    expect(screen.getByText(/Tarjeta · neto/)).toBeTruthy();
+    await user.click(await screen.findByRole('button', { name: /Registrar pago/ }));
+    expect(await screen.findByText('Pago registrado', {}, { timeout: 4000 })).toBeTruthy();
+
+    const saved = JSON.parse(storage.getItem('karma-pos-v1')).sales[0];
+    expect(saved.payments).toHaveLength(1);
+    expect(saved.payments[0]).toMatchObject({ method: 'card', methodLabel: 'Tarjeta', netAmountCents: 5000, amountCents: 5000, amount: 50, tipCents: 0 });
+    expect(saved.tenders).toHaveLength(2);
+    expect(saved.tenders[0]).toMatchObject({ method: 'cash', tenderedCents: 2000, netAmountCents: 0, changeCents: 2000 });
+    expect(saved.tenders[1]).toMatchObject({ method: 'card', tenderedCents: 5000, netAmountCents: 5000, changeCents: 0 });
+  });
+
+  it('refuses to start checkout from malformed saved money without crashing the POS', async () => {
+    const storage = installMemoryStorage();
+    const invalidOrder = {
+      folio: 'EVL-186-BAD', type: 'mesa', ref: 'Mesa 1', time: '12:00', user: 'Sofía',
+      items: [{ prodId: 'concafe-americano', name: 'Americano', qty: 1, unit: -1, modsText: '', notes: '' }],
+    };
+    storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1', open: [invalidOrder], kitchenTickets: [invalidOrder], sales: [] }));
+    const user = userEvent.setup();
+    render(<PosApp vistaCatalogo="cuadricula" mostrarAgotados propinaInicial="0" />);
+
+    await user.click(await screen.findByRole('button', { name: /Órdenes abiertas/ }));
+    await user.click(await screen.findByRole('button', { name: 'Cobrar' }));
+    expect(await screen.findByText(/No se puede abrir el cobro: revisa productos, cantidades, precios y descuento/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reportes' })).toBeTruthy();
+  });
+
   it('rejects checkout when the source account changes after checkout opens', async () => {
     const storage = installMemoryStorage();
     storage.setItem('karma-pos-v1', JSON.stringify({ session: 'u1' }));
