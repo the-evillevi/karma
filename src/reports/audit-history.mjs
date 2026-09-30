@@ -65,11 +65,16 @@ function displayValue(value) {
 
 function arrayIdentity(value, index) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    if (typeof value.itemId === "string") return `[artículo=${value.itemId}]`;
+    if (typeof value.itemId === "string")
+      return { kind: "item", itemId: value.itemId };
     if (typeof value.groupId === "string" && typeof value.optionId === "string")
-      return `[grupo=${value.groupId}, opción=${value.optionId}]`;
+      return {
+        kind: "modifier",
+        groupId: value.groupId,
+        optionId: value.optionId,
+      };
   }
-  return `[${index + 1}]`;
+  return { kind: "row", index: index + 1 };
 }
 
 function flatten(value, path, output, budget) {
@@ -80,36 +85,58 @@ function flatten(value, path, output, budget) {
       "Un detalle del historial excede el límite de lectura.",
     );
   if (Array.isArray(value)) {
-    if (!value.length) output.set(path, "Sin elementos");
+    if (!value.length) output.set(JSON.stringify(path), "Sin elementos");
     else
       value.forEach((child, index) =>
-        flatten(child, `${path}${arrayIdentity(child, index)}`, output, budget),
+        flatten(child, [...path, arrayIdentity(child, index)], output, budget),
       );
     return;
   }
   if (value && typeof value === "object") {
     const keys = Object.keys(value).sort();
-    if (!keys.length) output.set(path, "Sin campos");
+    if (!keys.length) output.set(JSON.stringify(path), "Sin campos");
     else
       keys.forEach((key) =>
-        flatten(value[key], path ? `${path}.${key}` : key, output, budget),
+        flatten(
+          value[key],
+          [...path, { kind: "field", name: key }],
+          output,
+          budget,
+        ),
       );
     return;
   }
-  output.set(path || "Valor", displayValue(value));
+  output.set(JSON.stringify(path), displayValue(value));
+}
+
+function changeField(pathKey, labels) {
+  const path = JSON.parse(pathKey);
+  if (path.length === 0) return "Valor";
+  return path
+    .map((part) => {
+      if (part.kind === "field")
+        return Object.hasOwn(labels, part.name)
+          ? labels[part.name]
+          : recipeFieldLabel(part.name);
+      if (part.kind === "item") return `Artículo ${part.itemId}`;
+      if (part.kind === "modifier")
+        return `Grupo ${part.groupId}, opción ${part.optionId}`;
+      return `Fila ${part.index}`;
+    })
+    .join(" · ");
 }
 
 function snapshotChanges(before, after, labels = {}) {
   const oldValues = new Map();
   const newValues = new Map();
-  if (before !== null) flatten(before, "", oldValues, { count: 0 });
-  if (after !== null) flatten(after, "", newValues, { count: 0 });
+  if (before !== null) flatten(before, [], oldValues, { count: 0 });
+  if (after !== null) flatten(after, [], newValues, { count: 0 });
   const paths = [...new Set([...oldValues.keys(), ...newValues.keys()])].sort();
   const changed = paths.filter(
     (path) => oldValues.get(path) !== newValues.get(path),
   );
   return changed.map((path) => ({
-    field: labels[path] || recipeFieldLabel(path),
+    field: changeField(path, labels),
     beforeValue:
       before === null
         ? "Sin registro previo"
@@ -156,13 +183,7 @@ function recipeFieldLabel(path) {
     remove: "Insumos sustituidos",
     add: "Insumos agregados",
   };
-  return path
-    .replace(/\[artículo=([^\]]+)\]/g, " · artículo $1")
-    .replace(/\[grupo=([^,\]]+), opción=([^\]]+)\]/g, " · grupo $1, opción $2")
-    .replace(/\[(\d+)\]/g, " · fila $1")
-    .split(".")
-    .map((part) => keys[part] || part)
-    .join(" · ");
+  return Object.hasOwn(keys, path) ? keys[path] : path;
 }
 
 function eventBase({
@@ -407,10 +428,9 @@ function validDate(value) {
   );
 }
 
-function dateInZone(instant, timeZone) {
-  let formatter;
+function createDateFormatter(timeZone) {
   try {
-    formatter = new Intl.DateTimeFormat("en-CA", {
+    return new Intl.DateTimeFormat("en-CA", {
       timeZone,
       year: "numeric",
       month: "2-digit",
@@ -419,12 +439,15 @@ function dateInZone(instant, timeZone) {
   } catch {
     fail("invalid_time_zone", "La zona horaria del historial no es válida.");
   }
+}
+
+function dateInZone(instant, formatter) {
   const parts = Object.fromEntries(
     formatter
       .formatToParts(new Date(instant))
       .map(({ type, value }) => [type, value]),
   );
-  return `${parts.year}-${parts.month}-${parts.day}`;
+  return `${parts.year.padStart(4, "0")}-${parts.month}-${parts.day}`;
 }
 
 /** Filter by actual recorded instants, projecting their calendar date in the explicit branch zone. */
@@ -457,13 +480,13 @@ export function filterAuditHistory(
     fail("invalid_filter", "El filtro de entidad no es válido.");
   if (typeof timeZone !== "string" || !timeZone.trim())
     fail("invalid_time_zone", "La zona horaria del historial no es válida.");
-  dateInZone("2026-01-01T00:00:00.000Z", timeZone);
+  const formatter = createDateFormatter(timeZone);
   return events.filter((event) => {
     if (entityType === "conflict") return false;
     if (entityType !== "all" && event.entityType !== entityType) return false;
     if (action !== "all" && event.action !== action) return false;
     if (actorId !== "all" && event.actorId !== actorId) return false;
-    const day = dateInZone(event.occurredAt, timeZone);
+    const day = dateInZone(event.occurredAt, formatter);
     return (!from || day >= from) && (!through || day <= through);
   });
 }

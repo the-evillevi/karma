@@ -108,6 +108,32 @@ it("filters actual local events by date, entity, action, and actor, then shows f
   expect(screen.getByText("0 cambios")).toBeTruthy();
 });
 
+it("keeps date and timezone controls available while invalid filters are corrected", async () => {
+  memory({ inventoryState: inventoryHistory() });
+  const user = userEvent.setup();
+  render(<PosApp {...props()} />);
+  await openHistory(user);
+
+  const timeZone = screen.getByLabelText("Zona horaria IANA");
+  await user.clear(timeZone);
+  await user.type(timeZone, "not/a-zone");
+  expect((await screen.findByRole("alert")).textContent).toMatch(/zona horaria no es válida/i);
+  expect(screen.getByLabelText("Zona horaria IANA")).toBeTruthy();
+  await user.clear(screen.getByLabelText("Zona horaria IANA"));
+  await user.type(screen.getByLabelText("Zona horaria IANA"), "UTC");
+  await screen.findByText("2 cambios");
+  expect(screen.queryByRole("alert")).toBeNull();
+
+  fireEvent.change(screen.getByLabelText("Desde (incluida)"), { target: { value: "2026-09-30" } });
+  fireEvent.change(screen.getByLabelText("Hasta (incluida)"), { target: { value: "2026-09-29" } });
+  expect((await screen.findByRole("alert")).textContent).toMatch(/intervalo de fechas/i);
+  expect(screen.getByLabelText("Desde (incluida)")).toBeTruthy();
+  expect(screen.getByLabelText("Hasta (incluida)")).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Hasta (incluida)"), { target: { value: "2026-09-30" } });
+  await screen.findByText("2 cambios");
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
 it("hides the history after secure viewReports access is lost", async () => {
   memory({ inventoryState: inventoryHistory() });
   const user = userEvent.setup();

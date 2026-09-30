@@ -56,7 +56,15 @@ export default function AuditHistoryPanel({
         error: "",
       };
     } catch (error) {
-      return { events: [], error: error?.code === "invalid_time_zone" ? "La zona horaria no es válida. Escribe una zona IANA reconocida." : "Revisa los filtros del historial." };
+      return {
+        events: [],
+        error:
+          error?.code === "invalid_time_zone"
+            ? "La zona horaria no es válida. Escribe una zona IANA reconocida."
+            : error?.code === "invalid_filter"
+              ? "Revisa el intervalo de fechas del historial."
+              : "Revisa los filtros del historial.",
+      };
     }
   }, [action, actorId, entityType, from, projection, through, timeZone]);
 
@@ -80,7 +88,7 @@ export default function AuditHistoryPanel({
         <p className="m-0 text-sm text-muted-foreground">Los datos locales no contienen versiones remotas ni confirmaciones de resolución de conflictos. No se muestra ni se promete una resolución que no tenga un evento durable.</p>
       </Card>
 
-      {filteredResult.error ? <Card role="alert" className="border-destructive/40 p-4">{filteredResult.error}</Card> : <>
+      {projection.error ? <Card role="alert" className="border-destructive/40 p-4">{projection.error}</Card> : <>
         <Card className="gap-4 p-4">
           <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor="audit-from">Desde (incluida)</Label><Input id="audit-from" type="date" value={from} onChange={resetPage(setFrom)} /></div>
@@ -91,9 +99,10 @@ export default function AuditHistoryPanel({
             <div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor="audit-actor">Persona</Label><select id="audit-actor" className="h-11 rounded-md border bg-background px-3 text-sm" value={actorId} onChange={resetPage(setActorId)}><option value="all">Todas</option>{actors.map((actor) => <option key={actor.id} value={actor.id}>{actor.name}</option>)}</select></div>
           </div>
           <p className="m-0 text-xs text-muted-foreground">El filtro usa instantes UTC guardados y la fecha de calendario en {timeZone || "la zona seleccionada"}. Las etiquetas históricas sin instante verificable se excluyen; no se reconstruyen a partir de textos de fecha.</p>
-          <div className="flex flex-wrap items-center gap-2" role="status"><Badge variant="outline">{events.length} {events.length === 1 ? "cambio" : "cambios"}</Badge><span className="text-xs text-muted-foreground">En orden cronológico, del más reciente al más antiguo.</span></div>
+          {filteredResult.error ? <p id="audit-filter-error" role="alert" className="m-0 text-sm text-destructive">{filteredResult.error}</p> : <div className="flex flex-wrap items-center gap-2" role="status"><Badge variant="outline">{events.length} {events.length === 1 ? "cambio" : "cambios"}</Badge><span className="text-xs text-muted-foreground">En orden cronológico, del más reciente al más antiguo.</span></div>}
         </Card>
 
+        {!filteredResult.error && <>
         {entityType === "conflict" || action === "conflict_resolution" ? <Card role="status" className="p-4 text-sm">No hay eventos locales verificables de resolución de conflictos. La resolución durable requiere versiones remotas y registro atómico, aún no disponible en esta estación.</Card> : null}
 
         {events.length === 0 ? <Card className="p-6 text-center text-sm text-muted-foreground">No hay cambios que coincidan con estos filtros.</Card> : <>
@@ -128,6 +137,7 @@ export default function AuditHistoryPanel({
               <div className="min-w-0 break-words text-sm"><span className="mr-1 text-xs text-muted-foreground">Después:</span>{change.afterValue}</div>
             </div>)}</div>
           </Card>}
+        </>}
         </>}
       </>}
     </section>

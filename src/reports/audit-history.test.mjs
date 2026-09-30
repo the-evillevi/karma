@@ -243,6 +243,106 @@ test("renders threshold changes with their captured unit after catalog display-u
   ]);
 });
 
+test("keeps modifier before/after rows distinct when validated ids contain path delimiters", () => {
+  const customCatalog = structuredClone(productCatalog);
+  const customProduct = customCatalog.products.find(
+    (entry) => entry.id === "concafe-americano",
+  );
+  const [firstTemplate, secondTemplate] = customCatalog.modifierGroups.filter(
+    (group) => customProduct.modifierGroupIds.includes(group.id),
+  );
+  const firstGroup = structuredClone(firstTemplate);
+  const secondGroup = structuredClone(secondTemplate);
+  const firstGroupId = "g, opción=o";
+  const firstOptionId = "x";
+  const secondGroupId = "g";
+  const secondOptionId = "o, opción=x";
+  firstGroup.id = firstGroupId;
+  firstGroup.name = "Grupo de prueba delimitado uno";
+  firstGroup.selection.defaultOptionId = firstOptionId;
+  firstGroup.options[0].id = firstOptionId;
+  secondGroup.id = secondGroupId;
+  secondGroup.name = "Grupo de prueba delimitado dos";
+  secondGroup.options[0].id = secondOptionId;
+  customCatalog.modifierGroups.push(firstGroup, secondGroup);
+  customProduct.modifierGroupIds = [
+    ...customProduct.modifierGroupIds,
+    firstGroupId,
+    secondGroupId,
+  ];
+
+  const inventoryState = inventory();
+  const makeDraft = (firstQuantity) => ({
+    mode: "recipe",
+    evidence: "Mapeo explícito de pares con delimitadores para auditoría.",
+    items: [{ itemId: "beans", quantityText: "10", unit: "g" }],
+    finishedGood: null,
+    modifierEffects: [
+      {
+        groupId: firstGroupId,
+        optionId: firstOptionId,
+        effect: "add",
+        remove: [],
+        add: [{ itemId: "beans", quantityText: firstQuantity, unit: "g" }],
+      },
+      {
+        groupId: secondGroupId,
+        optionId: secondOptionId,
+        effect: "add",
+        remove: [],
+        add: [{ itemId: "beans", quantityText: "2", unit: "g" }],
+      },
+    ],
+  });
+  const publish = (recipeCatalog, draft, recipeRevision, commandId) => {
+    const preview = previewRecipePublication(
+      recipeCatalog,
+      customCatalog,
+      inventoryState,
+      customProduct.id,
+      draft,
+    );
+    return publishRecipe(
+      recipeCatalog,
+      {
+        commandId,
+        productId: customProduct.id,
+        expectedRecipeCatalogRevision: recipeCatalog.revision,
+        expectedRecipeRevision: recipeRevision,
+        expectedProductCatalogRevision: customCatalog.revision,
+        expectedInventoryRevision: inventoryState.revision,
+        expectedInventoryCatalogRevision: inventoryState.catalogRevision ?? 0,
+        ...actor,
+        roleSnapshot: "duena",
+        draft,
+        preview,
+      },
+      { actorId: actor.actorId, role: "duena" },
+      customCatalog,
+      inventoryState,
+    ).catalog;
+  };
+
+  const first = publish(
+    createRecipeCatalog(),
+    makeDraft("1"),
+    0,
+    "recipe-pairs-first",
+  );
+  const updated = publish(first, makeDraft("3"), 1, "recipe-pairs-update");
+  const event = projectAuditHistory({ recipeCatalog: updated }).find(
+    (entry) => entry.id === "recipe-publication:recipe-pairs-update",
+  );
+  const change = event.changes.find(
+    (entry) =>
+      entry.field.includes("Cantidad capturada") &&
+      entry.beforeValue === "1" &&
+      entry.afterValue === "3",
+  );
+  assert.ok(change);
+  assert.match(change.field, /Grupo g, opción=o/);
+});
+
 test("fails closed on rewritten source history or timestamps that are not exact UTC instants", () => {
   const valid = inventory();
   const modified = {
