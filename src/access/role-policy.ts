@@ -5,7 +5,9 @@ export type AccessAction =
   | "openOrder"
   | "checkout"
   | "cancelWithReason"
+  | "cancelPreparationWithReason"
   | "discountWithReason"
+  | "reprintWithReason"
   | "editMenu"
   | "adjustInventory"
   | "viewStock"
@@ -18,7 +20,9 @@ const permissions: Record<AccessRole, ReadonlySet<AccessAction>> = {
     "openOrder",
     "checkout",
     "cancelWithReason",
+    "cancelPreparationWithReason",
     "discountWithReason",
+    "reprintWithReason",
     "editMenu",
     "adjustInventory",
     "viewStock",
@@ -30,7 +34,9 @@ const permissions: Record<AccessRole, ReadonlySet<AccessAction>> = {
     "openOrder",
     "checkout",
     "cancelWithReason",
+    "cancelPreparationWithReason",
     "discountWithReason",
+    "reprintWithReason",
     "editMenu",
     "adjustInventory",
     "viewStock",

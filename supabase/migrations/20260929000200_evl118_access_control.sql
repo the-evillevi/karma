@@ -291,14 +291,15 @@ begin
       raise exception 'Event envelope does not match the command batch' using errcode = '22023';
     end if;
     event_type := item.event ->> 'type';
-    if event_type not in (
+    if jsonb_typeof(item.event -> 'type') is distinct from 'string'
+      or coalesce(event_type, '') not in (
       'OrderOpened', 'SaleCompleted', 'OrderCancelled', 'DiscountApplied',
       'MenuItemUpdated', 'InventoryAdjusted', 'PreparationStarted',
       'PreparationReady', 'OrderServed', 'PreparationCancelled'
     ) then
       raise exception 'Unsupported event type' using errcode = '22023';
     end if;
-    if event_type in ('OrderCancelled', 'DiscountApplied') then
+    if event_type in ('OrderCancelled', 'DiscountApplied', 'PreparationCancelled') then
       reason_text := item.event -> 'payload' ->> 'reason';
       if reason_text is null or length(btrim(reason_text)) not between 1 and 250 then
         raise exception 'A bounded reason is required for this event' using errcode = '22023';
@@ -392,7 +393,14 @@ begin
   for v_event in select value from pg_catalog.jsonb_array_elements(p_events)
   loop
     v_type := v_event ->> 'type';
-    if v_type = 'OrderOpened' then
+    if jsonb_typeof(v_event -> 'type') is distinct from 'string'
+      or coalesce(v_type, '') not in (
+        'OrderOpened', 'SaleCompleted', 'OrderCancelled', 'DiscountApplied',
+        'MenuItemUpdated', 'InventoryAdjusted', 'PreparationStarted',
+        'PreparationReady', 'OrderServed', 'PreparationCancelled'
+      ) then
+      raise exception 'Unsupported event type' using errcode = '22023';
+    elsif v_type = 'OrderOpened' then
       if v_role not in ('duena', 'encargado', 'barra', 'mesero')
         or v_session.capability <> 'cash_register' then
         raise exception 'Role cannot open a cash register order' using errcode = '42501';
@@ -406,6 +414,11 @@ begin
       if v_role not in ('duena', 'encargado')
         or v_session.capability <> 'cash_register' then
         raise exception 'Role cannot cancel or discount an order' using errcode = '42501';
+      end if;
+    elsif v_type = 'PreparationCancelled' then
+      if v_role not in ('duena', 'encargado')
+        or v_session.capability not in ('cash_register', 'preparation') then
+        raise exception 'Role cannot cancel preparation' using errcode = '42501';
       end if;
     elsif v_type in ('MenuItemUpdated', 'InventoryAdjusted') then
       if v_role not in ('duena', 'encargado')

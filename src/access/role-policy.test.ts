@@ -8,7 +8,11 @@ import {
 
 test("server role matrix supports the allowed work and denies every privileged operation to Mesero", () => {
   assert.equal(canPerform("duena", "manageUsers"), true);
+  assert.equal(canPerform("duena", "cancelPreparationWithReason"), true);
+  assert.equal(canPerform("duena", "reprintWithReason"), true);
   assert.equal(canPerform("encargado", "manageUsers"), false);
+  assert.equal(canPerform("encargado", "cancelPreparationWithReason"), true);
+  assert.equal(canPerform("encargado", "reprintWithReason"), true);
   assert.equal(canPerform("barra", "checkout"), true);
   assert.equal(canPerform("barra", "viewReports"), false);
   assert.equal(canPerform("mesero", "openOrder"), true);
@@ -17,7 +21,9 @@ test("server role matrix supports the allowed work and denies every privileged o
   for (const action of [
     "checkout",
     "cancelWithReason",
+    "cancelPreparationWithReason",
     "discountWithReason",
+    "reprintWithReason",
     "editMenu",
     "adjustInventory",
     "viewReports",
