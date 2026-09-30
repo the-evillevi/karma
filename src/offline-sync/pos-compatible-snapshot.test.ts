@@ -49,6 +49,7 @@ test("adapts captured prototype orders and retains actor, contact, preparation a
   const order = {
     folio: "F-100",
     type: "mesa",
+    mesa: "4",
     ref: "Mesa 4",
     time: "2026-09-30T11:00:00.000Z",
     actorId: "staff-original",
@@ -96,6 +97,7 @@ test("adapts captured prototype orders and retains actor, contact, preparation a
   assert.equal(saved.money.subtotalCents, 4000);
   assert.equal(saved.money.discountCents, 500);
   assert.equal(saved.money.totalCents, 3500);
+  assert.equal(saved.table, "4");
   assert.equal(saved.money.reconciliation, "verified");
   assert.deepEqual(saved.contact, {
     name: "Cliente",
@@ -122,7 +124,10 @@ test("adapts captured prototype orders and retains actor, contact, preparation a
   assert.equal("uiOnly" in saved.actorHistory[0]!, false);
 });
 
-test("preserves manual payment, tender/change and refund facts while labeling lossy sale lines", () => {
+test("prefers rich checkout line snapshots and retains manual tender, audit and refund facts", () => {
+  // Mirrors the paired `items`/`lineSnapshots` record emitted by PosApp.register
+  // in the current integration (7b0c612, src/PosApp.jsx around line 1063).
+  const captured = capturedLine("sale-line-1", 5000, 1).capturedSnapshot;
   const snapshot = adaptPosStateToCompatibleSnapshot(
     {
       sales: [
@@ -140,7 +145,28 @@ test("preserves manual payment, tender/change and refund facts while labeling lo
           currency: "MXN",
           paymentRecordMode: "manual",
           externalPaymentVerification: "manual_unverified",
-          items: [{ name: "Latte", qty: 1, mods: "Avena", total: 50 }],
+          items: [{ name: "Latte", qty: 1, mods: "Avena +$5", total: 50 }],
+          lineSnapshots: [
+            {
+              lineId: "sale-line-1",
+              productId: "product-sale-line-1",
+              name: "Latte",
+              qty: 1,
+              unitPriceCents: 5000,
+              lineTotalCents: 5000,
+              modsText: "Avena +$5",
+              notes: "Sin canela",
+              capturedSnapshot: captured,
+              taxSnapshot: null,
+            },
+          ],
+          preparationFolio: "K-200",
+          sharedPreparation: true,
+          splitFrom: { folio: "F-199", operationId: "split-199" },
+          audit: [
+            ["Hoy · 12:00", "Orden creada", "Ana Ruiz"],
+            ["Hoy · 12:01", "Pago neto registrado", "Luis Solís"],
+          ],
           payments: [
             {
               paymentId: "payment-1",
@@ -201,12 +227,16 @@ test("preserves manual payment, tender/change and refund facts while labeling lo
   assert.equal(sale.compensations[0]?.reason, "Producto incorrecto");
   assert.equal(sale.compensations[0]?.actorId, "staff-owner");
   assert.equal(sale.compensations[0]?.allocations[0]?.amountCents, 1200);
-  assert.equal(sale.items[0]?.lineId, null);
-  assert.equal(sale.items[0]?.productId, null);
+  assert.equal(sale.items[0]?.lineId, "sale-line-1");
+  assert.equal(sale.items[0]?.productId, "product-sale-line-1");
   assert.equal(sale.items[0]?.price.lineTotalCents, 5000);
-  assert.equal(sale.items[0]?.price.unitPriceCents, null);
-  assert.equal(sale.items[0]?.price.evidence, "sale-line-total-only");
-  assert.equal(sale.splitLineageEvidence, "not-recorded");
+  assert.equal(sale.items[0]?.price.unitPriceCents, 5000);
+  assert.equal(sale.items[0]?.price.evidence, "captured-prototype-catalog");
+  assert.equal(sale.preparationFolio, "K-200");
+  assert.equal(sale.sharedPreparation, true);
+  assert.equal(sale.splitLineageEvidence, "recorded");
+  assert.equal(sale.audit[0]?.displayTime, "Hoy · 12:00");
+  assert.equal(sale.audit[0]?.actorName, "Ana Ruiz");
 });
 
 test("retains cancellation and split lineage facts with safe money fields", () => {
@@ -255,6 +285,151 @@ test("retains cancellation and split lineage facts with safe money fields", () =
   );
   assert.equal(snapshot.sales[0]?.cancelledBy.actorId, "staff-manager");
   assert.equal(snapshot.sales[0]?.money.totalCents, 4000);
+});
+
+test("validates compensation allocations against complete payment identities and preserves legacy unknowns", () => {
+  const payment = (paymentId: string, method = "cash", amount = 5000) => ({
+    paymentId,
+    method,
+    netAmountCents: amount,
+  });
+  const refund = (
+    commandId: string,
+    amountCents: number,
+    allocations: Array<{
+      paymentId?: string;
+      method?: string;
+      amountCents: number;
+    }>,
+    paymentId?: string,
+  ) => ({
+    commandId,
+    paymentId,
+    kind: "refund",
+    amountCents,
+    reason: "Producto incorrecto",
+    actorId: "staff-owner",
+    actorName: "Mara Vega",
+    occurredAt: "2026-09-30T12:10:00.000Z",
+    allocations,
+  });
+  const adapt = (
+    payments: unknown[],
+    compensations: unknown[],
+    totalCents = 5000,
+  ) =>
+    adaptPosStateToCompatibleSnapshot(
+      {
+        sales: [
+          {
+            folio: "F-COMPENSATION",
+            status: "completada",
+            totalCents,
+            payments,
+            compensations,
+          },
+        ],
+      },
+      metadata,
+    );
+
+  const mismatchedMethod = refund("refund-method", 1000, [
+    { paymentId: "payment-1", method: "card", amountCents: 1000 },
+  ]);
+  assert.throws(
+    () => adapt([payment("payment-1")], [mismatchedMethod]),
+    /method conflicts with captured payment/,
+  );
+  assert.throws(
+    () =>
+      adapt(
+        [payment("payment-1")],
+        [
+          refund("refund-missing-id", 1000, [
+            { paymentId: "missing-payment", method: "cash", amountCents: 1000 },
+          ]),
+        ],
+      ),
+    /unknown captured payment/,
+  );
+  assert.throws(
+    () =>
+      adapt(
+        [payment("payment-1")],
+        [
+          refund("duplicate-command", 1000, [
+            { paymentId: "payment-1", method: "cash", amountCents: 1000 },
+          ]),
+          refund("duplicate-command", 1000, [
+            { paymentId: "payment-1", method: "cash", amountCents: 1000 },
+          ]),
+        ],
+      ),
+    /repeats a compensation command ID/,
+  );
+  assert.throws(
+    () =>
+      adapt(
+        [payment("payment-1"), payment("payment-1")],
+        [
+          refund("refund-duplicate-payment", 1000, [
+            { paymentId: "payment-1", method: "cash", amountCents: 1000 },
+          ]),
+        ],
+      ),
+    /repeats a captured payment ID/,
+  );
+  assert.throws(
+    () =>
+      adapt(
+        [payment("payment-1")],
+        [
+          refund("refund-duplicate-allocation", 1000, [
+            { paymentId: "payment-1", method: "cash", amountCents: 500 },
+            { paymentId: "payment-1", method: "cash", amountCents: 500 },
+          ]),
+        ],
+      ),
+    /repeats a payment allocation/,
+  );
+  assert.throws(
+    () =>
+      adapt(
+        [payment("payment-1"), payment("payment-2")],
+        [
+          refund("refund-one", 3000, [
+            { paymentId: "payment-1", method: "cash", amountCents: 3000 },
+          ]),
+          refund("refund-two", 3000, [
+            { paymentId: "payment-1", method: "cash", amountCents: 3000 },
+          ]),
+        ],
+        10000,
+      ),
+    /exceeds its captured payment/,
+  );
+  assert.throws(
+    () =>
+      adapt([payment("payment-1")], [refund("refund-unallocated", 1000, [])]),
+    /allocation is missing for complete captured payments/,
+  );
+
+  const legacy = adapt(
+    [{ method: "cash", netAmountCents: 5000 }],
+    [
+      refund("legacy-refund", 1200, [
+        { paymentId: "unresolvable-legacy-id", amountCents: 1200 },
+      ]),
+    ],
+  ).sales[0]!.compensations[0]!;
+  assert.equal(legacy.allocationEvidence, "partial");
+  assert.equal(legacy.allocations[0]?.paymentId, "unresolvable-legacy-id");
+  assert.equal(legacy.allocations[0]?.method, null);
+
+  const noAllocation = adapt([], [refund("legacy-no-allocation", 1200, [])])
+    .sales[0]!.compensations[0]!;
+  assert.equal(noAllocation.allocationEvidence, "partial");
+  assert.deepEqual(noAllocation.allocations, []);
 });
 
 test("rejects inconsistent money and excludes authentication, staff and credential state", () => {
@@ -331,6 +506,135 @@ test("rejects inconsistent money and excludes authentication, staff and credenti
         metadata,
       ),
     /sale payments do not reconcile/,
+  );
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        {
+          sales: [
+            {
+              folio: "F-ALIAS",
+              status: "completada",
+              totalCents: 5000,
+              payments: [{ netAmountCents: 5000, amountCents: 4999 }],
+            },
+          ],
+        },
+        metadata,
+      ),
+    /conflicting cent values/,
+  );
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        {
+          sales: [
+            {
+              folio: "F-TENDER-ALIAS",
+              status: "completada",
+              totalCents: 5000,
+              tenders: [
+                {
+                  tenderedCents: 5000,
+                  cashReceivedCents: 6000,
+                  netAmountCents: 5000,
+                  changeCents: 0,
+                },
+              ],
+            },
+          ],
+        },
+        metadata,
+      ),
+    /conflicting cent values/,
+  );
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        { sales: [{ folio: "F-USD", currency: "USD", items: [] }] },
+        metadata,
+      ),
+    /currency must be MXN/,
+  );
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        {
+          sales: [
+            {
+              folio: "F-USD-PAYMENT",
+              payments: [
+                { method: "cash", currency: "USD", netAmountCents: 1 },
+              ],
+            },
+          ],
+        },
+        metadata,
+      ),
+    /currency must be MXN/,
+  );
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        { order: { items: [{ qty: 1, currency: "USD" }] } },
+        metadata,
+      ),
+    /currency must be MXN/,
+  );
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        {
+          sales: [
+            {
+              folio: "F-LINE-CONFLICT",
+              items: [{ name: "Latte", qty: 1, total: 49 }],
+              lineSnapshots: [
+                {
+                  lineId: "line-1",
+                  productId: "product-1",
+                  name: "Latte",
+                  qty: 1,
+                  unitPriceCents: 5000,
+                  lineTotalCents: 5000,
+                },
+              ],
+            },
+          ],
+        },
+        metadata,
+      ),
+    /line snapshot total conflicts/,
+  );
+  const wrongQuantity = capturedLine("l-qty", 5000, 1);
+  wrongQuantity.capturedSnapshot.quantity = 2;
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        { order: { items: [wrongQuantity] } },
+        metadata,
+      ),
+    /captured quantity conflicts/,
+  );
+  const wrongCurrency = capturedLine("l-usd", 5000, 1);
+  wrongCurrency.capturedSnapshot.currency = "USD";
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        { order: { items: [wrongCurrency] } },
+        metadata,
+      ),
+    /currency must be MXN/,
+  );
+  const wrongModifierTotal = capturedLine("l-mods", 5000, 1);
+  wrongModifierTotal.capturedSnapshot.modifiers[0]!.priceEffectCents = 400;
+  assert.throws(
+    () =>
+      adaptPosStateToCompatibleSnapshot(
+        { order: { items: [wrongModifierTotal] } },
+        metadata,
+      ),
+    /modifier total does not reconcile/,
   );
   assert.throws(
     () =>

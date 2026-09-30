@@ -74,6 +74,7 @@ export interface PosCompatibleOrder {
   folio: string | null;
   status: string | null;
   type: string | null;
+  table: string | null;
   reference: string | null;
   openedAt: string | null;
   creator: { actorId: string | null; name: string | null };
@@ -129,6 +130,13 @@ export interface PosCompatibleSale {
   };
   cancellationReason: string | null;
   items: PosCompatibleLine[];
+  preparationFolio: string | null;
+  sharedPreparation: boolean | null;
+  audit: Array<{
+    displayTime: string | null;
+    event: string | null;
+    actorName: string | null;
+  }>;
   money: PosCompatibleMoney & { tipCents: number | null };
   discount: {
     reason: string | null;
@@ -164,6 +172,7 @@ export interface PosCompatibleSale {
     occurredAt: string;
     recordMode: string | null;
     inventoryCompensation: string | null;
+    allocationEvidence: "verified" | "partial";
     allocations: Array<{
       paymentId: string | null;
       method: string | null;
@@ -239,6 +248,16 @@ function integer(value: unknown, label: string, minimum = 0): number {
   return value as number;
 }
 
+function assertMXNCurrency(source: Obj, label: string): void {
+  if (
+    source.currency !== undefined &&
+    source.currency !== null &&
+    source.currency !== "MXN"
+  ) {
+    throw new TypeError(`${label}.currency must be MXN`);
+  }
+}
+
 function centsFromMajor(value: unknown, label: string): number | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
@@ -256,20 +275,30 @@ function cents(
   centKeys: readonly string[],
   majorKeys: readonly string[] = [],
 ): number | null {
-  let centValue: number | null = null;
-  let majorValue: number | null = null;
+  const centValues: number[] = [];
   for (const key of centKeys) {
     if (source[key] !== undefined && source[key] !== null) {
-      centValue = integer(source[key], key);
-      break;
+      centValues.push(integer(source[key], key));
     }
   }
+  if (new Set(centValues).size > 1) {
+    throw new RangeError(
+      `${centKeys.join("/")} contain conflicting cent values`,
+    );
+  }
+  const majorValues: number[] = [];
   for (const key of majorKeys) {
     if (source[key] !== undefined && source[key] !== null) {
-      majorValue = centsFromMajor(source[key], key);
-      break;
+      majorValues.push(centsFromMajor(source[key], key) as number);
     }
   }
+  if (new Set(majorValues).size > 1) {
+    throw new RangeError(
+      `${majorKeys.join("/")} contain conflicting MXN values`,
+    );
+  }
+  const centValue = centValues[0] ?? null;
+  const majorValue = majorValues[0] ?? null;
   if (centValue !== null && majorValue !== null && centValue !== majorValue) {
     throw new RangeError(`${centKeys[0]} conflicts with ${majorKeys[0]}`);
   }
@@ -363,6 +392,15 @@ function modifierSelections(
 
 function line(value: unknown, index: number, sale = false): PosCompatibleLine {
   const item = object(value, `items[${index}]`);
+  assertMXNCurrency(item, `items[${index}]`);
+  if (
+    item.qty !== undefined &&
+    item.quantity !== undefined &&
+    integer(item.qty, `items[${index}].qty`, 1) !==
+      integer(item.quantity, `items[${index}].quantity`, 1)
+  ) {
+    throw new RangeError("POS line quantity aliases conflict");
+  }
   const quantity = integer(
     item.qty ?? item.quantity,
     `items[${index}].quantity`,
@@ -372,6 +410,7 @@ function line(value: unknown, index: number, sale = false): PosCompatibleLine {
     item.capturedSnapshot == null
       ? null
       : object(item.capturedSnapshot, `items[${index}].capturedSnapshot`);
+  if (captured) assertMXNCurrency(captured, `items[${index}].capturedSnapshot`);
   const productId = text(
     captured?.productId ?? item.prodId ?? item.productId,
     "productId",
@@ -388,8 +427,22 @@ function line(value: unknown, index: number, sale = false): PosCompatibleLine {
   let unitPriceCents: number | null = null;
   let lineTotalCents: number | null = null;
   let evidence: PosCompatibleLine["price"]["evidence"] = "unknown";
+  const storedUnit = cents(item, ["unitPriceCents"], ["unit"]);
+  const storedTotal = cents(item, ["lineTotalCents", "totalCents"], ["total"]);
 
   if (captured) {
+    if (captured.quantity !== undefined && captured.quantity !== null) {
+      const capturedQuantity = integer(
+        captured.quantity,
+        "captured quantity",
+        1,
+      );
+      if (capturedQuantity !== quantity) {
+        throw new RangeError(
+          "captured quantity conflicts with POS line quantity",
+        );
+      }
+    }
     baseUnitPriceCents = integer(
       captured.baseUnitPriceCents,
       "baseUnitPriceCents",
@@ -415,10 +468,15 @@ function line(value: unknown, index: number, sale = false): PosCompatibleLine {
         "captured line total does not reconcile to unit price and quantity",
       );
     }
+    if (storedUnit !== null && storedUnit !== unitPriceCents) {
+      throw new RangeError("line unit price conflicts with captured price");
+    }
+    if (storedTotal !== null && storedTotal !== lineTotalCents) {
+      throw new RangeError("line total conflicts with captured price");
+    }
     evidence = "captured-prototype-catalog";
   } else {
-    const storedUnit = cents(item, ["unitPriceCents"], ["unit"]);
-    const saleTotal = cents(item, ["lineTotalCents", "totalCents"], ["total"]);
+    const saleTotal = storedTotal;
     if (storedUnit !== null) {
       unitPriceCents = storedUnit;
       lineTotalCents = saleTotal ?? storedUnit * quantity;
@@ -440,10 +498,32 @@ function line(value: unknown, index: number, sale = false): PosCompatibleLine {
     }
   }
 
-  const tax =
+  const capturedTax =
     captured?.taxSnapshot == null
       ? null
-      : object(captured.taxSnapshot, `items[${index}].taxSnapshot`);
+      : object(
+          captured.taxSnapshot,
+          `items[${index}].capturedSnapshot.taxSnapshot`,
+        );
+  const explicitTax =
+    item.taxSnapshot == null
+      ? null
+      : object(item.taxSnapshot, `items[${index}].taxSnapshot`);
+  if (capturedTax && explicitTax) {
+    for (const key of [
+      "rateBasisPoints",
+      "amountCents",
+      "currency",
+      "source",
+    ]) {
+      if (capturedTax[key] !== explicitTax[key]) {
+        throw new RangeError(
+          "line tax snapshot conflicts with captured tax facts",
+        );
+      }
+    }
+  }
+  const tax = explicitTax ?? capturedTax;
   const rateBasisPoints = tax
     ? integer(tax.rateBasisPoints, "taxSnapshot.rateBasisPoints")
     : null;
@@ -453,6 +533,26 @@ function line(value: unknown, index: number, sale = false): PosCompatibleLine {
   if (tax && tax.currency !== "MXN")
     throw new TypeError("taxSnapshot.currency must be MXN");
   const modifierData = modifierSelections(captured, item);
+  if (
+    modifierTotalCents !== null &&
+    modifierData.modifierEvidence === "captured" &&
+    modifierData.modifierSelections.every(
+      (modifier) => modifier.priceEffectCents !== null,
+    )
+  ) {
+    const capturedModifierTotal = modifierData.modifierSelections.reduce(
+      (sum, modifier) => sum + (modifier.priceEffectCents as number),
+      0,
+    );
+    if (
+      !Number.isSafeInteger(capturedModifierTotal) ||
+      capturedModifierTotal !== modifierTotalCents
+    ) {
+      throw new RangeError(
+        "captured modifier total does not reconcile to its selections",
+      );
+    }
+  }
   return {
     lineId,
     lineIdEvidence: lineId ? "persisted" : "not-recorded",
@@ -482,6 +582,86 @@ function line(value: unknown, index: number, sale = false): PosCompatibleLine {
       source: tax ? requiredText(tax.source, "taxSnapshot.source", 120) : null,
     },
   };
+}
+
+function saleLines(input: Obj): PosCompatibleLine[] {
+  const rows = list(input.items ?? [], "sale.items");
+  if (input.lineSnapshots === undefined || input.lineSnapshots === null) {
+    return rows.map((item, index) => line(item, index, true));
+  }
+  const snapshots = list(input.lineSnapshots, "sale.lineSnapshots").map(
+    (item, index) => line(item, index, true),
+  );
+  if (rows.length !== snapshots.length) {
+    throw new RangeError("sale line snapshots do not match sale item count");
+  }
+  rows.forEach((raw, index) => {
+    const item = object(raw, `sale.items[${index}]`);
+    const snapshot = snapshots[index]!;
+    const quantity = integer(
+      item.qty ?? item.quantity,
+      `sale.items[${index}].qty`,
+      1,
+    );
+    const name = text(item.name, `sale.items[${index}].name`, 200);
+    const mods = text(item.mods, `sale.items[${index}].mods`, 500);
+    const total = cents(item, ["lineTotalCents", "totalCents"], ["total"]);
+    const itemLineId = text(item.lineId, `sale.items[${index}].lineId`, 160);
+    const productId = text(
+      item.productId ?? item.prodId,
+      `sale.items[${index}].productId`,
+      160,
+    );
+    if (quantity !== snapshot.quantity) {
+      throw new RangeError(
+        "sale line snapshot quantity conflicts with sale item",
+      );
+    }
+    if (name !== null && snapshot.name !== null && name !== snapshot.name) {
+      throw new RangeError("sale line snapshot name conflicts with sale item");
+    }
+    if (
+      mods !== null &&
+      snapshot.modifiers !== null &&
+      mods !== snapshot.modifiers
+    ) {
+      throw new RangeError(
+        "sale line snapshot modifiers conflict with sale item",
+      );
+    }
+    if (
+      total !== null &&
+      snapshot.price.lineTotalCents !== null &&
+      total !== snapshot.price.lineTotalCents
+    ) {
+      throw new RangeError("sale line snapshot total conflicts with sale item");
+    }
+    if (itemLineId !== null && itemLineId !== snapshot.lineId) {
+      throw new RangeError("sale line snapshot ID conflicts with sale item");
+    }
+    if (productId !== null && productId !== snapshot.productId) {
+      throw new RangeError(
+        "sale line snapshot product conflicts with sale item",
+      );
+    }
+  });
+  return snapshots;
+}
+
+function audit(value: unknown): PosCompatibleSale["audit"] {
+  if (value === undefined || value === null) return [];
+  return list(value, "sale.audit").map((raw, index) => {
+    if (!Array.isArray(raw) || raw.length !== 3) {
+      throw new TypeError(
+        `sale.audit[${index}] must be a three-field display tuple`,
+      );
+    }
+    return {
+      displayTime: text(raw[0], `sale.audit[${index}].time`, 80),
+      event: text(raw[1], `sale.audit[${index}].event`, 240),
+      actorName: text(raw[2], `sale.audit[${index}].actor`, 160),
+    };
+  });
 }
 
 function splitFrom(value: unknown): PosCompatibleOrder["splitFrom"] {
@@ -540,6 +720,7 @@ function reprints(value: unknown): PosCompatibleOrder["reprints"] {
 
 function order(value: unknown): PosCompatibleOrder {
   const input = object(value, "POS order");
+  assertMXNCurrency(input, "order");
   const items = list(input.items ?? [], "order.items").map((item, index) =>
     line(item, index),
   );
@@ -597,6 +778,7 @@ function order(value: unknown): PosCompatibleOrder {
     folio: text(input.folio, "folio", 100),
     status: text(input.status ?? input.sync, "order.status", 80),
     type: text(input.type, "order.type", 80),
+    table: text(input.mesa, "order.mesa", 32),
     reference: text(input.reference ?? input.ref, "order.reference", 180),
     openedAt: timestamp(input.time ?? input.createdTime, "order.time"),
     creator: {
@@ -658,8 +840,9 @@ function payment(
   index: number,
 ): PosCompatibleSale["payments"][number] {
   const input = object(value, `payments[${index}]`);
+  assertMXNCurrency(input, `payments[${index}]`);
   const net = cents(input, ["netAmountCents", "amountCents"], ["amount"]);
-  const cashReceived = cents(input, ["cashReceivedCents"]);
+  const cashReceived = cents(input, ["cashReceivedCents", "tenderedCents"]);
   const change = cents(input, ["changeCents"]);
   if (
     cashReceived !== null &&
@@ -692,6 +875,7 @@ function tender(
   index: number,
 ): PosCompatibleSale["tenders"][number] {
   const input = object(value, `tenders[${index}]`);
+  assertMXNCurrency(input, `tenders[${index}]`);
   const tendered = cents(input, ["tenderedCents", "cashReceivedCents"]);
   const net = cents(input, ["netAmountCents", "amountCents"], ["amount"]);
   const change = cents(input, ["changeCents"]);
@@ -720,11 +904,13 @@ function compensation(
   index: number,
 ): PosCompatibleSale["compensations"][number] {
   const input = object(value, `compensations[${index}]`);
+  assertMXNCurrency(input, `compensations[${index}]`);
   const allocations = list(
     input.allocations ?? [],
     "compensation.allocations",
   ).map((raw, allocationIndex) => {
     const allocation = object(raw, `allocations[${allocationIndex}]`);
+    assertMXNCurrency(allocation, `allocations[${allocationIndex}]`);
     return {
       paymentId: text(allocation.paymentId, "allocation.paymentId", 180),
       method: text(allocation.method, "allocation.method", 80),
@@ -736,11 +922,21 @@ function compensation(
       ),
     };
   });
+  const allocationIds = allocations.flatMap((allocation) =>
+    allocation.paymentId === null ? [] : [allocation.paymentId],
+  );
+  if (new Set(allocationIds).size !== allocationIds.length) {
+    throw new RangeError("compensation repeats a payment allocation");
+  }
   const amountCents = integer(input.amountCents, "compensation.amountCents");
-  if (
-    allocations.reduce((sum, entry) => sum + entry.amountCents, 0) !==
-    amountCents
-  ) {
+  const allocatedCents = allocations.reduce(
+    (sum, entry) => sum + entry.amountCents,
+    0,
+  );
+  if (!Number.isSafeInteger(allocatedCents)) {
+    throw new RangeError("compensation allocations exceed safe integer cents");
+  }
+  if (allocations.length > 0 && allocatedCents !== amountCents) {
     throw new RangeError(
       "compensation allocations do not reconcile to its amount",
     );
@@ -760,21 +956,33 @@ function compensation(
       "compensation.inventoryCompensation",
       100,
     ),
+    allocationEvidence: allocations.length > 0 ? "verified" : "partial",
     allocations,
   };
 }
 
 function sale(value: unknown): PosCompatibleSale {
   const input = object(value, "POS sale");
-  const items = list(input.items ?? [], "sale.items").map((item, index) =>
-    line(item, index, true),
-  );
+  assertMXNCurrency(input, "sale");
+  const items = saleLines(input);
   const payments = list(input.payments ?? [], "sale.payments").map(payment);
   const tenders = list(input.tenders ?? [], "sale.tenders").map(tender);
   const compensations = list(
     input.compensations ?? [],
     "sale.compensations",
   ).map(compensation);
+  const paymentIds = payments.flatMap((entry) =>
+    entry.paymentId === null ? [] : [entry.paymentId],
+  );
+  if (new Set(paymentIds).size !== paymentIds.length) {
+    throw new RangeError("sale repeats a captured payment ID");
+  }
+  const commandIds = compensations.flatMap((entry) =>
+    entry.commandId === null ? [] : [entry.commandId],
+  );
+  if (new Set(commandIds).size !== commandIds.length) {
+    throw new RangeError("sale repeats a compensation command ID");
+  }
   const totalCents = cents(input, ["totalCents"], ["total"]);
   const lineSubtotalCents = items.every(
     (item) => item.price.lineTotalCents !== null,
@@ -849,23 +1057,87 @@ function sale(value: unknown): PosCompatibleSale {
     ) {
       throw new RangeError("sale compensation exceeds the captured sale total");
     }
-    const paymentTotals = new Map(
+    const paymentById = new Map(
       payments.flatMap((entry) =>
-        entry.paymentId && entry.netAmountCents !== null
-          ? [[entry.paymentId, entry.netAmountCents] as const]
-          : [],
+        entry.paymentId ? [[entry.paymentId, entry] as const] : [],
       ),
     );
+    const completePaymentIdentity =
+      payments.length > 0 &&
+      payments.every(
+        (entry) =>
+          entry.paymentId !== null &&
+          entry.method !== null &&
+          entry.netAmountCents !== null,
+      );
     const allocationsByPayment = new Map<string, number>();
     for (const event of compensations) {
+      if (
+        completePaymentIdentity &&
+        event.paymentId !== null &&
+        !paymentById.has(event.paymentId)
+      ) {
+        throw new RangeError(
+          "compensation references an unknown captured payment",
+        );
+      }
+      if (completePaymentIdentity && event.allocations.length === 0) {
+        throw new RangeError(
+          "compensation allocation is missing for complete captured payments",
+        );
+      }
+      let eventAllocationEvidence: "verified" | "partial" =
+        event.allocations.length > 0 ? "verified" : "partial";
+      if (event.paymentId !== null && !paymentById.has(event.paymentId)) {
+        eventAllocationEvidence = "partial";
+      }
+      const eventPaymentIds = new Set<string>();
       for (const allocation of event.allocations) {
         const paymentId = allocation.paymentId ?? event.paymentId;
-        if (!paymentId || !paymentTotals.has(paymentId)) continue;
+        if (!paymentId) {
+          eventAllocationEvidence = "partial";
+          if (completePaymentIdentity) {
+            throw new RangeError(
+              "compensation allocation is missing a captured payment ID",
+            );
+          }
+          continue;
+        }
+        if (eventPaymentIds.has(paymentId)) {
+          throw new RangeError("compensation repeats a payment allocation");
+        }
+        eventPaymentIds.add(paymentId);
+        const matchedPayment = paymentById.get(paymentId);
+        if (!matchedPayment) {
+          eventAllocationEvidence = "partial";
+          if (completePaymentIdentity) {
+            throw new RangeError(
+              "compensation allocation references an unknown captured payment",
+            );
+          }
+          continue;
+        }
+        if (
+          allocation.method !== null &&
+          matchedPayment.method !== null &&
+          allocation.method !== matchedPayment.method
+        ) {
+          throw new RangeError(
+            "compensation allocation method conflicts with captured payment",
+          );
+        }
+        if (allocation.method === null || matchedPayment.method === null) {
+          eventAllocationEvidence = "partial";
+        }
+        if (matchedPayment.netAmountCents === null) {
+          eventAllocationEvidence = "partial";
+          continue;
+        }
         const prior = allocationsByPayment.get(paymentId) ?? 0;
         const allocated = prior + allocation.amountCents;
         if (
           !Number.isSafeInteger(allocated) ||
-          allocated > paymentTotals.get(paymentId)!
+          allocated > matchedPayment.netAmountCents
         ) {
           throw new RangeError(
             "sale compensation exceeds its captured payment",
@@ -873,6 +1145,7 @@ function sale(value: unknown): PosCompatibleSale {
         }
         allocationsByPayment.set(paymentId, allocated);
       }
+      event.allocationEvidence = eventAllocationEvidence;
     }
   }
   return {
@@ -911,6 +1184,16 @@ function sale(value: unknown): PosCompatibleSale {
       250,
     ),
     items,
+    preparationFolio: text(
+      input.preparationFolio,
+      "sale.preparationFolio",
+      100,
+    ),
+    sharedPreparation:
+      typeof input.sharedPreparation === "boolean"
+        ? input.sharedPreparation
+        : null,
+    audit: audit(input.audit),
     money: {
       currency: "MXN",
       subtotalCents,
