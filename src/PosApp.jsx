@@ -6,6 +6,8 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
 // Hover: replicates the DC `style-hover` directive for the 3 elements that used
@@ -458,7 +460,7 @@ export default class PosApp extends React.Component {
       const m = this.ckMath(ck);
       V.ckFolio = ck.folio || 'Nueva venta'; V.ckTypeLabel = ck.type;
       const stepIdx = { review: 0, pay: 1, confirm: 2, processing: 2, result: 2 }[ck.step] || 0;
-      V.ckSteps = ['Resumen', 'Pago', 'Confirmación'].map((l, i) => ({ label: l, style: { fontSize: 11.5, fontWeight: 500, padding: '5px 11px', borderRadius: 999, background: i === stepIdx ? acc : (i < stepIdx ? tint : 'transparent'), color: i === stepIdx ? paper : (i < stepIdx ? acc : mut), border: i > stepIdx ? '1px solid ' + line : 'none' } }));
+      V.ckSteps = ['Resumen', 'Pago', 'Confirmación'].map((label, i) => ({ label, state: i === stepIdx ? 'current' : i < stepIdx ? 'complete' : 'upcoming' }));
       V.ckLines = ck.lines.map(l => ({ qty: l.qty, name: l.name, modsText: l.modsText, hasMods: !!l.modsText, total: this.fmt(l.unit * l.qty) }));
       V.ckItemCount = ck.lines.reduce((a, l) => a + l.qty, 0);
       V.ckSubtotal = this.fmt(ck.sub); V.ckHasDiscount = ck.disc > 0; V.ckDiscount = this.fmt(ck.disc);
@@ -471,13 +473,14 @@ export default class PosApp extends React.Component {
         if (nk.pays.length === 1) { const m2 = this.ckMath({ ...nk, pays: [{ ...nk.pays[0], amount: '0' }] }); nk.pays = [{ ...nk.pays[0], amount: m2.total.toFixed(2) }]; }
         this.setState({ ck: nk });
       };
-      V.tipBtns = [['0', 'Sin propina'], ['5', '5%'], ['10', '10%'], ['15', '15%'], ['otro', 'Otra']].map(([id, label]) => ({ label, style: chipSm(ck.tipSel === id), pick: () => retune({ tipSel: id }) }));
+      V.tipBtns = [['0', 'Sin propina'], ['5', '5%'], ['10', '10%'], ['15', '15%'], ['otro', 'Otra']].map(([id, label]) => ({ label, active: ck.tipSel === id, pick: () => retune({ tipSel: id }) }));
       V.showTipCustom = ck.tipSel === 'otro' && (s.flags.propCustom !== false);
       V.tipCustom = ck.tipCustom; V.setTipCustom = e => retune({ tipCustom: e.target.value });
       const methodList = [['efectivo', 'Efectivo', s.flags.fpEfectivo], ['tarjeta', 'Tarjeta', s.flags.fpTarjeta], ['transferencia', 'Transferencia', s.flags.fpTransfer]].filter(x => x[2] !== false);
       V.pays = ck.pays.map(p => ({
         amount: p.amount,
-        methods: methodList.map(([id, label]) => ({ label, style: chipSm(p.method === id), pick: () => this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, method: id } : x) }) })),
+        methods: methodList.map(([id, label]) => ({ label, active: p.method === id, pick: () => this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, method: id } : x) }) })),
+        amountLabel: 'Monto con ' + (methodList.find(([id]) => id === p.method)?.[1] || 'método de pago'),
         setAmount: e => this.setCk({ pays: this.state.ck.pays.map(x => x.id === p.id ? { ...x, amount: e.target.value } : x) }),
         fillRest: () => { const cur = parseFloat(p.amount) || 0; const m2 = this.ckMath(ck); this.setCk({ pays: ck.pays.map(x => x.id === p.id ? { ...x, amount: (cur + m2.remaining).toFixed(2) } : x) }); },
         canRemove: ck.pays.length > 1,
@@ -488,7 +491,7 @@ export default class PosApp extends React.Component {
       V.hasChange = m.change > 0; V.change = this.fmt(m.change);
       V.hasPayMsg = !m.valid && m.paid > 0;
       V.payMsg = m.over > 0.001 && !m.hasCash ? 'El monto capturado excede el total y no hay efectivo para dar cambio.' : 'El monto cubierto aún no coincide con el total de la orden.';
-      V.payNextStyle = { padding: '11px 22px', background: m.valid ? acc : line, color: m.valid ? paper : mut, border: 'none', borderRadius: 9, fontSize: 13.5, fontWeight: 500, cursor: m.valid ? 'pointer' : 'default' };
+      V.payValid = m.valid;
       V.confirmPays = ck.pays.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => ({ method: ({ efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' })[p.method], amount: this.fmt(parseFloat(p.amount)) }));
       V.ckNext = () => { if (ck.step === 'review') this.setCk({ step: 'pay' }); else if (ck.step === 'pay' && m.valid) this.setCk({ step: 'confirm' }); };
       V.ckBack = () => this.setCk({ step: ck.step === 'confirm' ? 'pay' : 'review' });
@@ -501,14 +504,14 @@ export default class PosApp extends React.Component {
       V.ckPrint = () => this.toast('Ticket enviado a la impresora de caja');
       V.ckNew = () => this.up({ ck: null, module: 'pos' });
     } else {
-      Object.assign(V, { ckFolio: '', ckTypeLabel: '', ckSteps: [], ckLines: [], ckItemCount: 0, ckSubtotal: '', ckHasDiscount: false, ckDiscount: '', ckTip: '', ckTotal: '', ckReview: false, ckPay: false, ckConfirm: false, ckProcessing: false, ckResult: false, ckOk: false, ckFail: false, ckError: '', tipBtns: [], showTipCustom: false, tipCustom: '', setTipCustom: () => {}, pays: [], addPay: () => {}, paid: '', remaining: '', hasChange: false, change: '', hasPayMsg: false, payMsg: '', payNextStyle: {}, confirmPays: [], ckNext: () => {}, ckBack: () => {}, ckExit: () => {}, ckRegister: () => {}, ckRetry: () => {}, ckChangeMethod: () => {}, hasResultChange: false, resultChange: '', resultSyncNote: '', ckPrint: () => {}, ckNew: () => {} });
+      Object.assign(V, { ckFolio: '', ckTypeLabel: '', ckSteps: [], ckLines: [], ckItemCount: 0, ckSubtotal: '', ckHasDiscount: false, ckDiscount: '', ckTip: '', ckTotal: '', ckReview: false, ckPay: false, ckConfirm: false, ckProcessing: false, ckResult: false, ckOk: false, ckFail: false, ckError: '', tipBtns: [], showTipCustom: false, tipCustom: '', setTipCustom: () => {}, pays: [], addPay: () => {}, paid: '', remaining: '', hasChange: false, change: '', hasPayMsg: false, payMsg: '', payValid: false, confirmPays: [], ckNext: () => {}, ckBack: () => {}, ckExit: () => {}, ckRegister: () => {}, ckRetry: () => {}, ckChangeMethod: () => {}, hasResultChange: false, resultChange: '', resultSyncNote: '', ckPrint: () => {}, ckNew: () => {} });
     }
 
     // ---- menu admin
     const counts = {}; s.prods.forEach(p => counts[p.cat] = (counts[p.cat] || 0) + 1);
     V.admCats = [{ id: 'all', label: 'Todo el menú' }, ...D.categories].map(c => ({
       label: c.label, count: c.id === 'all' ? s.prods.length : (counts[c.id] || 0),
-      style: { display: 'flex', justifyContent: 'space-between', gap: 8, width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: s.admCat === c.id ? 500 : 400, background: s.admCat === c.id ? tint : 'transparent', color: s.admCat === c.id ? acc : ink },
+      active: s.admCat === c.id,
       pick: () => this.setState({ admCat: c.id })
     }));
     V.admNewCat = () => this.toast('Editor de categorías y grupos — próximamente en esta etapa', 'warn');
@@ -517,8 +520,8 @@ export default class PosApp extends React.Component {
     const catLabel = id => (D.categories.find(c => c.id === id) || {}).label || id;
     V.admProds = aplist.map(p => ({
       name: p.name, catLabel: catLabel(p.cat), price: this.fmt(p.price),
-      availLabel: p.available ? 'Activo' : 'Inactivo', availStyle: tag(p.available ? tint : bg, p.available ? acc : mut),
-      style: { display: 'grid', gridTemplateColumns: '1fr 130px 90px 110px', gap: 10, padding: '11px 16px', border: 'none', borderBottom: '1px solid ' + line, fontSize: 13, alignItems: 'center', background: s.admSel === p.id ? tint : 'transparent', cursor: 'pointer', width: '100%', textAlign: 'left', color: ink },
+      availLabel: p.available ? 'Activo' : 'Inactivo', availVariant: p.available ? 'success' : 'outline',
+      active: s.admSel === p.id,
       pick: () => this.setState({ admSel: p.id, admForm: { name: p.name, price: String(p.price), cat: p.cat, available: p.available } })
     }));
     V.admNew = () => this.setState({ admSel: 'new', admForm: { name: '', price: '', cat: s.admCat === 'all' ? 'concafe' : s.admCat, available: true } });
@@ -529,7 +532,7 @@ export default class PosApp extends React.Component {
       const selP = s.prods.find(p => p.id === s.admSel);
       V.fName = af.name; V.setFName = e => this.setState({ admForm: { ...af, name: e.target.value } });
       V.fPrice = af.price; V.setFPrice = e => this.setState({ admForm: { ...af, price: e.target.value } });
-      V.fCat = af.cat; V.setFCat = e => this.setState({ admForm: { ...af, cat: e.target.value } });
+      V.fCat = af.cat; V.setFCat = value => this.setState({ admForm: { ...af, cat: value } });
       V.fAvailLabel = af.available ? 'Disponible en el POS' : 'No disponible (agotado)';
       V.fAvailStyle = chipSm(af.available);
       V.fToggleAvail = () => this.setState({ admForm: { ...af, available: !af.available } });
@@ -549,27 +552,27 @@ export default class PosApp extends React.Component {
     } else { Object.assign(V, { fName: '', setFName: () => {}, fPrice: '', setFPrice: () => {}, fCat: '', setFCat: () => {}, fAvailLabel: '', fAvailStyle: {}, fToggleAvail: () => {}, fMods: [], fInv: [], pvName: '', pvPrice: '', admClose: () => {}, admSave: () => {} }); }
 
     // ---- inventory
-    V.invTabs = [['stock', 'Existencias'], ['mov', 'Movimientos'], ['rec', 'Recetas']].map(([id, label]) => ({ label, style: chipSm(s.invTab === id), pick: () => this.setState({ invTab: id }) }));
+    V.invTabs = [['stock', 'Existencias'], ['mov', 'Movimientos'], ['rec', 'Recetas']].map(([id, label]) => ({ label, active: s.invTab === id, pick: () => this.setState({ invTab: id }) }));
     V.tStock = s.invTab === 'stock'; V.tMov = s.invTab === 'mov'; V.tRec = s.invTab === 'rec';
     V.invSearch = s.invSearch; V.setInvSearch = e => this.setState({ invSearch: e.target.value });
     V.toggleLow = () => this.setState({ invLow: !s.invLow });
-    V.lowToggleStyle = chipSm(s.invLow);
+    V.lowToggleActive = s.invLow;
     let inv = D.inventory.filter(i => !s.invSearch || i.name.toLowerCase().includes(s.invSearch.toLowerCase()));
     if (s.invLow) inv = inv.filter(i => i.qty <= i.min);
     V.stockEmpty = inv.length === 0;
     V.stock = inv.map(i => {
       const low = i.qty <= i.min;
-      return { name: i.name, kind: i.kind, qty: i.qty + ' ' + i.unit, min: i.min + ' ' + i.unit, tagLabel: low ? 'Stock bajo' : 'OK', tagStyle: tag(low ? acc : bg, low ? paper : mut) };
+      return { name: i.name, kind: i.kind, qty: i.qty + ' ' + i.unit, min: i.min + ' ' + i.unit, tagLabel: low ? 'Stock bajo' : 'OK', tagVariant: low ? 'pending' : 'outline' };
     });
-    const movTags = { entrada: ['Entrada', tint, acc], merma: ['Merma', ink, paper], ajuste: ['Ajuste', bg, mut], venta: ['Venta', 'transparent', '#a8a69c'] };
-    V.movs = s.movs.map(mv => { const t = movTags[mv.tipo]; return { tipoLabel: t[0], tagStyle: tag(t[1], t[2]), item: mv.item, qty: mv.qty, user: mv.user, date: mv.date, motivo: mv.motivo }; });
+    const movTags = { entrada: ['Entrada', 'pending'], merma: ['Merma', 'destructive'], ajuste: ['Ajuste', 'outline'], venta: ['Venta', 'secondary'] };
+    V.movs = s.movs.map(mv => { const t = movTags[mv.tipo]; return { tipoLabel: t[0], tagVariant: t[1], item: mv.item, qty: mv.qty, user: mv.user, date: mv.date, motivo: mv.motivo }; });
     V.recs = D.recipes.map(r => ({ product: r.product, items: r.items.map(([name, use, conv]) => ({ name, use, conv })) }));
     V.regEntrada = () => this.invDialog('entrada', 'Registrar entrada', false);
     V.regMerma = () => this.invDialog('merma', 'Registrar merma', false);
     V.regAjuste = () => this.invDialog('ajuste', 'Ajuste manual de inventario', true);
 
     // ---- reports
-    V.ranges = [['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['30d', 'Últimos 30 días']].map(([id, label]) => ({ label, style: chipSm(s.range === id), pick: () => this.setState({ range: id }) }));
+    V.ranges = [['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['30d', 'Últimos 30 días']].map(([id, label]) => ({ label, active: s.range === id, pick: () => this.setState({ range: id }) }));
     const lim = s.range === 'hoy' ? 0 : s.range === '7d' ? 6 : 30;
     const rs = s.sales.filter(x => (x.day || 0) <= lim);
     const done = rs.filter(x => x.status === 'completada');
@@ -584,13 +587,13 @@ export default class PosApp extends React.Component {
     V.topProds = Object.keys(tp).sort((a, b) => tp[b].a - tp[a].a).slice(0, 6).map(k => ({ name: k, qty: tp[k].q, amount: this.fmt(tp[k].a) }));
     const bu = {}; done.forEach(x => { bu[x.cobro] = bu[x.cobro] || { t: 0, a: 0 }; bu[x.cobro].t += 1; bu[x.cobro].a += x.total; });
     V.byUser = Object.keys(bu).map(k => ({ name: k, meta: bu[k].t + ' tickets', amount: this.fmt(bu[k].a) }));
-    const stTags = { completada: ['Completada', tint, acc], cancelada: ['Cancelada', ink, paper], reembolsada: ['Reembolsada', bg, mut] };
-    V.repSales = rs.map(x => ({ folio: x.folio, fecha: x.fecha, tipo: x.tipo, user: x.cobro, total: this.fmt(x.total), statusLabel: stTags[x.status][0], statusStyle: tag(stTags[x.status][1], stTags[x.status][2]), syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronizada', open: () => this.setState({ repSel: x.folio }) }));
+    const stTags = { completada: ['Completada', 'success'], cancelada: ['Cancelada', 'destructive'], reembolsada: ['Reembolsada', 'outline'] };
+    V.repSales = rs.map(x => ({ folio: x.folio, fecha: x.fecha, tipo: x.tipo, user: x.cobro, total: this.fmt(x.total), statusLabel: stTags[x.status][0], statusVariant: stTags[x.status][1], syncLabel: x.sync === 'pendiente' ? 'Por sincronizar' : 'Sincronizada', syncVariant: x.sync === 'pendiente' ? 'pending' : 'outline', open: () => this.setState({ repSel: x.folio }) }));
     V.exportar = () => this.toast('ventas_abboth_' + s.range + '.xlsx exportado (simulado)');
     const sel = s.sales.find(x => x.folio === s.repSel);
     V.hasRepSel = !!sel;
     if (sel) {
-      V.dFolio = sel.folio; V.dStatusLabel = stTags[sel.status][0]; V.dStatusStyle = tag(stTags[sel.status][1], stTags[sel.status][2]);
+      V.dFolio = sel.folio; V.dStatusLabel = stTags[sel.status][0]; V.dStatusVariant = stTags[sel.status][1];
       V.dMeta = sel.fecha + ' · ' + sel.tipo + ' — creó ' + sel.creo + ' · cobró ' + sel.cobro + ' · ' + (sel.sync === 'pendiente' ? 'por sincronizar' : 'sincronizada');
       V.dHasMotivo = !!sel.motivo; V.dMotivo = sel.motivo || '';
       V.dItems = sel.items.map(i => ({ qty: i.qty, name: i.name, mods: i.mods, hasMods: !!i.mods, total: this.fmt(i.total) }));
@@ -598,17 +601,17 @@ export default class PosApp extends React.Component {
       V.dTip = this.fmt(sel.tip); V.dTotal = this.fmt(sel.total);
       V.dAudit = sel.audit.map(a => ({ t: a[0], e: a[1], u: a[2] }));
       V.closeDetail = () => this.setState({ repSel: null });
-    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusStyle: {}, dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
+    } else { Object.assign(V, { dFolio: '', dStatusLabel: '', dStatusVariant: 'outline', dMeta: '', dHasMotivo: false, dMotivo: '', dItems: [], dPays: [], dTip: '', dTotal: '', dAudit: [], closeDetail: () => {} }); }
 
     // ---- users & config
-    V.cfgTabs = [['usuarios', 'Usuarios'], ['config', 'Configuración']].map(([id, label]) => ({ label, style: chipSm(s.cfgTab === id), pick: () => this.setState({ cfgTab: id }) }));
+    V.cfgTabs = [['usuarios', 'Usuarios'], ['config', 'Configuración']].map(([id, label]) => ({ label, active: s.cfgTab === id, pick: () => this.setState({ cfgTab: id }) }));
     V.cUsers = s.cfgTab === 'usuarios'; V.cCfg = s.cfgTab === 'config';
     V.newUser = () => this.setState({ selUser: 'new', suForm: { name: '', role: 'cajero', active: true, perms: null } });
     V.usersRows = s.usersX.map(u => ({
       name: u.name, roleLabel: D.roleLabels[u.role],
-      activeLabel: u.active ? 'Activo' : 'Inactivo', activeStyle: tag(u.active ? tint : bg, u.active ? acc : mut),
+      activeLabel: u.active ? 'Activo' : 'Inactivo', activeVariant: u.active ? 'success' : 'outline',
       toggleLabel: u.active ? 'Desactivar' : 'Activar',
-      style: { display: 'grid', gridTemplateColumns: '1fr 160px 80px 110px 90px', gap: 10, padding: '11px 16px', borderBottom: '1px solid ' + line, alignItems: 'center', background: s.selUser === u.id ? tint : 'transparent' },
+      selected: s.selUser === u.id,
       pick: () => this.setState({ selUser: u.id, suForm: { name: u.name, role: u.role, active: u.active, perms: null } }),
       toggleActive: () => this.up({ usersX: s.usersX.map(x => x.id === u.id ? { ...x, active: !x.active } : x) }, () => this.toast(u.name + (u.active ? ' desactivado' : ' activado')))
     }));
@@ -623,10 +626,10 @@ export default class PosApp extends React.Component {
     if (su) {
       const perms = su.perms || permDefaults(su.role);
       V.suName = su.name; V.setSuName = e => this.setState({ suForm: { ...su, name: e.target.value } });
-      V.suRoles = Object.keys(D.roleLabels).map(r => ({ label: D.roleLabels[r], style: chipSm(su.role === r), pick: () => this.setState({ suForm: { ...su, role: r, perms: null } }) }));
+      V.suRoles = Object.keys(D.roleLabels).map(r => ({ label: D.roleLabels[r], active: su.role === r, pick: () => this.setState({ suForm: { ...su, role: r, perms: null } }) }));
       V.suPerms = ['Cobrar órdenes', 'Cancelar con motivo', 'Aplicar descuentos', 'Editar menú', 'Ajustar inventario', 'Ver reportes', 'Administrar usuarios'].map(p => {
         const on = perms.includes(p);
-        return { label: p, mark: on ? '✓' : '—', style: { display: 'flex', justifyContent: 'space-between', gap: 10, width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13, border: '1px solid ' + (on ? acc : line), background: on ? tint : paper, color: on ? acc : mut }, toggle: () => this.setState({ suForm: { ...su, perms: on ? perms.filter(x => x !== p) : [...perms, p] } }) };
+        return { label: p, active: on, toggle: () => this.setState({ suForm: { ...su, perms: on ? perms.filter(x => x !== p) : [...perms, p] } }) };
       });
       const audits = s.sales.flatMap(x => (x.audit || []).filter(a => a[2] === su.name).map(a => ({ t: x.fecha.split(' · ')[0] + ' ' + a[0], e: a[1] + ' · ' + x.folio }))).slice(0, 6);
       V.suAudit = audits.length ? audits : [{ t: '—', e: 'Sin acciones registradas todavía' }];
@@ -644,12 +647,12 @@ export default class PosApp extends React.Component {
       const on = s.flags[key] !== false;
       return {
         hasToggle: true, hasValue: false,
-        toggStyle: { width: 38, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer', background: on ? acc : line, position: 'relative', padding: 0, flex: 'none' },
-        knobStyle: { position: 'absolute', top: 3, left: on ? 19 : 3, width: 16, height: 16, borderRadius: '50%', background: paper, transition: 'left .15s ease' },
+        enabled: on,
+        toggleId: 'setting-' + key,
         toggle: () => this.up({ flags: { ...this.state.flags, [key]: !on } })
       };
     };
-    const row = (label, value) => ({ label, value, hasValue: true, hasToggle: false, toggle: () => {}, toggStyle: {}, knobStyle: {} });
+    const row = (label, value) => ({ label, value, hasValue: true, hasToggle: false, toggle: () => {}, enabled: false, toggleId: '' });
     V.cfgCards = [
       { title: 'Datos del negocio', rows: [row('Nombre', 'Abboth'), row('Sucursal', 'Centro · única'), row('Moneda', 'MXN — pesos mexicanos'), row('Redes', '@Abboth.mx')], hasAction: false, action: () => {}, actionLabel: '' },
       { title: 'Impresión', rows: [row('Tickets', 'EPSON TM-T20 · Caja'), row('Comandas', 'Estrella SP700 · Cocina'), { label: 'Imprimir comanda automáticamente', ...togg('autoprint') }], hasAction: false, action: () => {}, actionLabel: '' },
@@ -889,15 +892,15 @@ export default class PosApp extends React.Component {
 
 {(V.mCheckout) && (<>
 <div style={css("max-width:960px;margin:0 auto;padding:22px 24px 48px;display:flex;flex-direction:column;gap:18px")}>
-<div style={css("display:flex;align-items:center;gap:14px")}>
-<button onClick={V.ckExit} style={css("border:1px solid #e2e0d6;background:#faf9f5;border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer;color:#141413")}>← Volver</button>
+<div style={css("display:flex;align-items:center;gap:14px;flex-wrap:wrap")}>
+<Button type="button" variant="outline" onClick={V.ckExit}>← Volver</Button>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Cobro · {V.ckFolio}</h1>
-<div style={css("margin-left:auto;display:flex;gap:6px")}>
-{(V.ckSteps).map((s, sI) => (<React.Fragment key={sI}><span style={s.style}>{s.label}</span></React.Fragment>))}
+<div style={css("margin-left:auto;display:flex;gap:6px;flex-wrap:wrap")} aria-label="Progreso del cobro">
+{(V.ckSteps).map((s, sI) => (<Badge key={sI} variant={s.state === 'current' ? 'default' : s.state === 'complete' ? 'secondary' : 'outline'} aria-current={s.state === 'current' ? 'step' : undefined}>{s.label}</Badge>))}
 </div>
 </div>
-<div style={css("display:flex;gap:18px;align-items:flex-start")}>
-<div style={css("width:340px;flex:none;background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px")}>
+<div style={css("display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap")}>
+<Card className="min-w-0 flex-[1_1_260px] gap-3 p-4 sm:flex-none sm:basis-[340px]">
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Resumen · {V.ckTypeLabel}</div>
 <div style={css("display:flex;flex-direction:column")}>
 {(V.ckLines).map((l, lI) => (<React.Fragment key={lI}>
@@ -915,20 +918,20 @@ export default class PosApp extends React.Component {
 <span style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Total</span>
 <span style={css("font-family:Georgia,serif;font-style:italic;font-size:32px;line-height:1")}>{V.ckTotal}</span>
 </div>
-</div>
+</Card>
 
-<div style={css("flex:1;min-width:0;background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px")}>
+<Card className="min-w-0 flex-[2_1_360px] gap-4 p-4 sm:p-5">
 {(V.ckReview) && (<>
 <div style={css("font-size:15px;font-weight:500")}>Revisa la orden</div>
 <div style={css("font-size:13.5px;color:#6b6a63;line-height:1.6")}>{V.ckItemCount} artículos · {V.ckTypeLabel}.<br />Verifica productos y cantidades antes de continuar. Puedes volver para editar la orden.</div>
-<button onClick={V.ckNext} style={css("align-self:flex-start;padding:12px 22px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer")}>Continuar al pago</button>
+<Button type="button" size="lg" className="self-start" onClick={V.ckNext}>Continuar al pago</Button>
 </>)}
 {(V.ckPay) && (<>
 <div>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500;margin-bottom:8px")}>Propina</div>
 <div style={css("display:flex;gap:6px;flex-wrap:wrap;align-items:center")}>
-{(V.tipBtns).map((t, tI) => (<React.Fragment key={tI}><button style={t.style} onClick={t.pick}>{t.label}</button></React.Fragment>))}
-{(V.showTipCustom) && (<><input value={V.tipCustom} onChange={V.setTipCustom} placeholder="Monto MXN" inputMode="decimal" style={css("width:110px;padding:8px 10px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none")} /></>)}
+{(V.tipBtns).map((t, tI) => (<Button key={tI} type="button" size="sm" variant={t.active ? 'default' : 'outline'} aria-pressed={t.active} onClick={t.pick}>{t.label}</Button>))}
+{(V.showTipCustom) && (<div className="flex items-center gap-2"><Label className="sr-only" htmlFor="checkout-tip">Monto de propina en pesos</Label><Input id="checkout-tip" value={V.tipCustom} onChange={V.setTipCustom} placeholder="Monto MXN" inputMode="decimal" className="w-32" /></div>)}
 </div>
 </div>
 <div style={css("display:flex;flex-direction:column;gap:10px")}>
@@ -936,14 +939,15 @@ export default class PosApp extends React.Component {
 {(V.pays).map((p, pI) => (<React.Fragment key={pI}>
 <div style={css("display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px solid #e2e0d6;border-radius:10px;padding:10px 12px;background:#f0eee6")}>
 <div style={css("display:flex;gap:5px")}>
-{(p.methods).map((m, mI) => (<React.Fragment key={mI}><button style={m.style} onClick={m.pick}>{m.label}</button></React.Fragment>))}
+{(p.methods).map((m, mI) => (<Button key={mI} type="button" size="sm" variant={m.active ? 'default' : 'outline'} aria-pressed={m.active} onClick={m.pick}>{m.label}</Button>))}
 </div>
-<input value={p.amount} onChange={p.setAmount} inputMode="decimal" style={css("width:100px;padding:8px 10px;border:1px solid #e2e0d6;border-radius:8px;background:#faf9f5;font-size:13.5px;outline:none;margin-left:auto;text-align:right")} />
-<button onClick={p.fillRest} style={css("border:none;background:transparent;color:#836953;font-size:12px;cursor:pointer")}>restante</button>
-{(p.canRemove) && (<><button onClick={p.remove} style={css("border:none;background:transparent;color:#6b6a63;font-size:15px;cursor:pointer;line-height:1")}>×</button></>)}
+<Label className="sr-only" htmlFor={`checkout-amount-${pI}`}>{p.amountLabel}</Label>
+<Input id={`checkout-amount-${pI}`} value={p.amount} onChange={p.setAmount} inputMode="decimal" className="ml-auto w-28 text-right" />
+<Button type="button" variant="ghost" size="sm" onClick={p.fillRest}>Restante</Button>
+{(p.canRemove) && (<Button type="button" variant="ghost" size="icon" aria-label={`Quitar pago ${pI + 1}`} onClick={p.remove}>×</Button>)}
 </div>
 </React.Fragment>))}
-<button onClick={V.addPay} style={css("border:none;background:transparent;color:#836953;font-size:12.5px;cursor:pointer;text-align:left;padding:0")}>+ Dividir en otro método</button>
+<Button type="button" variant="link" className="self-start px-0" onClick={V.addPay}>+ Dividir en otro método</Button>
 </div>
 <div style={css("display:flex;gap:18px;font-size:13px;color:#6b6a63;flex-wrap:wrap")}>
 <span>Pagado <span style={css("color:#141413;font-weight:500")}>{V.paid}</span></span>
@@ -952,8 +956,8 @@ export default class PosApp extends React.Component {
 </div>
 {(V.hasPayMsg) && (<><div style={css("font-size:12.5px;color:#836953;background:#f6e5df;border-radius:8px;padding:8px 12px")}>{V.payMsg}</div></>)}
 <div style={css("display:flex;gap:8px")}>
-<button onClick={V.ckBack} style={css("padding:11px 18px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:9px;font-size:13.5px;cursor:pointer;color:#141413")}>Atrás</button>
-<button onClick={V.ckNext} style={V.payNextStyle}>Continuar</button>
+<Button type="button" variant="outline" onClick={V.ckBack}>Atrás</Button>
+<Button type="button" aria-disabled={!V.payValid} className={!V.payValid ? 'opacity-50' : ''} onClick={V.ckNext}>Continuar</Button>
 </div>
 </>)}
 {(V.ckConfirm) && (<>
@@ -967,8 +971,8 @@ export default class PosApp extends React.Component {
 </div>
 <div style={css("font-size:12.5px;color:#6b6a63")}>Al confirmar se registrará el pago y la cuenta se cerrará. Esta acción queda en el historial de auditoría.</div>
 <div style={css("display:flex;gap:8px")}>
-<button onClick={V.ckBack} style={css("padding:11px 18px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:9px;font-size:13.5px;cursor:pointer;color:#141413")}>Atrás</button>
-<button onClick={V.ckRegister} style={css("padding:12px 22px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer")}>Registrar pago {V.ckTotal}</button>
+<Button type="button" variant="outline" onClick={V.ckBack}>Atrás</Button>
+<Button type="button" size="lg" onClick={V.ckRegister}>Registrar pago {V.ckTotal}</Button>
 </div>
 </>)}
 {(V.ckProcessing) && (<>
@@ -986,8 +990,8 @@ export default class PosApp extends React.Component {
 {(V.hasResultChange) && (<><div style={css("font-size:13.5px;color:#836953")}>Entrega {V.resultChange} de cambio</div></>)}
 <div style={css("font-size:12.5px;color:#6b6a63")}>{V.resultSyncNote}</div>
 <div style={css("display:flex;gap:8px;margin-top:6px")}>
-<button onClick={V.ckPrint} style={css("padding:11px 18px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:9px;font-size:13.5px;cursor:pointer;color:#141413")}>Imprimir ticket</button>
-<button onClick={V.ckNew} style={css("padding:11px 20px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:13.5px;font-weight:500;cursor:pointer")}>Nueva venta</button>
+<Button type="button" variant="outline" onClick={V.ckPrint}>Imprimir ticket</Button>
+<Button type="button" onClick={V.ckNew}>Nueva venta</Button>
 </div>
 </div>
 </>)}
@@ -997,62 +1001,69 @@ export default class PosApp extends React.Component {
 <div style={css("font-size:17px;font-weight:500")}>No se pudo procesar el pago</div>
 <div style={css("font-size:13px;color:#6b6a63;max-width:360px")}>{V.ckError}</div>
 <div style={css("display:flex;gap:8px;margin-top:6px")}>
-<button onClick={V.ckChangeMethod} style={css("padding:11px 18px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:9px;font-size:13.5px;cursor:pointer;color:#141413")}>Cambiar método</button>
-<button onClick={V.ckRetry} style={css("padding:11px 20px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:13.5px;font-weight:500;cursor:pointer")}>Reintentar</button>
+<Button type="button" variant="outline" onClick={V.ckChangeMethod}>Cambiar método</Button>
+<Button type="button" onClick={V.ckRetry}>Reintentar</Button>
 </div>
 </div>
 </>)}
 </>)}
-</div>
+</Card>
 </div>
 </div>
 </>)}
 
 {(V.mMenu) && (<>
-<div style={css("padding:22px 24px 40px;display:flex;gap:18px;align-items:flex-start")}>
-<div style={css("width:230px;flex:none;background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:2px")}>
+<div style={css("padding:22px 24px 40px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap")}>
+<Card className="min-w-0 gap-2 p-3 sm:w-[230px] sm:shrink-0">
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500;padding:4px 10px 10px")}>Categorías</div>
 {(V.admCats).map((c, cI) => (<React.Fragment key={cI}>
-<button style={c.style} onClick={c.pick}><span>{c.label}</span><span style={css("color:#6b6a63;font-size:12px")}>{c.count}</span></button>
+<Button type="button" variant={c.active ? 'secondary' : 'ghost'} className="w-full justify-between text-left" aria-pressed={c.active} onClick={c.pick}><span>{c.label}</span><Badge variant="outline">{c.count}</Badge></Button>
 </React.Fragment>))}
-<button onClick={V.admNewCat} style={css("border:none;background:transparent;color:#836953;font-size:12.5px;cursor:pointer;text-align:left;padding:10px 10px 4px")}>+ Nueva categoría</button>
-</div>
+<Button type="button" variant="link" className="justify-start px-3" onClick={V.admNewCat}>+ Nueva categoría</Button>
+</Card>
 <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:12px")}>
 <div style={css("display:flex;gap:10px")}>
-<input value={V.admSearch} onChange={V.setAdmSearch} placeholder="Buscar en el menú…" style={css("flex:1;padding:10px 14px;border:1px solid #e2e0d6;border-radius:9px;background:#faf9f5;font-size:13.5px;outline:none")} />
-<button onClick={V.admNew} style={css("padding:10px 16px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:13px;font-weight:500;cursor:pointer")}>+ Nuevo producto</button>
+<Label className="sr-only" htmlFor="menu-search">Buscar en el menú</Label>
+<Input id="menu-search" value={V.admSearch} onChange={V.setAdmSearch} placeholder="Buscar en el menú…" className="flex-1" />
+<Button type="button" onClick={V.admNew}>+ Nuevo producto</Button>
 </div>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;overflow:hidden")}>
-<div style={css("display:grid;grid-template-columns:1fr 130px 90px 110px;gap:10px;padding:10px 16px;border-bottom:1px solid #e2e0d6;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6b6a63;font-weight:500")}><span>Producto</span><span>Categoría</span><span>Precio</span><span>Estado</span></div>
+<Card className="gap-0 overflow-hidden p-0">
+<div className="hidden grid-cols-[minmax(0,1fr)_minmax(6rem,0.8fr)_auto_auto] gap-3 border-b px-4 py-3 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground sm:grid"><span>Producto</span><span>Categoría</span><span>Precio</span><span>Estado</span></div>
 {(V.admProds).map((p, pI) => (<React.Fragment key={pI}>
-<button style={p.style} onClick={p.pick}><span style={css("font-weight:500;text-align:left")}>{p.name}</span><span style={css("color:#6b6a63")}>{p.catLabel}</span><span>{p.price}</span><span style={p.availStyle}>{p.availLabel}</span></button>
+<Button type="button" variant="ghost" aria-pressed={p.active} className={`grid h-auto min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] justify-stretch gap-x-3 gap-y-1 rounded-none border-b px-4 py-2 text-left last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(6rem,0.8fr)_auto_auto] ${p.active ? 'bg-secondary' : ''}`} onClick={p.pick}><span className="min-w-0 whitespace-normal font-medium">{p.name}</span><span className="col-start-1 row-start-2 truncate text-xs text-muted-foreground sm:col-auto sm:row-auto">{p.catLabel}</span><span className="col-start-2 row-start-1 whitespace-nowrap text-right sm:col-auto sm:row-auto">{p.price}</span><Badge className="col-start-2 row-start-2 justify-self-end sm:col-auto sm:row-auto" variant={p.availVariant}>{p.availLabel}</Badge></Button>
 </React.Fragment>))}
-</div>
+</Card>
 </div>
 {(V.hasAdmSel) && (<>
-<div style={css("width:340px;flex:none;background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:16px;position:sticky;top:22px")}>
-<div style={css("display:flex;align-items:center")}><span style={css("font-size:15px;font-weight:500;flex:1")}>Editar producto</span><button onClick={V.admClose} style={css("border:none;background:transparent;color:#6b6a63;font-size:17px;cursor:pointer;line-height:1")}>×</button></div>
+<Card className="min-w-0 w-full max-w-[340px] gap-4 p-4 sm:sticky sm:top-5 sm:shrink-0">
+<div style={css("display:flex;align-items:center")}><span style={css("font-size:15px;font-weight:500;flex:1")}>Editar producto</span><Button type="button" variant="ghost" size="icon" aria-label="Cerrar editor de producto" onClick={V.admClose}>×</Button></div>
 <div style={css("display:flex;flex-direction:column;gap:8px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Datos generales</div>
-<input value={V.fName} onChange={V.setFName} placeholder="Nombre" style={css("width:100%;padding:9px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none")} />
-<select value={V.fCat} onChange={V.setFCat} style={css("width:100%;padding:9px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none")}>
-{(V.catOptions).map((o, oI) => (<React.Fragment key={oI}><option value={o.id}>{o.label}</option></React.Fragment>))}
-</select>
+<Label htmlFor="product-name">Nombre del producto</Label>
+<Input id="product-name" value={V.fName} onChange={V.setFName} placeholder="Nombre" />
+<Label htmlFor="product-category">Categoría</Label>
+<Select value={V.fCat} onValueChange={V.setFCat}>
+<SelectTrigger id="product-category" aria-label="Categoría"><SelectValue placeholder="Seleccionar categoría" /></SelectTrigger>
+<SelectContent>
+{(V.catOptions).map(o => (<SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>))}
+</SelectContent>
+</Select>
 </div>
 <div style={css("display:flex;flex-direction:column;gap:8px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Precio</div>
-<input value={V.fPrice} onChange={V.setFPrice} inputMode="decimal" placeholder="0.00" style={css("width:130px;padding:9px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none")} />
+<Label htmlFor="product-price">Precio en MXN</Label>
+<Input id="product-price" value={V.fPrice} onChange={V.setFPrice} inputMode="decimal" placeholder="0.00" className="max-w-[130px]" />
 </div>
 <div style={css("display:flex;flex-direction:column;gap:8px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Disponibilidad</div>
-<button onClick={V.fToggleAvail} style={V.fAvailStyle}>{V.fAvailLabel}</button>
+<Button type="button" variant="outline" aria-pressed={V.fAvailLabel === 'Disponible en el POS'} onClick={V.fToggleAvail}>{V.fAvailLabel}</Button>
 </div>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Modificadores</div>
 {(V.fMods).map((m, mI) => (<React.Fragment key={mI}>
 <div style={css("display:flex;justify-content:space-between;font-size:13px;border:1px solid #e2e0d6;border-radius:8px;padding:8px 12px")}><span style={css("font-weight:500")}>{m.label}</span><span style={css("color:#6b6a63")}>{m.meta}</span></div>
 </React.Fragment>))}
-<button style={css("border:none;background:transparent;color:#836953;font-size:12.5px;cursor:pointer;text-align:left;padding:0")} onClick={V.admNewCat}>+ Agregar grupo de modificadores</button>
+<Button type="button" variant="link" className="justify-start px-0" onClick={V.admNewCat}>+ Agregar grupo de modificadores</Button>
 </div>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Inventario asociado</div>
@@ -1067,8 +1078,8 @@ export default class PosApp extends React.Component {
 <span style={css("font-size:13px;color:#6b6a63")}>{V.pvPrice}</span>
 </div>
 </div>
-<button onClick={V.admSave} style={css("padding:12px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:13.5px;font-weight:500;cursor:pointer")}>Guardar cambios</button>
-</div>
+<Button type="button" size="lg" onClick={V.admSave}>Guardar cambios</Button>
+</Card>
 </>)}
 </div>
 </>)}
@@ -1077,50 +1088,51 @@ export default class PosApp extends React.Component {
 <div style={css("padding:22px 24px 40px;display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Inventario</h1>
-<div style={css("display:flex;gap:6px;margin-left:8px")}>
-{(V.invTabs).map((t, tI) => (<React.Fragment key={tI}><button style={t.style} onClick={t.pick}>{t.label}</button></React.Fragment>))}
+<div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
+{(V.invTabs).map((t, tI) => (<Button key={tI} type="button" size="sm" variant={t.active ? 'default' : 'outline'} aria-pressed={t.active} onClick={t.pick}>{t.label}</Button>))}
 </div>
 <div style={css("margin-left:auto;display:flex;gap:8px")}>
-<button onClick={V.regEntrada} style={css("padding:9px 14px;background:#836953;color:#faf9f5;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer")}>+ Entrada</button>
-<button onClick={V.regMerma} style={css("padding:9px 14px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;cursor:pointer;color:#141413")}>Registrar merma</button>
-<button onClick={V.regAjuste} style={css("padding:9px 14px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;cursor:pointer;color:#141413")}>Ajuste manual</button>
+<Button type="button" onClick={V.regEntrada}>+ Entrada</Button>
+<Button type="button" variant="outline" onClick={V.regMerma}>Registrar merma</Button>
+<Button type="button" variant="outline" onClick={V.regAjuste}>Ajuste manual</Button>
 </div>
 </div>
 {(V.tStock) && (<>
 <div style={css("display:flex;gap:10px")}>
-<input value={V.invSearch} onChange={V.setInvSearch} placeholder="Buscar insumo o ingrediente…" style={css("flex:1;max-width:340px;padding:10px 14px;border:1px solid #e2e0d6;border-radius:9px;background:#faf9f5;font-size:13.5px;outline:none")} />
-<button onClick={V.toggleLow} style={V.lowToggleStyle}>Solo stock bajo</button>
+<Label className="sr-only" htmlFor="inventory-search">Buscar insumo o ingrediente</Label>
+<Input id="inventory-search" value={V.invSearch} onChange={V.setInvSearch} placeholder="Buscar insumo o ingrediente…" className="max-w-[340px]" />
+<Button type="button" variant={V.lowToggleActive ? 'secondary' : 'outline'} aria-pressed={V.lowToggleActive} onClick={V.toggleLow}>Solo stock bajo</Button>
 </div>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;overflow:hidden")}>
+<Card className="gap-0 overflow-x-auto p-0"><div className="min-w-[650px]">
 <div style={css("display:grid;grid-template-columns:1fr 150px 120px 110px 120px;gap:10px;padding:10px 16px;border-bottom:1px solid #e2e0d6;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6b6a63;font-weight:500")}><span>Artículo</span><span>Tipo</span><span>Existencia</span><span>Mínimo</span><span>Estado</span></div>
 {(V.stockEmpty) && (<><div style={css("padding:32px;text-align:center;color:#6b6a63;font-size:13px")}>Sin artículos que coincidan.</div></>)}
 {(V.stock).map((s, sI) => (<React.Fragment key={sI}>
 <div style={css("display:grid;grid-template-columns:1fr 150px 120px 110px 120px;gap:10px;padding:11px 16px;border-bottom:1px solid #e2e0d6;font-size:13px;align-items:center")}>
-<span style={css("font-weight:500")}>{s.name}</span><span style={css("color:#6b6a63")}>{s.kind}</span><span>{s.qty}</span><span style={css("color:#6b6a63")}>{s.min}</span><span style={s.tagStyle}>{s.tagLabel}</span>
+<span style={css("font-weight:500")}>{s.name}</span><span style={css("color:#6b6a63")}>{s.kind}</span><span>{s.qty}</span><span style={css("color:#6b6a63")}>{s.min}</span><Badge variant={s.tagVariant}>{s.tagLabel}</Badge>
 </div>
 </React.Fragment>))}
-</div>
+</div></Card>
 </>)}
 {(V.tMov) && (<>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;overflow:hidden")}>
+<Card className="gap-0 overflow-x-auto p-0"><div className="min-w-[900px]">
 <div style={css("display:grid;grid-template-columns:110px 1fr 90px 150px 130px 1fr;gap:10px;padding:10px 16px;border-bottom:1px solid #e2e0d6;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6b6a63;font-weight:500")}><span>Tipo</span><span>Artículo</span><span>Cantidad</span><span>Usuario</span><span>Fecha</span><span>Motivo</span></div>
 {(V.movs).map((m, mI) => (<React.Fragment key={mI}>
 <div style={css("display:grid;grid-template-columns:110px 1fr 90px 150px 130px 1fr;gap:10px;padding:11px 16px;border-bottom:1px solid #e2e0d6;font-size:13px;align-items:center")}>
-<span style={m.tagStyle}>{m.tipoLabel}</span><span style={css("font-weight:500")}>{m.item}</span><span>{m.qty}</span><span style={css("color:#6b6a63")}>{m.user}</span><span style={css("color:#6b6a63")}>{m.date}</span><span style={css("color:#6b6a63")}>{m.motivo}</span>
+<Badge variant={m.tagVariant}>{m.tipoLabel}</Badge><span style={css("font-weight:500")}>{m.item}</span><span>{m.qty}</span><span style={css("color:#6b6a63")}>{m.user}</span><span style={css("color:#6b6a63")}>{m.date}</span><span style={css("color:#6b6a63")}>{m.motivo}</span>
 </div>
 </React.Fragment>))}
-</div>
+</div></Card>
 </>)}
 {(V.tRec) && (<>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px")}>
 {(V.recs).map((r, rI) => (<React.Fragment key={rI}>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px")}>
+<Card className="gap-2 p-4">
 <div style={css("font-size:14px;font-weight:500")}>{r.product}</div>
 {(r.items).map((i, iI) => (<React.Fragment key={iI}>
 <div style={css("display:flex;justify-content:space-between;font-size:12.5px;border-bottom:1px solid #e2e0d6;padding:6px 0")}><span>{i.name}</span><span style={css("color:#6b6a63")}>{i.use} · {i.conv}</span></div>
 </React.Fragment>))}
 <div style={css("font-size:11.5px;color:#6b6a63")}>Descuento por unidad vendida</div>
-</div>
+</Card>
 </React.Fragment>))}
 </div>
 </>)}
@@ -1131,19 +1143,19 @@ export default class PosApp extends React.Component {
 <div style={css("padding:22px 24px 48px;display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Reportes</h1>
-<div style={css("display:flex;gap:6px;margin-left:8px")}>
-{(V.ranges).map((r, rI) => (<React.Fragment key={rI}><button style={r.style} onClick={r.pick}>{r.label}</button></React.Fragment>))}
+<div style={css("display:flex;gap:6px;margin-left:8px;flex-wrap:wrap")}>
+{(V.ranges).map((r, rI) => (<Button key={rI} type="button" size="sm" variant={r.active ? 'default' : 'outline'} aria-pressed={r.active} onClick={r.pick}>{r.label}</Button>))}
 </div>
-<button onClick={V.exportar} style={css("margin-left:auto;padding:9px 14px;background:#faf9f5;border:1px solid #e2e0d6;border-radius:8px;font-size:12.5px;cursor:pointer;color:#141413")}>Exportar a Excel</button>
+<Button type="button" variant="outline" className="ml-auto" onClick={V.exportar}>Exportar a Excel</Button>
 </div>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px")}>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px")}><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Ventas</div><div style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;margin-top:8px")}>{V.repVentas}</div></div>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px")}><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Tickets</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repTickets}</div></div>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px")}><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Propinas</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repProps}</div></div>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px")}><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cancelaciones</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repCanc}</div></div>
+<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Ventas</div><div style={css("font-family:Georgia,serif;font-style:italic;font-size:30px;margin-top:8px")}>{V.repVentas}</div></Card>
+<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Tickets</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repTickets}</div></Card>
+<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Propinas</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repProps}</div></Card>
+<Card className="gap-2 p-4"><div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Cancelaciones</div><div style={css("font-size:26px;font-weight:500;margin-top:8px")}>{V.repCanc}</div></Card>
 </div>
 <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px")}>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px")}>
+<Card className="gap-3 p-4">
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Por forma de pago</div>
 {(V.methods).map((m, mI) => (<React.Fragment key={mI}>
 <div style={css("display:flex;flex-direction:column;gap:4px")}>
@@ -1151,28 +1163,28 @@ export default class PosApp extends React.Component {
 <div style={css("height:5px;background:#f0eee6;border-radius:999px")}><div style={m.barStyle}></div></div>
 </div>
 </React.Fragment>))}
-</div>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px")}>
+</Card>
+<Card className="gap-2 p-4">
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Productos vendidos</div>
 {(V.topProds).map((t, tI) => (<React.Fragment key={tI}>
 <div style={css("display:flex;justify-content:space-between;font-size:13px;border-bottom:1px solid #e2e0d6;padding:6px 0")}><span>{t.name} <span style={css("color:#6b6a63")}>×{t.qty}</span></span><span style={css("font-weight:500")}>{t.amount}</span></div>
 </React.Fragment>))}
-</div>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px")}>
+</Card>
+<Card className="gap-2 p-4">
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Ventas por usuario</div>
 {(V.byUser).map((u, uI) => (<React.Fragment key={uI}>
 <div style={css("display:flex;justify-content:space-between;font-size:13px;border-bottom:1px solid #e2e0d6;padding:6px 0")}><span>{u.name} <span style={css("color:#6b6a63")}>{u.meta}</span></span><span style={css("font-weight:500")}>{u.amount}</span></div>
 </React.Fragment>))}
+</Card>
 </div>
-</div>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;overflow:hidden")}>
+<Card className="gap-0 overflow-x-auto p-0"><div className="min-w-[1000px]">
 <div style={css("display:grid;grid-template-columns:90px 130px 110px 150px 100px 120px 130px;gap:10px;padding:10px 16px;border-bottom:1px solid #e2e0d6;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6b6a63;font-weight:500")}><span>Folio</span><span>Fecha</span><span>Tipo</span><span>Usuario</span><span>Total</span><span>Estado</span><span>Sincronización</span></div>
 {(V.repSales).map((s, sI) => (<React.Fragment key={sI}>
-<Hover tag="button" onClick={s.open} base={css("display:grid;grid-template-columns:90px 130px 110px 150px 100px 120px 130px;gap:10px;padding:11px 16px;border:none;border-bottom:1px solid #e2e0d6;font-size:13px;align-items:center;background:transparent;cursor:pointer;width:100%;text-align:left;color:#141413")} hover={css("background:#f0eee6")}>
-<span style={css("color:#836953;font-weight:500")}>{s.folio}</span><span style={css("color:#6b6a63")}>{s.fecha}</span><span>{s.tipo}</span><span style={css("color:#6b6a63")}>{s.user}</span><span style={css("font-weight:500")}>{s.total}</span><span style={s.statusStyle}>{s.statusLabel}</span><span style={css("color:#6b6a63")}>{s.syncLabel}</span>
-</Hover>
+<Button type="button" variant="ghost" onClick={s.open} className="grid h-auto min-h-12 w-full grid-cols-[90px_130px_110px_150px_100px_120px_130px] justify-stretch gap-2 rounded-none border-b px-4 py-2 text-left last:border-b-0">
+<span style={css("color:#836953;font-weight:500")}>{s.folio}</span><span style={css("color:#6b6a63")}>{s.fecha}</span><span>{s.tipo}</span><span style={css("color:#6b6a63")}>{s.user}</span><span style={css("font-weight:500")}>{s.total}</span><Badge variant={s.statusVariant}>{s.statusLabel}</Badge><Badge variant={s.syncVariant}>{s.syncLabel}</Badge>
+</Button>
 </React.Fragment>))}
-</div>
+</div></Card>
 </div>
 </>)}
 
@@ -1181,41 +1193,40 @@ export default class PosApp extends React.Component {
 <div style={css("display:flex;align-items:center;gap:12px")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Usuarios y configuración</h1>
 <div style={css("display:flex;gap:6px;margin-left:8px")}>
-{(V.cfgTabs).map((t, tI) => (<React.Fragment key={tI}><button style={t.style} onClick={t.pick}>{t.label}</button></React.Fragment>))}
+{(V.cfgTabs).map((t, tI) => (<Button key={tI} type="button" size="sm" variant={t.active ? 'default' : 'outline'} aria-pressed={t.active} onClick={t.pick}>{t.label}</Button>))}
 </div>
 </div>
 {(V.cUsers) && (<>
-<div style={css("display:flex;gap:18px;align-items:flex-start")}>
+<div style={css("display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap")}>
 <div style={css("flex:1;min-width:0;display:flex;flex-direction:column;gap:10px")}>
-<button onClick={V.newUser} style={css("align-self:flex-start;padding:9px 14px;background:#836953;color:#faf9f5;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer")}>+ Nuevo usuario</button>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;overflow:hidden")}>
-<div style={css("display:grid;grid-template-columns:1fr 160px 80px 110px 90px;gap:10px;padding:10px 16px;border-bottom:1px solid #e2e0d6;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6b6a63;font-weight:500")}><span>Nombre</span><span>Rol</span><span>PIN</span><span>Acceso</span><span></span></div>
+<Button type="button" className="self-start" onClick={V.newUser}>+ Nuevo usuario</Button>
+<Card className="gap-0 overflow-x-auto p-0"><div className="min-w-[620px]">
+<div className="grid grid-cols-[minmax(0,1fr)_160px_80px_110px_90px] gap-2 border-b px-4 py-3 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground"><span>Nombre</span><span>Rol</span><span>PIN</span><span>Acceso</span><span></span></div>
 {(V.usersRows).map((u, uI) => (<React.Fragment key={uI}>
-<div style={u.style}>
-<button onClick={u.pick} style={css("border:none;background:transparent;font-size:13px;font-weight:500;cursor:pointer;text-align:left;color:#141413;padding:0")}>{u.name}</button>
+<div className={`grid min-h-14 grid-cols-[minmax(0,1fr)_160px_80px_110px_90px] items-center gap-2 border-b px-4 py-1 last:border-b-0 ${u.selected ? 'bg-secondary' : ''}`}>
+<Button type="button" variant="link" className="justify-start px-0 text-left" aria-pressed={u.selected} onClick={u.pick}>{u.name}</Button>
 <span style={css("color:#6b6a63;font-size:13px")}>{u.roleLabel}</span>
 <span style={css("color:#6b6a63;font-size:13px")}>••••</span>
-<span style={u.activeStyle}>{u.activeLabel}</span>
-<button onClick={u.toggleActive} style={css("border:none;background:transparent;color:#836953;font-size:12px;cursor:pointer;text-align:right;padding:0")}>{u.toggleLabel}</button>
+<Badge variant={u.activeVariant}>{u.activeLabel}</Badge>
+<Button type="button" variant="ghost" size="sm" onClick={u.toggleActive}>{u.toggleLabel}</Button>
 </div>
 </React.Fragment>))}
-</div>
+</div></Card>
 </div>
 {(V.hasSelUser) && (<>
-<div style={css("width:340px;flex:none;background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:16px;position:sticky;top:22px")}>
-<div style={css("display:flex;align-items:center")}><span style={css("font-size:15px;font-weight:500;flex:1")}>Editar usuario</span><button onClick={V.suClose} style={css("border:none;background:transparent;color:#6b6a63;font-size:17px;cursor:pointer;line-height:1")}>×</button></div>
-<input value={V.suName} onChange={V.setSuName} placeholder="Nombre completo" style={css("width:100%;padding:9px 12px;border:1px solid #e2e0d6;border-radius:8px;background:#f0eee6;font-size:13px;outline:none")} />
+<Card className="min-w-0 w-full max-w-[340px] gap-4 p-4 sm:sticky sm:top-5 sm:shrink-0">
+<div style={css("display:flex;align-items:center")}><span style={css("font-size:15px;font-weight:500;flex:1")}>Editar usuario</span><Button type="button" variant="ghost" size="icon" aria-label="Cerrar editor de usuario" onClick={V.suClose}>×</Button></div>
+<Label htmlFor="user-name">Nombre completo</Label>
+<Input id="user-name" value={V.suName} onChange={V.setSuName} placeholder="Nombre completo" />
 <div style={css("display:flex;flex-direction:column;gap:8px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Rol</div>
 <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
-{(V.suRoles).map((r, rI) => (<React.Fragment key={rI}><button style={r.style} onClick={r.pick}>{r.label}</button></React.Fragment>))}
+{(V.suRoles).map((r, rI) => (<Button key={rI} type="button" size="sm" variant={r.active ? 'default' : 'outline'} aria-pressed={r.active} onClick={r.pick}>{r.label}</Button>))}
 </div>
 </div>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Permisos</div>
-{(V.suPerms).map((p, pI) => (<React.Fragment key={pI}>
-<button onClick={p.toggle} style={p.style}><span>{p.label}</span><span style={css("font-weight:500")}>{p.mark}</span></button>
-</React.Fragment>))}
+{(V.suPerms).map((p, pI) => (<Button key={pI} type="button" variant={p.active ? 'secondary' : 'outline'} className="w-full justify-between text-left" aria-pressed={p.active} onClick={p.toggle}><span>{p.label}</span><span aria-hidden="true">{p.active ? '✓' : '—'}</span></Button>))}
 </div>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>Acciones auditables</div>
@@ -1223,29 +1234,30 @@ export default class PosApp extends React.Component {
 <div style={css("display:flex;gap:10px;font-size:12.5px;padding:5px 0;border-bottom:1px solid #e2e0d6")}><span style={css("color:#6b6a63;flex:none;width:92px")}>{a.t}</span><span>{a.e}</span></div>
 </React.Fragment>))}
 </div>
-<button onClick={V.suSave} style={css("padding:12px;background:#836953;color:#faf9f5;border:none;border-radius:9px;font-size:13.5px;font-weight:500;cursor:pointer")}>Guardar usuario</button>
-</div>
+<Button type="button" size="lg" onClick={V.suSave}>Guardar usuario</Button>
+</Card>
 </>)}
 </div>
 </>)}
 {(V.cCfg) && (<>
-<div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px")}>
+<div style={css("display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px")}>
 {(V.cfgCards).map((c, cI) => (<React.Fragment key={cI}>
-<div style={css("background:#faf9f5;border:1px solid #e2e0d6;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px")}>
+<Card className="gap-3 p-4">
 <div style={css("font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b6a63;font-weight:500")}>{c.title}</div>
 {(c.rows).map((r, rI) => (<React.Fragment key={rI}>
 <div style={css("display:flex;justify-content:space-between;align-items:center;font-size:13px;border-bottom:1px solid #e2e0d6;padding:7px 0;gap:12px")}>
-<span>{r.label}</span>
+{(r.hasToggle) && (<Label htmlFor={r.toggleId} className="min-h-11 flex-1">{r.label}</Label>)}
+{(r.hasValue) && (<span>{r.label}</span>)}
 {(r.hasToggle) && (<>
-<button onClick={r.toggle} style={r.toggStyle}><span style={r.knobStyle}></span></button>
+<Switch id={r.toggleId} checked={r.enabled} onCheckedChange={r.toggle} aria-label={r.label} />
 </>)}
 {(r.hasValue) && (<><span style={css("color:#6b6a63;text-align:right")}>{r.value}</span></>)}
 </div>
 </React.Fragment>))}
 {(c.hasAction) && (<>
-<button onClick={c.action} style={css("align-self:flex-start;padding:8px 13px;background:#f6e5df;color:#836953;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer")}>{c.actionLabel}</button>
+<Button type="button" variant="secondary" className="self-start" onClick={c.action}>{c.actionLabel}</Button>
 </>)}
-</div>
+</Card>
 </React.Fragment>))}
 </div>
 </>)}
@@ -1296,8 +1308,8 @@ export default class PosApp extends React.Component {
 <div style={css("width:520px;max-width:100%;max-height:84vh;overflow-y:auto;background:#faf9f5;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px;animation:rise .25s ease")} onClick={V.stop}>
 <div style={css("display:flex;align-items:center;gap:10px")}>
 <span style={css("font-size:17px;font-weight:500")}>{V.dFolio}</span>
-<span style={V.dStatusStyle}>{V.dStatusLabel}</span>
-<button onClick={V.closeDetail} style={css("margin-left:auto;border:none;background:transparent;color:#6b6a63;font-size:17px;cursor:pointer;line-height:1")}>×</button>
+<Badge variant={V.dStatusVariant}>{V.dStatusLabel}</Badge>
+<Button type="button" variant="ghost" size="icon" className="ml-auto" aria-label="Cerrar detalle de venta" onClick={V.closeDetail}>×</Button>
 </div>
 <div style={css("font-size:12.5px;color:#6b6a63;line-height:1.6")}>{V.dMeta}</div>
 {(V.dHasMotivo) && (<><div style={css("font-size:12.5px;color:#836953;background:#f6e5df;border-radius:8px;padding:8px 12px")}>Motivo: {V.dMotivo}</div></>)}
