@@ -313,20 +313,29 @@
       "branch": "codex/catalog/evl-112",
       "baseBranch": "main",
       "requires": [],
-      "stage": "implementing",
-      "agent": "implement_catalog",
+      "stage": "awaiting_input",
+      "agent": null,
       "commits": [
         "17a0f25",
         "06ac089",
-        "bf3c424"
+        "bf3c424",
+        "654f345",
+        "80fd189"
       ],
-      "pr": null,
-      "checks": [],
-      "review": "fixes_requested",
+      "pr": "https://github.com/the-evillevi/karma/pull/4",
+      "checks": [
+        "9 Node tests passed",
+        "7 Python tests passed",
+        "Catalog reproducibility passed",
+        "Private source reconciliation passed",
+        "git diff --check"
+      ],
+      "review": "passed_after_fixes",
       "blockers": [
         "Carlos approval and source photos pending; runtime seed-loader integration remains open."
       ],
-      "nextAction": "Fix false/zero source availability, protect private output destinations, test importer and re-review."
+      "nextAction": "Carlos source mapping/approval and photos; runtime loader in119 remains open.",
+      "artifactsReady": true
     },
     {
       "id": "EVL-119",
@@ -335,16 +344,20 @@
       "baseBranch": "codex/catalog/evl-112",
       "requires": [
         "EVL-112",
-        "EVL-116"
+        "EVL-116",
+        "EVL-118",
+        "EVL-126"
       ],
-      "stage": "queued",
-      "agent": null,
+      "stage": "preparing",
+      "agent": "implement_catalog",
       "commits": [],
       "pr": null,
       "checks": [],
       "review": "pending",
-      "blockers": [],
-      "nextAction": "Wait for prerequisites; assign exclusive worktree and branch."
+      "blockers": [
+        "Reviewed foundation runtime/auth/sync required before application integration."
+      ],
+      "nextAction": "Independent catalog command/adapter preparation; wire real CRUD after reviewed116/118/126."
     },
     {
       "id": "EVL-120",
