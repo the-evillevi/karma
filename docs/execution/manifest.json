@@ -983,7 +983,7 @@
       "branch": "codex/payments/checkout-bridge",
       "baseBranch": "codex/payments/checkout-bridge-base",
       "worktree": "/Users/evillevi/.codex/worktrees/karma-payments/karma",
-      "owner": "root",
+      "owner": null,
       "stage": "reviewed_published_integrated_unwired",
       "nextAction": "Use reviewed translator in forthcoming checkout family with authoritative operation due. No runtime wiring/server writes/customer benefits in this slice. PR38CI passed.",
       "commits": ["507d011", "462d896"],
@@ -993,6 +993,16 @@
         "Root8bridge domain and1mounted actualcheckout test PASS in standalone andintegration;types/lint/format/diff PASS; scoped source0medium+; agent172domain/build PASS",
         "PR38 qualityCI36797022260SUCCESS at462d896"
       ]
+    },
+    {
+      "issue": "EVL-126 / EVL-123",
+      "scope": "checkout server family only, forward005 candidate",
+      "branch": "codex/payments/evl-126-checkout-server",
+      "baseBranch": "codex/payments/checkout-server-base",
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-payments/karma",
+      "owner": "orders_xhigh",
+      "stage": "implementing_unreviewed_unapplied_depends004",
+      "nextAction": "Implement strict server checkout+closed facts/composite cash-sales feed; local differential/race/late rollback/privacy proofs. Load foundation004 external recordedhash for temporary proof only. Rootreviewfinal004 andmergeinto005basebeforepublication. No remoteapply/UI/provider/refund/customerstock wiring."
     }
   ]
 }
