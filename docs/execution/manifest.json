@@ -1232,5 +1232,27 @@
       "customers": "74e7313"
     },
     "verification": "Combined checkPASS atdbfa7cd:155domain,146screens,10Edge,1PWA,7phase1journal,5operationsjournal,format/lint/types/bothbuilds/credential scans; explicitDemo PWA build because private local proof defaultssecure."
-  }
+  },
+  "activeSlices": [
+    {
+      "issue": "EVL-126",
+      "scope": "preparation server family",
+      "branch": "codex/foundation/evl-126-preparation",
+      "baseBranch": "codex/foundation/evl-126-lifecycle",
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-foundation/karma",
+      "owner": "foundation_xhigh",
+      "stage": "implementing_unreviewed_unapplied",
+      "nextAction": "Commit candidate+real local SQL proofs; root code-review --fix/exact new hash before approvedisolated apply/actualhosted proof. Five appliedmigrations immutable."
+    },
+    {
+      "issue": "EVL-126 / EVL-123",
+      "scope": "captured PosApp payment to operation-v1 bridge",
+      "branch": "codex/payments/checkout-bridge",
+      "baseBranch": "codex/payments/checkout-bridge-base",
+      "worktree": "/Users/evillevi/.codex/worktrees/karma-payments/karma",
+      "owner": "orders_xhigh",
+      "stage": "implementing_unreviewed_unwired",
+      "nextAction": "Actual captured pairedpayments/tenders\u2192reducer differential; safe gross/change sums; root code-review --fix/types/tests/security before draft. No UI wiring/backend apply/customer benefit."
+    }
+  ]
 }

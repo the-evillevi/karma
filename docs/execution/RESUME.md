@@ -38,6 +38,6 @@ Private`.env.offline-test.local`0600 foundation/integration; private metadata`/U
 
 Four historical Reports prototypesinks remainedexactbaselinebytes;130functionalrewrite separately0medium+. NeverclaimwholeprojectsSAST-clean. Preserveperissuedocs/manifest partialcriteria.
 
-Latestobserved ordinaryallowance allowedprimary71%, weekly27%,3resetcreditsremain. Rootredeemednone. Continue authorizedworkuntilactualboundary, checkpointfrequently, no automaticcreditredemption or automation. Preservemain anddraftstacks.
+Latestobserved ordinaryallowance allowedprimary80%, weekly28%,3resetcreditsremain. Rootredeemednone. Continue authorizedworkuntilactualboundary, checkpointfrequently, no automaticcreditredemption or automation. Preservemain anddraftstacks.
 
-Root actual390/1280Chromium DOB/event-preservation/policy-scroll/Escape-focus/no-runtimeerrors proofPASS. Temporarybrowsercontextsclosed; rootdevserver4199session16612mustbestoppedaftervisualinspection.
+Root actual390/1280Chromium DOB/event-preservation/policy-scroll/Escape-focus/no-runtimeerrors proofPASS. Temporarybrowsercontextsclosed; rootdevserver4199session16612wasstoppedaftervisualinspection.
