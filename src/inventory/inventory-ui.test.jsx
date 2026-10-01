@@ -262,3 +262,21 @@ it('keeps a corrupt saved ledger intact and disables writes instead of reseeding
   expect(JSON.parse(storage.getItem('karma-pos-v1')).inventoryState).toEqual(broken);
   expect(screen.getByRole('button', { name: '+ Entrada' }).disabled).toBe(true);
 });
+
+
+it('records an inventory movement while preserving a corrupt unrelated birthday policy for review', async () => {
+  const corruptPolicy = { schemaVersion: 1, events: [{ malformed: true }] };
+  const storage = memoryStorage({session: 'u1', customerBirthdayPolicyLedger: corruptPolicy});
+  const user = userEvent.setup();
+  const view = mount();
+  await openInventory(user);
+  await user.click(screen.getByRole('button', {name: '+ Entrada'}));
+  const dialog = await screen.findByRole('dialog', {name: 'Registrar entrada'});
+  await user.type(within(dialog).getByRole('textbox', {name: 'Cantidad'}), '0.5');
+  await fillReason(user, 'Entrada independiente de regla de cumpleaños');
+  await user.click(within(dialog).getByRole('button', {name: 'Registrar'}));
+  await waitFor(() => expect(JSON.parse(storage.getItem('karma-pos-v1')).inventoryState.entries).toHaveLength(13));
+  expect(JSON.parse(storage.getItem('karma-pos-v1')).customerBirthdayPolicyLedger).toEqual(corruptPolicy);
+  expect(view.appRef.current.state.customerBirthdayPolicyLedger).toBeNull();
+  expect(view.appRef.current.state.customerBirthdayPolicyError).toBeTruthy();
+});

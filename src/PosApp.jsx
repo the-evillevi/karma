@@ -52,6 +52,14 @@ import {
   planCustomerCommand,
   validateCustomerLedger,
 } from './customers/customer-ledger.mjs';
+import {
+  createCustomerBirthdayPolicyLedger,
+  customerBirthdayPolicySnapshot,
+  evaluateCustomerBirthdayEligibility,
+  planCustomerBirthdayPolicyCommand,
+  validateCustomerBirthdayPolicy,
+  validateCustomerBirthdayPolicyLedger,
+} from './customers/customer-birthday.mjs';
 
 
 const compensationMethodLabels = new Map([['cash', 'Efectivo'], ['card', 'Tarjeta'], ['transfer', 'Transferencia']]);
@@ -106,6 +114,10 @@ function customerOperatorError(error) {
     ['invalid_reversal', 'No se encontró un movimiento válido para corregir.'],
     ['excess_reversal', 'La corrección excede el importe original disponible.'],
     ['invalid_history', 'El registro local de clientes requiere revisión. No se aplicaron cambios.'],
+    ['invalid_birth_date', 'Captura una fecha de nacimiento válida.'],
+    ['invalid_policy', 'Revisa la regla, ventana, beneficio y política de año bisiesto.'],
+    ['invalid_time_zone', 'Captura una zona horaria IANA válida para la sucursal.'],
+    ['incomplete_policy', 'Completa la regla, la zona horaria y el beneficio antes de activarla.'],
   ]);
   return messages.get(error?.code) || 'No se pudo guardar el cambio local de la cuenta. Revisa e intenta de nuevo.';
 }
@@ -283,6 +295,12 @@ export default class PosApp extends React.Component {
       try { customerLedger = validateCustomerLedger(sv.customerLedger); }
       catch { customerLedgerError = 'El registro guardado de clientes requiere revisión. No se aplicaron cambios.'; }
     }
+    let customerBirthdayPolicyLedger = createCustomerBirthdayPolicyLedger();
+    let customerBirthdayPolicyError = '';
+    if (Object.prototype.hasOwnProperty.call(sv, 'customerBirthdayPolicyLedger')) {
+      try { customerBirthdayPolicyLedger = validateCustomerBirthdayPolicyLedger(sv.customerBirthdayPolicyLedger); }
+      catch { customerBirthdayPolicyLedger = null; customerBirthdayPolicyError = 'La regla local de cumpleaños requiere revisión. No se muestran previsiones.'; }
+    }
     this._folio = sv.folioSeq || 1051;
     const savedOrder = sv.order || this.blank();
     const restoredOrder = restoreStoredOrder(savedOrder);
@@ -305,7 +323,7 @@ export default class PosApp extends React.Component {
       usersX: this._secureStorage ? [] : sv.usersX || D.users.map(u => ({ ...u })),
       movs: D.movements.slice(),
       inventoryState, inventoryError,
-      customerLedger, customerLedgerError, customerSearch: '', customerSelectedId: null,
+      customerLedger, customerLedgerError, customerBirthdayPolicyLedger, customerBirthdayPolicyError, customerSearch: '', customerSelectedId: null,
       ed: null, dlg: null, ck: null,
       cat: 'concafe', search: '',
       admCat: 'all', admSearch: '', admSel: null, admForm: null,
@@ -361,6 +379,10 @@ export default class PosApp extends React.Component {
               try { return { customerLedger: validateCustomerLedger(v.customerLedger), customerLedgerError: '' }; }
               catch { return { customerLedger: null, customerLedgerError: 'El registro guardado de clientes requiere revisión. No se aplicaron cambios.' }; }
             })() : {}),
+            ...(Object.prototype.hasOwnProperty.call(v, 'customerBirthdayPolicyLedger') ? (() => {
+              try { return { customerBirthdayPolicyLedger: validateCustomerBirthdayPolicyLedger(v.customerBirthdayPolicyLedger), customerBirthdayPolicyError: '' }; }
+              catch { return { customerBirthdayPolicyLedger: null, customerBirthdayPolicyError: 'La regla local de cumpleaños requiere revisión. No se muestran previsiones.' }; }
+            })() : {}),
           });
         } catch (_) {}
       }
@@ -372,6 +394,9 @@ export default class PosApp extends React.Component {
     const customerDialog = this.state.dlg;
     if (customerDialog?.customerCommandKind && (!this.can(this.customerPermissionFor(customerDialog.customerCommandKind)) || customerDialog.customerActorId !== this.user()?.id)) {
       this.setState({ dlg: null, customerSelectedId: null, customerSearch: '' });
+    }
+    if (customerDialog?.birthdayPolicyCommand && (!this.can('manageCustomerBirthdayPolicy') || customerDialog.customerActorId !== this.user()?.id)) {
+      this.setState({ dlg: null });
     }
     if (this.state.createdCredential) {
       const context = this.accessContext();
@@ -401,6 +426,7 @@ export default class PosApp extends React.Component {
       sales: s.sales, prods: s.prods, usersX: s.usersX, flags: s.flags, folioSeq,
       ...(s.inventoryState ? { inventoryState: s.inventoryState } : {}),
       ...(s.customerLedger ? { customerLedger: s.customerLedger } : {}),
+      ...(s.customerBirthdayPolicyLedger?.events?.length ? { customerBirthdayPolicyLedger: s.customerBirthdayPolicyLedger } : {}),
     };
   }
   writePersistedState(s = this.state, folioSeq = this._folio) {
@@ -413,6 +439,7 @@ export default class PosApp extends React.Component {
         if (latest && typeof latest === 'object') {
           if (Object.prototype.hasOwnProperty.call(latest, 'inventoryState')) outgoing.inventoryState = latest.inventoryState;
           if (Object.prototype.hasOwnProperty.call(latest, 'customerLedger')) outgoing.customerLedger = latest.customerLedger;
+          if (Object.prototype.hasOwnProperty.call(latest, 'customerBirthdayPolicyLedger')) outgoing.customerBirthdayPolicyLedger = latest.customerBirthdayPolicyLedger;
         }
       }
       localStorage.setItem(key, JSON.stringify(outgoing));
@@ -428,6 +455,14 @@ export default class PosApp extends React.Component {
     patch.kitchenTickets = persistedRecords(persisted, 'kitchenTickets', this.state.kitchenTickets);
     patch.sales = persistedRecords(persisted, 'sales', this.state.sales);
     patch.pending = persistedPending(persisted, this.state.pending);
+    if (Object.prototype.hasOwnProperty.call(persisted, 'customerLedger')) {
+      try { patch.customerLedger = validateCustomerLedger(persisted.customerLedger); patch.customerLedgerError = ''; }
+      catch { patch.customerLedger = null; patch.customerLedgerError = 'El registro guardado de clientes requiere revisión. No se aplicaron cambios.'; }
+    } else patch.customerLedger = this.state.customerLedger;
+    if (Object.prototype.hasOwnProperty.call(persisted, 'customerBirthdayPolicyLedger')) {
+      try { patch.customerBirthdayPolicyLedger = validateCustomerBirthdayPolicyLedger(persisted.customerBirthdayPolicyLedger); patch.customerBirthdayPolicyError = ''; }
+      catch { patch.customerBirthdayPolicyLedger = null; patch.customerBirthdayPolicyError = 'La regla local de cumpleaños requiere revisión. No se muestran previsiones.'; }
+    } else patch.customerBirthdayPolicyLedger = this.state.customerBirthdayPolicyLedger;
     if (Object.prototype.hasOwnProperty.call(persisted, 'order')) patch.order = restoreStoredOrder(persisted.order);
     else patch.order = this.state.order;
     if (Object.prototype.hasOwnProperty.call(persisted, 'orderSettings')) {
@@ -503,7 +538,7 @@ export default class PosApp extends React.Component {
       this.notAllowed(action);
       return false;
     }
-    const reasonRequired = ['cancelWithReason', 'refundSaleWithReason', 'cancelPreparationWithReason', 'discountWithReason', 'reprintWithReason', 'editMenu', 'adjustInventory', 'manageCustomerProfiles', 'setCustomerCreditLimit', 'recordCustomerAccountPayment'].includes(resolveAccessAction(action));
+    const reasonRequired = ['cancelWithReason', 'refundSaleWithReason', 'cancelPreparationWithReason', 'discountWithReason', 'reprintWithReason', 'editMenu', 'adjustInventory', 'manageCustomerProfiles', 'setCustomerCreditLimit', 'recordCustomerAccountPayment', 'manageCustomerBirthdayPolicy'].includes(resolveAccessAction(action));
     if (this.isSecureMode() && reasonRequired && reason !== undefined) {
       if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 250) {
         this.toast('Captura un motivo de entre 1 y 250 caracteres.', 'warn');
@@ -1372,6 +1407,114 @@ export default class PosApp extends React.Component {
   customerRecordId() {
     return globalThis.crypto?.randomUUID ? `customer-profile:${globalThis.crypto.randomUUID()}` : `customer-profile:${Date.now()}:${Math.random().toString(36).slice(2)}`;
   }
+  openCustomerBirthdayPolicy() {
+    if (!this.requireAction('manageCustomerBirthdayPolicy')) return;
+    const ledger = this.state.customerBirthdayPolicyLedger;
+    if (!ledger) { this.toast('La regla de cumpleaños requiere revisión; no se puede editar.', 'warn'); return; }
+    try {
+      const current = customerBirthdayPolicySnapshot(ledger).policy;
+      const fields = [
+        { key: 'enabled', type: 'select', label: 'Estado de la regla', value: current.enabled ? 'yes' : 'no', options: [{ value: 'no', label: 'Desactivada' }, { value: 'yes', label: 'Activada' }] },
+        { key: 'timeZone', label: 'Zona horaria IANA de la sucursal', value: current.timeZone || '', maxLength: 100, ph: 'America/Mexico_City' },
+        { key: 'windowKind', type: 'select', label: 'Ventana de cumpleaños', value: current.window?.kind || 'none', options: [{ value: 'none', label: 'Elige una regla' }, { value: 'exact_day', label: 'Solo el día exacto' }, { value: 'window', label: 'Ventana antes y después' }] },
+        { key: 'daysBefore', label: 'Días antes', value: current.window?.kind === 'window' ? String(current.window.daysBefore) : '', maxLength: 2 },
+        { key: 'daysAfter', label: 'Días después', value: current.window?.kind === 'window' ? String(current.window.daysAfter) : '', maxLength: 2 },
+        { key: 'leapDayRule', type: 'select', label: 'Cumpleaños del 29 de febrero', value: current.leapDayRule || 'none', options: [{ value: 'none', label: 'Sin definir' }, { value: 'feb28', label: 'Usar 28 de febrero' }, { value: 'mar01', label: 'Usar 1 de marzo' }, { value: 'leap_years_only', label: 'Solo en años bisiestos' }] },
+        { key: 'benefitKind', type: 'select', label: 'Beneficio definido por Dueña', value: current.benefit?.kind || 'none', options: [{ value: 'none', label: 'Sin definir' }, { value: 'product', label: 'Producto específico' }, { value: 'category', label: 'Categoría específica' }, { value: 'maximum_cents', label: 'Tope de importe cubierto' }] },
+        { key: 'benefitId', label: 'ID de producto o categoría', value: current.benefit && current.benefit.kind !== 'maximum_cents' ? current.benefit.id : '', maxLength: 120 },
+        { key: 'benefitName', label: 'Nombre visible del producto o categoría', value: current.benefit && current.benefit.kind !== 'maximum_cents' ? current.benefit.nameSnapshot : '', maxLength: 120 },
+        { key: 'maximumCovered', label: 'Tope cubierto (MXN)', value: current.benefit?.kind === 'maximum_cents' ? (current.benefit.maxCoveredCents / 100).toFixed(2) : '', maxLength: 32, ph: '0.00' },
+      ];
+      this.setState({ dlg: {
+        title: 'Regla de cumpleaños',
+        body: 'Para activarla, elige zona horaria, día exacto o ventana, regla del 29 de febrero y definición del beneficio. Esta regla solo prepara una previsión local; no reserva, aplica ni registra un beneficio. La aplicación requiere un flujo atómico de cobro autorizado.',
+        needReason: true,
+        confirmLabel: 'Guardar regla',
+        commandId: this.customerCommandId(),
+        commandOccurredAt: new Date().toISOString(),
+        customerActorId: this.user().id,
+        birthdayPolicyCommand: true,
+        expectedCustomerBirthdayPolicyRevision: customerBirthdayPolicySnapshot(ledger).revision,
+        fields,
+        onConfirm: dialog => this.confirmCustomerBirthdayPolicy(dialog),
+      } });
+    } catch (error) {
+      this.toast(customerOperatorError(error), 'warn');
+    }
+  }
+  confirmCustomerBirthdayPolicy(dialog) {
+    const reason = typeof dialog.reason === 'string' ? dialog.reason.trim() : '';
+    if (!reason || reason.length > 250) { this.toast('Captura un motivo de entre 1 y 250 caracteres.', 'warn'); return 'keep'; }
+    if (!this.requireAction('manageCustomerBirthdayPolicy', reason)) return 'keep';
+    const actor = this.user();
+    const role = actor && (this.isSecureMode() ? actor.role : seededRoleToAccessRole(actor.role));
+    if (!actor || actor.id !== dialog.customerActorId || role !== 'duena') {
+      this.notAllowed('guardar la regla de cumpleaños con otra identidad');
+      return 'keep';
+    }
+    try {
+      const key = this._storageKey || 'karma-pos-v1';
+      const raw = localStorage.getItem(key);
+      const persisted = raw ? JSON.parse(raw) : {};
+      if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) throw new Error('invalid saved state');
+      const operational = this.latestOperationalState(persisted);
+      const policyLedger = Object.prototype.hasOwnProperty.call(persisted, 'customerBirthdayPolicyLedger')
+        ? validateCustomerBirthdayPolicyLedger(persisted.customerBirthdayPolicyLedger)
+        : this.state.customerBirthdayPolicyLedger?.events.length
+          ? (() => { throw new Error('saved birthday policy is missing'); })()
+          : createCustomerBirthdayPolicyLedger();
+      const value = field => this.inventoryField(dialog.fields || [], field)?.value;
+      const enabled = value('enabled') === 'yes';
+      const zoneText = typeof value('timeZone') === 'string' ? value('timeZone').trim() : '';
+      const leapValue = value('leapDayRule');
+      const benefitKind = value('benefitKind');
+      const benefitId = typeof value('benefitId') === 'string' ? value('benefitId').trim() : '';
+      const benefitName = typeof value('benefitName') === 'string' ? value('benefitName').trim() : '';
+      const maximumText = typeof value('maximumCovered') === 'string' ? value('maximumCovered').trim() : '';
+      const windowKind = value('windowKind');
+      const hasConfiguration = !!(zoneText || (windowKind && windowKind !== 'none') || (leapValue && leapValue !== 'none') || (benefitKind && benefitKind !== 'none') || benefitId || benefitName || maximumText || value('daysBefore') || value('daysAfter'));
+      let payload;
+      if (!enabled && !hasConfiguration) {
+        payload = { enabled: false, timeZone: null, window: null, leapDayRule: null, benefit: null };
+      } else {
+        const window = windowKind === 'window'
+          ? { kind: 'window', daysBefore: Number(value('daysBefore')), daysAfter: Number(value('daysAfter')) }
+          : windowKind === 'exact_day' ? { kind: 'exact_day' } : null;
+        let benefit = null;
+        if (benefitKind === 'maximum_cents') benefit = { kind: 'maximum_cents', maxCoveredCents: customerAmountCents(maximumText) };
+        else if (benefitKind === 'product' || benefitKind === 'category') benefit = { kind: benefitKind, id: benefitId, nameSnapshot: benefitName };
+        payload = validateCustomerBirthdayPolicy({
+          enabled,
+          timeZone: zoneText || null,
+          window,
+          leapDayRule: leapValue && leapValue !== 'none' ? leapValue : null,
+          benefit,
+        });
+      }
+      const command = {
+        commandId: dialog.commandId,
+        kind: 'birthday.policy.set.v1',
+        expectedRevision: dialog.expectedCustomerBirthdayPolicyRevision,
+        actorId: actor.id,
+        actorName: actor.name,
+        roleSnapshot: role,
+        occurredAt: dialog.commandOccurredAt || new Date().toISOString(),
+        reason,
+        payload,
+      };
+      const result = planCustomerBirthdayPolicyCommand(policyLedger, command, { actorId: actor.id, role });
+      if (result.changed) {
+        try { localStorage.setItem(key, JSON.stringify({ ...persisted, customerBirthdayPolicyLedger: result.ledger })); }
+        catch { this.toast('No se pudo guardar la regla. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
+      }
+      this.setState({ ...operational, customerBirthdayPolicyLedger: result.ledger, customerBirthdayPolicyError: '' });
+      this.toast(result.duplicate ? 'Esta regla ya estaba registrada; no se duplicó.' : 'Regla guardada en el historial local.');
+      return undefined;
+    } catch (error) {
+      this.toast(customerOperatorError(error), 'warn');
+      return 'keep';
+    }
+  }
   ensureCustomerLedger() {
     if (this._customerLedgerInitializing) return;
     this._customerLedgerInitializing = true;
@@ -1403,7 +1546,7 @@ export default class PosApp extends React.Component {
   }
   retryCustomerLedger() { this.setState({ customerLedgerError: '' }, () => this.ensureCustomerLedger()); }
   customerPermissionFor(kind) {
-    if (['profile.create', 'profile.update', 'profile.archive'].includes(kind)) return 'manageCustomerProfiles';
+    if (['profile.create', 'profile.update', 'profile.archive', 'profile.birthday.set.v1'].includes(kind)) return 'manageCustomerProfiles';
     if (kind === 'credit.limit') return 'setCustomerCreditLimit';
     if (['debt.repayment', 'prepaid.deposit'].includes(kind)) return 'recordCustomerAccountPayment';
     return null;
@@ -1419,6 +1562,7 @@ export default class PosApp extends React.Component {
     const fields = kind === 'profile.create' || editing ? [
       { key: 'name', label: 'Nombre para mostrar', value: editing ? account.name : '', maxLength: 120 },
       { key: 'phone', label: 'Teléfono (opcional)', value: editing ? account.phone || '' : '', maxLength: 40 },
+      { key: 'birthDate', label: 'Fecha de nacimiento (opcional)', inputType: 'date', value: editing ? account.birthDate || '' : '', maxLength: 10 },
     ] : kind === 'credit.limit' ? [
       { key: 'amount', label: 'Límite aprobado (MXN)', value: (account.creditLimitCents / 100).toFixed(2), maxLength: 32, ph: '0.00' },
     ] : ['debt.repayment', 'prepaid.deposit'].includes(kind) ? [
@@ -1433,8 +1577,8 @@ export default class PosApp extends React.Component {
       'credit.limit': 'Aprobar límite de crédito', 'debt.repayment': 'Registrar pago de deuda', 'prepaid.deposit': 'Registrar saldo prepago recibido',
     };
     const bodies = {
-      'profile.create': 'Guarda solo nombre para mostrar y teléfono opcional. El perfil y el motivo se conservarán en el registro local.',
-      'profile.update': 'El cambio de nombre o teléfono se añadirá al historial sin reescribir movimientos anteriores.',
+      'profile.create': 'Guarda nombre, teléfono opcional y fecha de nacimiento opcional. La fecha se conservará como un evento personal separado en el historial local.',
+      'profile.update': 'Los cambios de nombre o teléfono conservan su evento original. La fecha de nacimiento se guarda en un evento personal separado.',
       'profile.archive': `El perfil y el historial se conservarán. Solo se puede archivar con deuda y saldo prepago en cero. ${account?.name || ''}`,
       'credit.limit': `El límite inicial es cero. Solo la Dueña puede aprobarlo y no puede quedar por debajo de la deuda actual (${this.fmt((account?.debtCents || 0) / 100)}).`,
       'debt.repayment': 'Registra un importe que confirmas haber recibido para reducir la deuda. El sistema conserva el medio y referencia; no verifica pagos externos ni confirma liquidación bancaria.',
@@ -1444,6 +1588,7 @@ export default class PosApp extends React.Component {
       title: titles[kind], body: bodies[kind], needReason: true, danger: kind === 'profile.archive',
       confirmLabel: kind === 'profile.create' ? 'Crear perfil' : kind === 'profile.update' ? 'Guardar cambios' : kind === 'profile.archive' ? 'Archivar perfil' : kind === 'credit.limit' ? 'Guardar límite' : 'Registrar pago',
       commandId: this.customerCommandId(), commandOccurredAt: new Date().toISOString(),
+      birthdayCommandId: this.customerCommandId(),
       customerActorId: this.user().id, customerCommandKind: kind, customerId: account?.customerId || this.customerRecordId(),
       expectedCustomerRevision: account?.revision || 0,
       fields,
@@ -1465,7 +1610,7 @@ export default class PosApp extends React.Component {
       const raw = localStorage.getItem(key);
       const persisted = raw ? JSON.parse(raw) : {};
       if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted) || !Object.prototype.hasOwnProperty.call(persisted, 'customerLedger')) throw new Error('customer ledger missing');
-      const ledger = validateCustomerLedger(persisted.customerLedger);
+      let ledger = validateCustomerLedger(persisted.customerLedger);
       const operational = this.latestOperationalState(persisted);
       const value = field => this.inventoryField(dialog.fields || [], field)?.value;
       let payload;
@@ -1488,13 +1633,35 @@ export default class PosApp extends React.Component {
         actorId: actor.id, actorName: actor.name, roleSnapshot: role,
         occurredAt: dialog.commandOccurredAt || new Date().toISOString(), reason, payload,
       };
-      const result = planCustomerCommand(ledger, command, { actorId: actor.id, role });
+      let result = planCustomerCommand(ledger, command, { actorId: actor.id, role });
+      let savedLedger = result.ledger;
+      if (kind === 'profile.create' || kind === 'profile.update') {
+        const nextBirthDate = value('birthDate') ? value('birthDate') : null;
+        const currentAccount = customerAccounts(ledger).find(candidate => candidate.customerId === dialog.customerId);
+        const previousBirthDate = currentAccount?.birthDate || null;
+        if (nextBirthDate !== previousBirthDate) {
+          const birthday = planCustomerCommand(savedLedger, {
+            commandId: dialog.birthdayCommandId,
+            customerId: dialog.customerId,
+            kind: 'profile.birthday.set.v1',
+            expectedRevision: result.event.revision,
+            actorId: actor.id,
+            actorName: actor.name,
+            roleSnapshot: role,
+            occurredAt: dialog.commandOccurredAt || new Date().toISOString(),
+            reason,
+            payload: { birthDate: nextBirthDate },
+          }, { actorId: actor.id, role });
+          savedLedger = birthday.ledger;
+          result = { ...result, changed: result.changed || birthday.changed, duplicate: result.duplicate && birthday.duplicate };
+        }
+      }
       if (result.changed) {
-        try { localStorage.setItem(key, JSON.stringify({ ...persisted, customerLedger: result.ledger })); }
+        try { localStorage.setItem(key, JSON.stringify({ ...persisted, customerLedger: savedLedger })); }
         catch { this.toast('No se pudo guardar el cambio. El formulario sigue abierto; intenta de nuevo.', 'warn'); return 'keep'; }
       }
       if (Number.isSafeInteger(persisted.folioSeq) && persisted.folioSeq > 0) this._folio = Math.max(this._folio, persisted.folioSeq);
-      this.setState({ ...operational, customerLedger: result.ledger, customerLedgerError: '', customerSelectedId: dialog.customerId });
+      this.setState({ ...operational, customerLedger: savedLedger, customerLedgerError: '', customerSelectedId: dialog.customerId });
       this.toast(result.duplicate ? 'Este movimiento ya estaba registrado; no se duplicó.' : 'Cambio guardado en el historial local.');
       return undefined;
     } catch (error) {
@@ -2110,7 +2277,7 @@ export default class PosApp extends React.Component {
       .sort((a, b) => a.name.localeCompare(b.name, 'es-MX'));
     V.customersEmpty = filteredCustomers.length === 0;
     V.customers = filteredCustomers.map(customer => ({
-      id: customer.customerId, name: customer.name, phone: customer.phone || '—', archived: customer.archived,
+      id: customer.customerId, name: customer.name, phone: customer.phone || '—', birthDate: customer.birthDate || null, archived: customer.archived,
       debt: this.fmt(customer.debtCents / 100), limit: this.fmt(customer.creditLimitCents / 100), prepaid: this.fmt(customer.prepaidCents / 100),
       selected: customer.customerId === s.customerSelectedId,
       view: () => this.setState({ customerSelectedId: customer.customerId }),
@@ -2128,11 +2295,35 @@ export default class PosApp extends React.Component {
       prepaid: this.fmt(selectedCustomer.prepaidCents / 100),
       close: () => this.setState({ customerSelectedId: null }),
     } : null;
+    V.customerCanViewBirthday = this.can('manageCustomerProfiles');
+    V.customerCanConfigureBirthday = this.can('manageCustomerBirthdayPolicy') && V.customerReady && !!s.customerBirthdayPolicyLedger;
+    V.openCustomerBirthdayPolicy = () => this.openCustomerBirthdayPolicy();
+    V.customerBirthdayPolicyError = s.customerBirthdayPolicyError || '';
+    V.customerBirthdayPolicySummary = s.customerBirthdayPolicyError ? 'Requiere revisión' : 'Desactivada · revisión 0';
+    V.customerBirthdayPolicyAudit = '';
+    V.customerBirthdayPreview = null;
+    if (s.customerBirthdayPolicyLedger) {
+      try {
+        const snapshot = customerBirthdayPolicySnapshot(s.customerBirthdayPolicyLedger);
+        V.customerBirthdayPolicySummary = `${snapshot.policy.enabled ? 'Activada' : 'Desactivada'} · revisión ${snapshot.revision}${snapshot.policy.timeZone ? ` · ${snapshot.policy.timeZone}` : ''}`;
+        const latestPolicyEvent = s.customerBirthdayPolicyLedger.events.at(-1);
+        if (latestPolicyEvent) V.customerBirthdayPolicyAudit = `Último cambio: ${latestPolicyEvent.actorName} · ${new Date(latestPolicyEvent.occurredAt).toLocaleString('es-MX')} · ${latestPolicyEvent.reason}`;
+        if (selectedCustomer && V.customerCanViewBirthday) {
+          V.customerBirthdayPreview = evaluateCustomerBirthdayEligibility({
+            birthDate: selectedCustomer.birthDate || null,
+            policyLedger: s.customerBirthdayPolicyLedger,
+            now: new Date().toISOString(),
+          });
+        }
+      } catch {
+        V.customerBirthdayPolicyError = 'La regla local de cumpleaños requiere revisión. No se muestran previsiones.';
+      }
+    }
     V.customerEvents = [];
     if (selectedCustomer && V.customerReady) {
       const events = customerStatement(s.customerLedger, selectedCustomer.customerId);
       const byId = new Map(events.map(event => [event.commandId, event]));
-      let debtCents = 0, prepaidCents = 0, creditLimitCents = 0;
+      let debtCents = 0, prepaidCents = 0, creditLimitCents = 0, birthDate = null;
       V.customerEvents = events.map(event => {
         let debtDelta = 0, prepaidDelta = 0, movement = event.kind, change = '—', reference = '—';
         if (event.kind === 'debt.charge') { debtDelta = event.payload.amountCents; movement = 'Cargo a cuenta · pendiente del flujo atómico'; change = '+ ' + this.fmt(debtDelta / 100) + ' deuda'; }
@@ -2142,6 +2333,12 @@ export default class PosApp extends React.Component {
         else if (event.kind === 'credit.limit') { creditLimitCents = event.payload.limitCents; movement = 'Límite de crédito actualizado'; change = this.fmt(creditLimitCents / 100) + ' máximo'; }
         else if (event.kind === 'profile.create') movement = 'Perfil creado';
         else if (event.kind === 'profile.update') movement = 'Perfil actualizado';
+        else if (event.kind === 'profile.birthday.set.v1') {
+          const before = birthDate || 'sin fecha';
+          birthDate = event.payload.birthDate;
+          movement = 'Fecha de nacimiento actualizada';
+          reference = `${before} → ${birthDate || 'sin fecha'}`;
+        }
         else if (event.kind === 'profile.archive') movement = 'Perfil archivado';
         else if (event.kind === 'balance.reverse') {
           const original = byId.get(event.payload.reversesCommandId);
@@ -2367,7 +2564,8 @@ export default class PosApp extends React.Component {
     ];
 
     // ---- dialog
-    const customerDialogAllowed = !s.dlg?.customerCommandKind || (s.dlg.customerActorId === me?.id && this.can(this.customerPermissionFor(s.dlg.customerCommandKind)));
+    const customerDialogAllowed = (!s.dlg?.customerCommandKind || (s.dlg.customerActorId === me?.id && this.can(this.customerPermissionFor(s.dlg.customerCommandKind))))
+      && (!s.dlg?.birthdayPolicyCommand || (s.dlg.customerActorId === me?.id && this.can('manageCustomerBirthdayPolicy')));
     const dg = customerDialogAllowed ? s.dlg : null;
     V.dlg = !!dg;
     if (dg) {
@@ -2382,7 +2580,7 @@ export default class PosApp extends React.Component {
       V.dlgSplitError = dg.splitError || '';
       V.dlgConfirmDisabled = !!dg.splitError || (!!dg.splitItems?.length && !dg.splitPreview);
       V.dlgFields = (dg.fields || []).map(f => ({
-        key: f.key, type: f.type || 'input', label: f.label, value: f.value, options: f.options || [], ph: f.ph || '', maxLength: f.maxLength,
+        key: f.key, type: f.type || 'input', inputType: f.inputType || 'text', label: f.label, value: f.value, options: f.options || [], ph: f.ph || '', maxLength: f.maxLength,
         inputMode: f.key === 'monto' || f.key === 'quantityText' || f.key === 'amount' ? 'decimal' : undefined,
         set: eventOrValue => {
           const value = typeof eventOrValue === 'string' ? eventOrValue : eventOrValue.target.value;
@@ -2794,9 +2992,11 @@ export default class PosApp extends React.Component {
 <div className="pos-module" style={css("padding:var(--pos-module-padding,22px 24px 48px);display:flex;flex-direction:column;gap:16px")}>
 <div style={css("display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
 <h1 style={css("font-size:19px;font-weight:500;margin:0")}>Clientes y cuentas</h1>
+{V.customerCanConfigureBirthday && <Button type="button" variant="outline" className="ml-auto" onClick={V.openCustomerBirthdayPolicy}>Regla de cumpleaños</Button>}
 <Button type="button" className="ml-auto" onClick={V.newCustomer} disabled={!V.customerCanManage}>+ Nuevo perfil</Button>
 </div>
 <p role="note" className="text-xs text-muted-foreground">Perfiles mínimos y saldos separados de ventas. Los cambios se guardan en esta estación y quedan pendientes de sincronización. Los pagos externos se registran manualmente; su liquidación no se verifica aquí.</p>
+{V.customerReady && <Card role={V.customerBirthdayPolicyError ? 'alert' : undefined} className="gap-2 p-3"><div className="font-medium">Regla de cumpleaños · {V.customerBirthdayPolicySummary}</div>{V.customerBirthdayPolicyAudit && <p className="m-0 text-xs text-muted-foreground">{V.customerBirthdayPolicyAudit}</p>}<p className="m-0 text-xs text-muted-foreground">{V.customerBirthdayPolicyError || 'La previsión solo explica la regla configurada. No reserva ni aplica beneficios; cualquier consumo requiere el flujo atómico de cobro.'}</p></Card>}
 {V.customerError && <Card role="alert" className="gap-2 border-destructive/40 p-3"><span>{V.customerError}</span><Button type="button" variant="outline" onClick={V.retryCustomers}>Reintentar carga</Button></Card>}
 {V.customerReady && <>
 <div style={css("display:flex;gap:10px;flex-wrap:wrap")}>
@@ -2821,7 +3021,8 @@ export default class PosApp extends React.Component {
 </TableRow>)}
 </TableBody></Table></Card>
 {V.selectedCustomer && <Card className="gap-3 p-4">
-<div className="flex flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><div className="font-medium">Estado de cuenta · {V.selectedCustomer.name}</div><div className="text-xs text-muted-foreground">Deuda {V.selectedCustomer.debt} · límite {V.selectedCustomer.limit} · prepago {V.selectedCustomer.prepaid}</div></div><Button type="button" variant="outline" onClick={V.selectedCustomer.close}>Cerrar estado de cuenta</Button></div>
+<div className="flex flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><div className="font-medium">Estado de cuenta · {V.selectedCustomer.name}</div><div className="text-xs text-muted-foreground">Deuda {V.selectedCustomer.debt} · límite {V.selectedCustomer.limit} · prepago {V.selectedCustomer.prepaid}{V.customerCanViewBirthday ? ` · nacimiento ${V.selectedCustomer.birthDate || 'sin registrar'}` : ''}</div></div><Button type="button" variant="outline" onClick={V.selectedCustomer.close}>Cerrar estado de cuenta</Button></div>
+{V.customerBirthdayPreview && <div role="region" aria-label="Previsión de cumpleaños" className="rounded-md border p-3 text-sm"><div className="font-medium">Previsión de cumpleaños · {V.customerBirthdayPreview.eligible ? 'Dentro de regla' : 'Sin elegibilidad prevista'}</div><p className="m-0 mt-1">{V.customerBirthdayPreview.reason}</p>{V.customerBirthdayPreview.localDate && <p className="m-0 mt-1 text-xs text-muted-foreground">Fecha de sucursal {V.customerBirthdayPreview.localDate}{V.customerBirthdayPreview.birthdayOccurrenceDate ? ` · cumpleaños ${V.customerBirthdayPreview.birthdayOccurrenceDate}` : ''}{V.customerBirthdayPreview.benefit ? ` · ${V.customerBirthdayPreview.benefit}` : ''}</p>}<p className="m-0 mt-2 text-xs text-muted-foreground">Solo previsión local; no se reserva ni se aplica un beneficio. La redención requiere cobro atómico y control de duplicados del servidor.</p></div>}
 <div className="text-xs text-muted-foreground lg:hidden">Desliza horizontalmente para revisar el historial →</div>
 <Table containerProps={{ 'aria-label': `Movimientos de la cuenta de ${V.selectedCustomer.name}`, tabIndex: 0 }} className="min-w-[1200px]">
 <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Movimiento</TableHead><TableHead>Cambio</TableHead><TableHead>Saldo de deuda</TableHead><TableHead>Saldo prepago</TableHead><TableHead>Registró</TableHead><TableHead>Forma y referencia</TableHead><TableHead>Motivo</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
@@ -3131,7 +3332,7 @@ export default class PosApp extends React.Component {
 {(V.dlgFields).map((f, fI) => (<React.Fragment key={fI}>
 <div style={css("display:flex;flex-direction:column;gap:6px")}>
 <Label htmlFor={`dialog-field-${fI}`}>{f.label}</Label>
-{f.type === 'select' ? <Select value={f.value} onValueChange={f.set}><SelectTrigger id={`dialog-field-${fI}`} aria-label={f.label}><SelectValue /></SelectTrigger><SelectContent>{f.options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select> : <Input id={`dialog-field-${fI}`} inputMode={f.inputMode} value={f.value} onChange={f.set} placeholder={f.ph} maxLength={f.maxLength} aria-invalid={V.hasDlgErr || undefined} aria-describedby={V.hasDlgErr ? 'dialog-error' : undefined} />}
+{f.type === 'select' ? <Select value={f.value} onValueChange={f.set}><SelectTrigger id={`dialog-field-${fI}`} aria-label={f.label}><SelectValue /></SelectTrigger><SelectContent>{f.options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select> : <Input id={`dialog-field-${fI}`} type={f.inputType} inputMode={f.inputMode} value={f.value} onChange={f.set} placeholder={f.ph} maxLength={f.maxLength} aria-invalid={V.hasDlgErr || undefined} aria-describedby={V.hasDlgErr ? 'dialog-error' : undefined} />}
 </div>
 </React.Fragment>))}
 {(V.dlgNeedReason) && (<>

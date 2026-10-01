@@ -1,0 +1,9 @@
+{
+  "reviewer": "GPT-6.1 Sol",
+  "date": "2026-09-30",
+  "customersMediumOrHigher": 0,
+  "posAppInheritedReportsFindings": 4,
+  "newMediumOrHigher": 0,
+  "attribution": "Four Reports sink source lines byte-identical to a425237 and ef10819184c1fe7769b316c8a259f00c4391d79e; integration separately contains reviewed EVL130 Reports rewrite. Final integration scan pending.",
+  "globalScanClaim": false
+}
