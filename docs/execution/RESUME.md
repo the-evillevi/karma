@@ -4,7 +4,7 @@ The human authorized the39-issue roadmap, GPT6 Luna xhigh delegates, one worktre
 
 ## Current ownership
 
-Root owns integration `/Users/evillevi/.codex/worktrees/karma-integration/karma`, branch`codex/karma-integration`, runtime7106870 independently verified;07dc212 documentation checkpoint. Main remains clean ef10819184c1fe7769b316c8a259f00c4391d79e. DraftPR1–37attached; no main merge. Includes130realperiod/CSV,129recipes,135customer admin,153audit,127truthfulrecovery,126lifecycle and136birthdaypreview.
+Root owns integration `/Users/evillevi/.codex/worktrees/karma-integration/karma`, branch`codex/karma-integration`, runtime7106870 independently verified; subsequent2f39c4f documentation checkpoint. Main remains clean ef10819184c1fe7769b316c8a259f00c4391d79e. DraftPR1–37attached; no main merge. Includes130realperiod/CSV,129recipes,135customer admin,153audit,127truthfulrecovery,126lifecycle and136birthdaypreview.
 
 `foundation_xhigh` exclusively owns RW `/Users/evillevi/.codex/worktrees/karma-foundation/karma`, branch`codex/foundation/evl-126-preparation`, clean base65e9ab1 when transferred. Implementing forward004 preparation send/transition/cancel, atomic multiaggregate locks/retries, sanitized terminal queue. Proposal `/tmp/karma-126-preparation-proposal.md`. Root must review exact new hash/local and actual hosted proof before isolated apply. All five applied files immutable. Agent may NOT apply remotely. No UI bridge/durable full POS claim.
 
@@ -20,7 +20,7 @@ Fullcombined127 check passed at dbfa7cd:155domain146screens10Edge1PWA7phase1jour
 
 Currentcombined check PASSat7106870:164domain151screens10Edge1PWA7phase1journal5operationsjournal, format/lint/types/bothbuilds/credentialscans. Log`/tmp/karma-root-136-lifecycle-integration-check.log`; session43515completed0. Root resolved birthday merge preserving recipes and127write-status semantics; actual policywrites now call noteLocalWrite. FinalintegratedPosAppscopedSnyk0medium+.
 
-PR30operationaljournal a629c4e CI36765677197PASS; PR31recipes1162163 CI36766553233PASS; PR32reportperiodc71c7f9 CI36768697072PASS; PR33audit6bb32ea CI36787218117PASS; PR34serverc5b5138 CI36789436203PASS. PR36lifecycle65e9ab1 CIpending; PR37birthday9d891ad CIpending. GraphQL exhausted; REST usable: duplicate-check state=all/head, create structured draftpayload, attach every createdPR.
+PR30operationaljournal a629c4e CI36765677197PASS; PR31recipes1162163 CI36766553233PASS; PR32reportperiodc71c7f9 CI36768697072PASS; PR33audit6bb32ea CI36787218117PASS; PR34serverc5b5138 CI36789436203PASS. PR36lifecycle65e9ab1 CI36794063509SUCCESS; PR37birthday9d891ad CI36794303099SUCCESS. GraphQL exhausted; REST usable: duplicate-check state=all/head, create structured draftpayload, attach every createdPR.
 
 ## Applied backend: immutable exact files
 
@@ -39,3 +39,5 @@ Private`.env.offline-test.local`0600 foundation/integration; private metadata`/U
 Four historical Reports prototypesinks remainedexactbaselinebytes;130functionalrewrite separately0medium+. NeverclaimwholeprojectsSAST-clean. Preserveperissuedocs/manifest partialcriteria.
 
 Latestobserved ordinaryallowance allowedprimary71%, weekly27%,3resetcreditsremain. Rootredeemednone. Continue authorizedworkuntilactualboundary, checkpointfrequently, no automaticcreditredemption or automation. Preservemain anddraftstacks.
+
+Root actual390/1280Chromium DOB/event-preservation/policy-scroll/Escape-focus/no-runtimeerrors proofPASS. Temporarybrowsercontextsclosed; rootdevserver4199session16612mustbestoppedaftervisualinspection.
