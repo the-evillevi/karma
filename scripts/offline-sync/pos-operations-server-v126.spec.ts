@@ -269,6 +269,49 @@ function detailsChanged(
   };
 }
 
+function discounted(
+  actorId: string,
+  deviceId: string,
+  orderId: string,
+  revision: number,
+  amountCents: number,
+  reason: string,
+): PosOperationCommand {
+  return {
+    schemaVersion: 1,
+    commandId: `v126-${randomUUID()}`,
+    branchId: env.SUPABASE_BRANCH_ID!,
+    actorId,
+    deviceId,
+    occurredAt: new Date().toISOString(),
+    expectedRevisions: [{ kind: "order", id: orderId, revision }],
+    action: "order.discounted",
+    reason,
+    payload: { orderId, amountCents },
+  };
+}
+
+function cancelled(
+  actorId: string,
+  deviceId: string,
+  orderId: string,
+  revision: number,
+  reason: string,
+): PosOperationCommand {
+  return {
+    schemaVersion: 1,
+    commandId: `v126-${randomUUID()}`,
+    branchId: env.SUPABASE_BRANCH_ID!,
+    actorId,
+    deviceId,
+    occurredAt: new Date().toISOString(),
+    expectedRevisions: [{ kind: "order", id: orderId, revision }],
+    action: "order.cancelled",
+    reason,
+    payload: { orderId },
+  };
+}
+
 async function append(
   client: SupabaseClient,
   session: BoundSession,
@@ -294,6 +337,41 @@ async function readOrders(
     p_after_sequence: after,
     p_limit: limit,
   });
+}
+
+async function readOrderLifecycle(
+  client: SupabaseClient,
+  session: BoundSession,
+  after = 0,
+  limit = 100,
+) {
+  return client.rpc("read_pos_order_lifecycle_v1", {
+    p_session_id: session.session_id,
+    p_lease_id: session.lease_id,
+    p_after_sequence: after,
+    p_limit: limit,
+  });
+}
+
+async function findLifecycleOrder(
+  client: SupabaseClient,
+  session: BoundSession,
+  orderId: string,
+): Promise<Record<string, unknown> | undefined> {
+  let cursor = 0;
+  for (let pageNumber = 0; pageNumber < 100; pageNumber += 1) {
+    const result = await readOrderLifecycle(client, session, cursor, 100);
+    expect(result.error?.code ?? null).toBeNull();
+    const page = result.data?.[0];
+    const orders = page?.orders as Array<Record<string, unknown>> | undefined;
+    const found = orders?.find((order) => order.orderId === orderId);
+    if (found) return found;
+    const next = page?.server_cursor;
+    if (orders?.length !== 100 || typeof next !== "number" || next <= cursor)
+      return undefined;
+    cursor = next;
+  }
+  return undefined;
 }
 
 async function findVisibleOrder(
@@ -340,6 +418,57 @@ function publicOrderView(order: {
     customer: order.customer,
     openedAt: order.openedAt,
     lines: order.lines,
+  };
+}
+
+function publicLifecycleOrderView(order: {
+  orderId: string;
+  revision: number;
+  status: string;
+  orderType: string;
+  tableId: string | null;
+  customer: {
+    name: string | null;
+    phone: string | null;
+    address: string | null;
+  } | null;
+  createdByActorId: string;
+  openedAt: string;
+  lines: PosOperationLine[];
+  discounts: Array<{
+    commandId: string;
+    authorizedCents: number;
+    allocatedCents: number;
+    reason: string;
+    actorId: string;
+    occurredAt: string;
+  }>;
+  closedAt: string | null;
+  cancellationReason: string | null;
+  cancelledByActorId: string | null;
+  history: Array<{
+    commandId: string;
+    action: string;
+    actorId: string;
+    occurredAt: string;
+    reason: string | null;
+  }>;
+}) {
+  return {
+    orderId: order.orderId,
+    revision: order.revision,
+    status: order.status,
+    orderType: order.orderType,
+    tableId: order.tableId,
+    customer: order.customer,
+    createdByActorId: order.createdByActorId,
+    openedAt: order.openedAt,
+    lines: order.lines,
+    discounts: order.discounts,
+    closedAt: order.closedAt,
+    cancellationReason: order.cancellationReason,
+    cancelledByActorId: order.cancelledByActorId,
+    history: order.history,
   };
 }
 
@@ -513,7 +642,7 @@ test.describe("EVL-126 server order operations v1", () => {
       string,
       unknown
     >;
-    unsupported.action = "order.discounted";
+    unsupported.action = "order.split";
     expect((await append(owner.client, session, unsupported)).error?.code).toBe(
       "0A000",
     );
@@ -521,7 +650,6 @@ test.describe("EVL-126 server order operations v1", () => {
       "preparation.sent",
       "preparation.transitioned",
       "preparation.cancelled",
-      "order.cancelled",
       "order.split",
       "order.checked-out",
       "sale.refunded",
@@ -692,6 +820,323 @@ test.describe("EVL-126 server order operations v1", () => {
       expect(result.data?.[0]?.outcome).toBe("inserted");
     } finally {
       await setWaiterRole("mesero");
+    }
+  });
+
+  test("discount and cancellation require owner or manager and preserve terminal lifecycle facts", async () => {
+    const owner = await signIn("OWNER");
+    let ownerSession = await bind(owner.client);
+    const waiter = await signIn("WAITER");
+    const deviceId = env.SUPABASE_CASH_DEVICE_ID!;
+    const orderId = `v126-order-${randomUUID()}`;
+    const initial = opened(owner.actorId, orderId, deviceId, {
+      lines: [line(`v126-line-${randomUUID()}`, { cents: 1000 })],
+    });
+    if (initial.action !== "order.opened")
+      throw new Error("Expected open command");
+    const commands: PosOperationCommand[] = [initial];
+    const openedResult = await append(owner.client, ownerSession, initial);
+    expect(openedResult.error?.code ?? null).toBeNull();
+
+    const waiterSession = await bind(waiter.client);
+    const deniedDiscount = discounted(
+      waiter.actorId,
+      deviceId,
+      orderId,
+      1,
+      300,
+      "Prueba de descuento no autorizada",
+    );
+    expect(
+      (await append(waiter.client, waiterSession, deniedDiscount)).error?.code,
+    ).toBe("42501");
+    const deniedCancellation = cancelled(
+      waiter.actorId,
+      deviceId,
+      orderId,
+      1,
+      "Prueba de cancelación no autorizada",
+    );
+    expect(
+      (await append(waiter.client, waiterSession, deniedCancellation)).error
+        ?.code,
+    ).toBe("42501");
+
+    const managerAssignment = await owner.client.rpc(
+      "manage_branch_membership",
+      {
+        p_branch_id: env.SUPABASE_BRANCH_ID!,
+        p_user_id: waiter.actorId,
+        p_display_name: "Gerente sintético de prueba",
+        p_role: "encargado",
+        p_active: true,
+      },
+    );
+    expect(managerAssignment.error?.code ?? null).toBeNull();
+
+    try {
+      let managerSession = await bind(waiter.client, deviceId);
+      const overTotal = discounted(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        1,
+        1001,
+        "Descuento de prueba mayor al subtotal",
+      );
+      expect(
+        (await append(waiter.client, managerSession, overTotal)).error?.code,
+      ).toBe("22023");
+
+      const managerDiscount = discounted(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        1,
+        300,
+        "Descuento sintético autorizado",
+      );
+      const discountResult = await append(
+        waiter.client,
+        managerSession,
+        managerDiscount,
+      );
+      expect(discountResult.error?.code ?? null).toBeNull();
+      expect(discountResult.data?.[0]?.outcome).toBe("inserted");
+      commands.push(managerDiscount);
+      const unknownLine: PosOperationLine = {
+        ...line(`v126-line-${randomUUID()}`),
+        baseUnitPriceCents: null,
+        modifierTotalCents: null,
+        unitPriceCents: null,
+        lineTotalCents: null,
+        priceEvidence: "unknown",
+      };
+      const belowDiscount = lineChanged(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        2,
+        line(initial.payload.lines[0]!.lineId, { cents: 200 }),
+      );
+      expect(
+        (await append(waiter.client, managerSession, belowDiscount)).error
+          ?.code,
+      ).toBe("22023");
+      const changedToUnknown = lineChanged(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        2,
+        { ...unknownLine, lineId: initial.payload.lines[0]!.lineId },
+      );
+      expect(
+        (await append(waiter.client, managerSession, changedToUnknown)).error
+          ?.code,
+      ).toBe("22023");
+      const addedUnknown = lineAdded(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        2,
+        unknownLine,
+      );
+      expect(
+        (await append(waiter.client, managerSession, addedUnknown)).error?.code,
+      ).toBe("22023");
+
+      const cumulativeOverTotal = discounted(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        2,
+        701,
+        "Descuento acumulado de prueba sobre subtotal",
+      );
+      expect(
+        (await append(waiter.client, managerSession, cumulativeOverTotal)).error
+          ?.code,
+      ).toBe("22023");
+      const discountRetry = await append(
+        waiter.client,
+        managerSession,
+        managerDiscount,
+      );
+      expect(discountRetry.error?.code ?? null).toBeNull();
+      expect(discountRetry.data?.[0]?.outcome).toBe("identical-retry");
+
+      ownerSession = await bind(owner.client, deviceId);
+      const legacyDiscountRead = await readOrders(owner.client, ownerSession);
+      expect(legacyDiscountRead.error?.code).toBe("0A000");
+      expect(legacyDiscountRead.error?.message).toBe(
+        "ORDER_LIFECYCLE_READ_REQUIRED",
+      );
+      const legacyCurrentCursor = await readOrders(
+        owner.client,
+        ownerSession,
+        discountResult.data![0]!.server_sequence,
+      );
+      expect(legacyCurrentCursor.error?.code).toBe("0A000");
+      const liveDiscount = await findLifecycleOrder(
+        owner.client,
+        ownerSession,
+        orderId,
+      );
+      expect(liveDiscount).toMatchObject({
+        status: "open",
+        discounts: [{ allocatedCents: 300 }],
+      });
+      // A creator-scoped reader must not learn about another actor's discount.
+      const hiddenReader = await signIn("CASHIER");
+      const hiddenSession = await bind(hiddenReader.client, deviceId);
+      const hiddenLegacyRead = await readOrders(
+        hiddenReader.client,
+        hiddenSession,
+      );
+      expect(hiddenLegacyRead.error?.code ?? null).toBeNull();
+      expect(
+        hiddenLegacyRead.data?.[0]?.orders.some(
+          (order: { orderId: string }) => order.orderId === orderId,
+        ),
+      ).toBe(false);
+
+      managerSession = await bind(waiter.client, deviceId);
+      const managerCancellation = cancelled(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        2,
+        "Cierre sintético de prueba",
+      );
+      const cancellationResult = await append(
+        waiter.client,
+        managerSession,
+        managerCancellation,
+      );
+      expect(cancellationResult.error?.code ?? null).toBeNull();
+      expect(cancellationResult.data?.[0]?.outcome).toBe("inserted");
+      commands.push(managerCancellation);
+
+      const demotion = await owner.client.rpc("manage_branch_membership", {
+        p_branch_id: env.SUPABASE_BRANCH_ID!,
+        p_user_id: waiter.actorId,
+        p_display_name: "Mesero sintético",
+        p_role: "mesero",
+        p_active: true,
+      });
+      expect(demotion.error?.code ?? null).toBeNull();
+      expect(
+        (await append(waiter.client, managerSession, managerCancellation)).error
+          ?.code,
+      ).toBe("42501");
+    } finally {
+      const restore = await owner.client.rpc("manage_branch_membership", {
+        p_branch_id: env.SUPABASE_BRANCH_ID!,
+        p_user_id: waiter.actorId,
+        p_display_name: "Mesero sintético",
+        p_role: "mesero",
+        p_active: true,
+      });
+      expect(restore.error?.code ?? null).toBeNull();
+    }
+
+    ownerSession = await bind(owner.client, deviceId);
+    const lifecycle = await readOrderLifecycle(owner.client, ownerSession);
+    expect(lifecycle.error?.code ?? null).toBeNull();
+    expect(lifecycle.data?.[0]?.feed_version).toBe(1);
+    const terminalOrder = await findLifecycleOrder(
+      owner.client,
+      ownerSession,
+      orderId,
+    );
+    expect(terminalOrder).toMatchObject({
+      orderId,
+      revision: 3,
+      status: "cancelled",
+      createdByActorId: owner.actorId,
+      discounts: [
+        {
+          authorizedCents: 300,
+          allocatedCents: 300,
+          reason: "Descuento sintético autorizado",
+          actorId: waiter.actorId,
+        },
+      ],
+      cancellationReason: "Cierre sintético de prueba",
+      cancelledByActorId: waiter.actorId,
+    });
+    expect(
+      await findVisibleOrder(owner.client, ownerSession, orderId),
+    ).toBeUndefined();
+
+    const replayed = replayPosOperations(
+      { branchId: env.SUPABASE_BRANCH_ID!, deviceId },
+      commands,
+    );
+    const expected = replayed.orders.find(
+      (order) => order.orderId === orderId,
+    )!;
+    expect(terminalOrder).toEqual(publicLifecycleOrderView(expected));
+  });
+
+  test("concurrent discount and cancellation yield one PT409 loser without duplicate history", async () => {
+    const owner = await signIn("OWNER");
+    const session = await bind(owner.client);
+    const deviceId = env.SUPABASE_CASH_DEVICE_ID!;
+    const orderId = `v126-order-${randomUUID()}`;
+    const initial = opened(owner.actorId, orderId, deviceId, {
+      lines: [line(`v126-line-${randomUUID()}`, { cents: 1000 })],
+    });
+    const created = await append(owner.client, session, initial);
+    expect(created.error?.code ?? null).toBeNull();
+    const discount = discounted(
+      owner.actorId,
+      deviceId,
+      orderId,
+      1,
+      250,
+      "Descuento concurrente de prueba",
+    );
+    const cancellation = cancelled(
+      owner.actorId,
+      deviceId,
+      orderId,
+      1,
+      "Cancelación concurrente de prueba",
+    );
+    const results = await Promise.all([
+      append(owner.client, session, discount),
+      append(owner.client, session, cancellation),
+    ]);
+    expect(results.filter((result) => !result.error)).toHaveLength(1);
+    const conflicts = results.filter(
+      (result) => result.error?.code === "PT409",
+    );
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]?.status).toBe(409);
+    expect(conflicts[0]?.error?.message).toBe("OPERATION_REVISION_CONFLICT");
+
+    const persisted = await findLifecycleOrder(owner.client, session, orderId);
+    expect(persisted?.revision).toBe(2);
+    expect(persisted?.history).toHaveLength(2);
+    if (persisted?.status === "open") {
+      expect(persisted.discounts).toHaveLength(1);
+      const rebasedCancellation = cancelled(
+        owner.actorId,
+        deviceId,
+        orderId,
+        2,
+        "Cancelación rebasada de prueba",
+      );
+      const rebased = await append(owner.client, session, rebasedCancellation);
+      expect(rebased.error?.code ?? null).toBeNull();
+      const final = await findLifecycleOrder(owner.client, session, orderId);
+      expect(final?.status).toBe("cancelled");
+      expect(final?.revision).toBe(3);
+      expect(final?.history).toHaveLength(3);
+    } else {
+      expect(persisted?.status).toBe("cancelled");
+      expect(persisted?.discounts).toEqual([]);
     }
   });
 
