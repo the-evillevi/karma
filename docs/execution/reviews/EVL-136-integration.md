@@ -1,0 +1,5 @@
+# Root combined review · EVL-136 / EVL-126 lifecycle
+
+Integration7106870 preserves129recipe initialization/storage-event/persisted records,130realperiod exports and Map-based reports,127save-before-publish semantics and truthful actual-write status. Root resolved each merge conflict explicitly. The new policy save records its actual local write success/failure for recovery diagnostics, while customer/profile storage writes publish the complete birthday ledger and retain recovery notes. The customer concurrent-storage fixture retains the complete current draft after ephemeral navigation.
+
+Full independent combined check passed164domain,151mounted screens,10Edge,1PWAofflinecoldrestart,7phase1journal and5operationaljournal cases, plusformat/lint/types/bothbuilds/clientcredentialscans. DemoPWA scenario used explicitVITE_KARMA_ACCESS_MODE=demo; secureconfiguration unchanged. FinalintegratedPosAppSnyk0medium+. No medium-or-higher finding is introduced by the birthday integration. No whole-projectsecurity or full126/136acceptance claim follows.
