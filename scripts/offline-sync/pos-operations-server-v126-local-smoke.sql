@@ -283,6 +283,32 @@ begin
     raise exception 'Discount retry did not preserve its acknowledgement';
   end if;
 
+  -- A past/current cursor must not hide the legacy feed's missing money facts.
+  for v_cursor in 0..3 loop
+    v_business_rejected := false;
+    begin
+      perform * from public.read_pos_open_orders_v1(
+        '22222222-2222-4222-8222-222222222222', 'lease-smoke', v_cursor, 1
+      );
+      raise exception 'Legacy read silently omitted a live discount' using errcode = 'P0002';
+    exception when sqlstate '0A000' then
+      if sqlerrm <> 'ORDER_LIFECYCLE_READ_REQUIRED' then
+        raise exception 'Legacy read disclosed unexpected error details';
+      end if;
+      v_business_rejected := true;
+    end;
+    if not v_business_rejected then
+      raise exception 'Legacy discounted read did not fail closed';
+    end if;
+  end loop;
+  select * into v_read from public.read_pos_order_lifecycle_v1(
+    '22222222-2222-4222-8222-222222222222', 'lease-smoke', 0, 50
+  );
+  if v_read.orders -> 0 ->> 'status' <> 'open'
+    or (v_read.orders -> 0 -> 'discounts' -> 0 ->> 'allocatedCents')::bigint <> 40 then
+    raise exception 'Lifecycle feed omitted the live discount';
+  end if;
+
   v_business_rejected := false;
   v_action_command := pg_catalog.jsonb_build_object(
     'schemaVersion', 1, 'commandId', 'smoke-cumulative-discount', 'branchId', 'evl126-smoke',

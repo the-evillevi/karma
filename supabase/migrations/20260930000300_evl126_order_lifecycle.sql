@@ -800,3 +800,109 @@ $$;
 revoke all on function public.read_pos_order_lifecycle_v1(uuid, text, bigint, integer) from public, anon;
 grant execute on function public.read_pos_order_lifecycle_v1(uuid, text, bigint, integer) to authenticated;
 revoke all on function pos_private.assert_order_projection(jsonb, text, bigint, text) from public, anon, authenticated;
+
+-- Preserve the v1 shape for undiscounted orders; discounted readers must upgrade.
+create or replace function public.read_pos_open_orders_v1(
+  p_session_id uuid,
+  p_lease_id text,
+  p_after_sequence bigint default 0,
+  p_limit integer default 50
+)
+returns table (server_cursor bigint, orders jsonb)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_context record;
+  v_branch_id text;
+  v_latest_sequence bigint;
+begin
+  select * into v_context
+  from pos_private.require_register_context(
+    (select session_row.branch_id from public.register_device_sessions as session_row where session_row.session_id = p_session_id),
+    (select session_row.device_id from public.register_device_sessions as session_row where session_row.session_id = p_session_id),
+    p_session_id,
+    p_lease_id
+  );
+  if v_context.capability <> 'cash_register'
+    or v_context.verified_role not in ('duena', 'encargado', 'barra', 'mesero') then
+    raise exception 'This session cannot read cash-register orders' using errcode = '42501';
+  end if;
+  if p_after_sequence is null or p_after_sequence < 0
+    or p_limit is null or p_limit not between 1 and 100 then
+    raise exception 'Invalid order read cursor or limit' using errcode = '22023';
+  end if;
+  select session_row.branch_id into v_branch_id
+  from public.register_device_sessions as session_row
+  where session_row.session_id = p_session_id;
+  select coalesce(branch_sequence.last_sequence, 0) into v_latest_sequence
+  from pos_private.pos_operation_branch_sequences as branch_sequence
+  where branch_sequence.branch_id = v_branch_id;
+  v_latest_sequence := coalesce(v_latest_sequence, 0);
+  if p_after_sequence > v_latest_sequence then
+    raise exception 'Order read cursor is ahead of this branch' using errcode = '22023';
+  end if;
+
+  -- This compatibility feed cannot represent discounts. Never return a partial
+  -- financial view, even when the caller's cursor already passed that change.
+  if exists (
+    select 1
+    from pos_private.pos_operation_projections as projection
+    where projection.branch_id = v_branch_id
+      and projection.aggregate_kind = 'order'
+      and projection.projection ->> 'status' = 'open'
+      and pg_catalog.jsonb_array_length(projection.projection -> 'discounts') > 0
+      and (
+        v_context.verified_role in ('duena', 'encargado')
+        or projection.projection ->> 'createdByActorId' = v_context.actor_id::text
+      )
+  ) then
+    raise exception 'ORDER_LIFECYCLE_READ_REQUIRED' using errcode = '0A000';
+  end if;
+
+  return query
+  with changed as (
+    select distinct on (event.aggregate_id)
+      event.aggregate_id,
+      event.server_sequence
+    from pos_private.pos_operation_aggregate_events as event
+    where event.branch_id = v_branch_id
+      and event.aggregate_kind = 'order'
+      and event.server_sequence > p_after_sequence
+    order by event.aggregate_id, event.server_sequence desc
+  ), visible as (
+    select changed.aggregate_id, changed.server_sequence, projection.projection
+    from changed
+    join pos_private.pos_operation_projections as projection
+      on projection.branch_id = v_branch_id
+      and projection.aggregate_kind = 'order'
+      and projection.aggregate_id = changed.aggregate_id
+    where projection.projection ->> 'status' = 'open'
+      and (
+        v_context.verified_role in ('duena', 'encargado')
+        or projection.projection ->> 'createdByActorId' = v_context.actor_id::text
+      )
+    order by changed.server_sequence, changed.aggregate_id
+    limit p_limit
+  )
+  select
+    coalesce(pg_catalog.max(visible.server_sequence), p_after_sequence),
+    coalesce(
+      pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'orderId', visible.projection -> 'orderId',
+          'revision', visible.projection -> 'revision',
+          'status', visible.projection -> 'status',
+          'orderType', visible.projection -> 'orderType',
+          'tableId', visible.projection -> 'tableId',
+          'customer', visible.projection -> 'customer',
+          'openedAt', visible.projection -> 'openedAt',
+          'lines', visible.projection -> 'lines'
+        ) order by visible.aggregate_id
+      ),
+      '[]'::jsonb
+    )
+  from visible;
+end;
+$$;

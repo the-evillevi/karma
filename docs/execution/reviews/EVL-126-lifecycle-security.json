@@ -1,0 +1,17 @@
+{
+  "reviewer": "GPT-6.1 Sol",
+  "date": "2026-09-30",
+  "scope": [
+    {
+      "path": "src/domain/pos-operations.ts",
+      "mediumOrHigher": 0
+    },
+    {
+      "path": "scripts/offline-sync/pos-operations-server-v126.spec.ts",
+      "mediumOrHigher": 0
+    }
+  ],
+  "sql": "Manual root review and real local PostgreSQL/hosted execution; unsupported by this SAST scanner",
+  "migrationSha256": "06808e81f81d7ffd81daf38cc0191898e49aef817e8496f630b32cae6d21f6cc",
+  "globalScanClaim": false
+}

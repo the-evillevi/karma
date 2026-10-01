@@ -825,9 +825,8 @@ test.describe("EVL-126 server order operations v1", () => {
 
   test("discount and cancellation require owner or manager and preserve terminal lifecycle facts", async () => {
     const owner = await signIn("OWNER");
-    const ownerSession = await bind(owner.client);
+    let ownerSession = await bind(owner.client);
     const waiter = await signIn("WAITER");
-    const waiterSession = await bind(waiter.client);
     const deviceId = env.SUPABASE_CASH_DEVICE_ID!;
     const orderId = `v126-order-${randomUUID()}`;
     const initial = opened(owner.actorId, orderId, deviceId, {
@@ -839,6 +838,7 @@ test.describe("EVL-126 server order operations v1", () => {
     const openedResult = await append(owner.client, ownerSession, initial);
     expect(openedResult.error?.code ?? null).toBeNull();
 
+    const waiterSession = await bind(waiter.client);
     const deniedDiscount = discounted(
       waiter.actorId,
       deviceId,
@@ -875,7 +875,7 @@ test.describe("EVL-126 server order operations v1", () => {
     expect(managerAssignment.error?.code ?? null).toBeNull();
 
     try {
-      const managerSession = await bind(waiter.client, deviceId);
+      let managerSession = await bind(waiter.client, deviceId);
       const overTotal = discounted(
         waiter.actorId,
         deviceId,
@@ -886,47 +886,6 @@ test.describe("EVL-126 server order operations v1", () => {
       );
       expect(
         (await append(waiter.client, managerSession, overTotal)).error?.code,
-      ).toBe("22023");
-
-      const unknownLine: PosOperationLine = {
-        ...line(`v126-line-${randomUUID()}`),
-        baseUnitPriceCents: null,
-        modifierTotalCents: null,
-        unitPriceCents: null,
-        lineTotalCents: null,
-        priceEvidence: "unknown",
-      };
-      const belowDiscount = lineChanged(
-        waiter.actorId,
-        deviceId,
-        orderId,
-        1,
-        line(initial.payload.lines[0]!.lineId, { cents: 200 }),
-      );
-      expect(
-        (await append(waiter.client, managerSession, belowDiscount)).error
-          ?.code,
-      ).toBe("22023");
-      const changedToUnknown = lineChanged(
-        waiter.actorId,
-        deviceId,
-        orderId,
-        1,
-        { ...unknownLine, lineId: initial.payload.lines[0]!.lineId },
-      );
-      expect(
-        (await append(waiter.client, managerSession, changedToUnknown)).error
-          ?.code,
-      ).toBe("22023");
-      const addedUnknown = lineAdded(
-        waiter.actorId,
-        deviceId,
-        orderId,
-        1,
-        unknownLine,
-      );
-      expect(
-        (await append(waiter.client, managerSession, addedUnknown)).error?.code,
       ).toBe("22023");
 
       const managerDiscount = discounted(
@@ -945,6 +904,47 @@ test.describe("EVL-126 server order operations v1", () => {
       expect(discountResult.error?.code ?? null).toBeNull();
       expect(discountResult.data?.[0]?.outcome).toBe("inserted");
       commands.push(managerDiscount);
+      const unknownLine: PosOperationLine = {
+        ...line(`v126-line-${randomUUID()}`),
+        baseUnitPriceCents: null,
+        modifierTotalCents: null,
+        unitPriceCents: null,
+        lineTotalCents: null,
+        priceEvidence: "unknown",
+      };
+      const belowDiscount = lineChanged(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        2,
+        line(initial.payload.lines[0]!.lineId, { cents: 200 }),
+      );
+      expect(
+        (await append(waiter.client, managerSession, belowDiscount)).error
+          ?.code,
+      ).toBe("22023");
+      const changedToUnknown = lineChanged(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        2,
+        { ...unknownLine, lineId: initial.payload.lines[0]!.lineId },
+      );
+      expect(
+        (await append(waiter.client, managerSession, changedToUnknown)).error
+          ?.code,
+      ).toBe("22023");
+      const addedUnknown = lineAdded(
+        waiter.actorId,
+        deviceId,
+        orderId,
+        2,
+        unknownLine,
+      );
+      expect(
+        (await append(waiter.client, managerSession, addedUnknown)).error?.code,
+      ).toBe("22023");
+
       const cumulativeOverTotal = discounted(
         waiter.actorId,
         deviceId,
@@ -965,6 +965,42 @@ test.describe("EVL-126 server order operations v1", () => {
       expect(discountRetry.error?.code ?? null).toBeNull();
       expect(discountRetry.data?.[0]?.outcome).toBe("identical-retry");
 
+      ownerSession = await bind(owner.client, deviceId);
+      const legacyDiscountRead = await readOrders(owner.client, ownerSession);
+      expect(legacyDiscountRead.error?.code).toBe("0A000");
+      expect(legacyDiscountRead.error?.message).toBe(
+        "ORDER_LIFECYCLE_READ_REQUIRED",
+      );
+      const legacyCurrentCursor = await readOrders(
+        owner.client,
+        ownerSession,
+        discountResult.data![0]!.server_sequence,
+      );
+      expect(legacyCurrentCursor.error?.code).toBe("0A000");
+      const liveDiscount = await findLifecycleOrder(
+        owner.client,
+        ownerSession,
+        orderId,
+      );
+      expect(liveDiscount).toMatchObject({
+        status: "open",
+        discounts: [{ allocatedCents: 300 }],
+      });
+      // A creator-scoped reader must not learn about another actor's discount.
+      const hiddenReader = await signIn("CASHIER");
+      const hiddenSession = await bind(hiddenReader.client, deviceId);
+      const hiddenLegacyRead = await readOrders(
+        hiddenReader.client,
+        hiddenSession,
+      );
+      expect(hiddenLegacyRead.error?.code ?? null).toBeNull();
+      expect(
+        hiddenLegacyRead.data?.[0]?.orders.some(
+          (order: { orderId: string }) => order.orderId === orderId,
+        ),
+      ).toBe(false);
+
+      managerSession = await bind(waiter.client, deviceId);
       const managerCancellation = cancelled(
         waiter.actorId,
         deviceId,
@@ -1004,6 +1040,7 @@ test.describe("EVL-126 server order operations v1", () => {
       expect(restore.error?.code ?? null).toBeNull();
     }
 
+    ownerSession = await bind(owner.client, deviceId);
     const lifecycle = await readOrderLifecycle(owner.client, ownerSession);
     expect(lifecycle.error?.code ?? null).toBeNull();
     expect(lifecycle.data?.[0]?.feed_version).toBe(1);
