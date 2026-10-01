@@ -22,113 +22,62 @@
   "chains": [
     {
       "name": "foundation",
-      "issues": [
-        "EVL-113",
-        "EVL-114",
-        "EVL-116",
-        "EVL-118",
-        "EVL-126"
-      ],
+      "issues": ["EVL-113", "EVL-114", "EVL-116", "EVL-118", "EVL-126"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-foundation/karma"
     },
     {
       "name": "design",
-      "issues": [
-        "EVL-154",
-        "EVL-156",
-        "EVL-158",
-        "EVL-115"
-      ],
+      "issues": ["EVL-154", "EVL-156", "EVL-158", "EVL-115"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-design/karma"
     },
     {
       "name": "catalog",
-      "issues": [
-        "EVL-112",
-        "EVL-119",
-        "EVL-120",
-        "EVL-121"
-      ],
+      "issues": ["EVL-112", "EVL-119", "EVL-120", "EVL-121"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-catalog/karma"
     },
     {
       "name": "orders",
-      "issues": [
-        "EVL-185",
-        "EVL-188",
-        "EVL-122",
-        "EVL-189",
-        "EVL-155"
-      ],
+      "issues": ["EVL-185", "EVL-188", "EVL-122", "EVL-189", "EVL-155"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-orders/karma"
     },
     {
       "name": "payments",
-      "issues": [
-        "EVL-186",
-        "EVL-123",
-        "EVL-187",
-        "EVL-125"
-      ],
+      "issues": ["EVL-186", "EVL-123", "EVL-187", "EVL-125"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-payments/karma"
     },
     {
       "name": "inventory",
-      "issues": [
-        "EVL-128",
-        "EVL-129",
-        "EVL-153",
-        "EVL-157"
-      ],
+      "issues": ["EVL-128", "EVL-129", "EVL-153", "EVL-157"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-inventory/karma"
     },
     {
       "name": "reports",
-      "issues": [
-        "EVL-130",
-        "EVL-127"
-      ],
+      "issues": ["EVL-130", "EVL-127"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-reports/karma"
     },
     {
       "name": "customers",
-      "issues": [
-        "EVL-135",
-        "EVL-136"
-      ],
+      "issues": ["EVL-135", "EVL-136"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-customers/karma"
     },
     {
       "name": "hardware",
-      "issues": [
-        "EVL-117",
-        "EVL-124",
-        "EVL-133"
-      ],
+      "issues": ["EVL-117", "EVL-124", "EVL-133"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-hardware/karma"
     },
     {
       "name": "pilot",
-      "issues": [
-        "EVL-131",
-        "EVL-132"
-      ],
+      "issues": ["EVL-131", "EVL-132"],
       "worktree": null
     },
     {
       "name": "public",
-      "issues": [
-        "EVL-134",
-        "EVL-138"
-      ],
+      "issues": ["EVL-134", "EVL-138"],
       "worktree": null
     },
     {
       "name": "bluetooth",
-      "issues": [
-        "EVL-139",
-        "EVL-140"
-      ],
+      "issues": ["EVL-139", "EVL-140"],
       "worktree": "/Users/evillevi/.codex/worktrees/karma-bluetooth/karma"
     }
   ],
@@ -141,12 +90,7 @@
       "requires": [],
       "stage": "awaiting_merge",
       "agent": null,
-      "commits": [
-        "69fabf0",
-        "ad93ebf",
-        "63dcf6d",
-        "5ac36b9"
-      ],
+      "commits": ["69fabf0", "ad93ebf", "63dcf6d", "5ac36b9"],
       "pr": "https://github.com/the-evillevi/karma/pull/2",
       "checks": [
         "13 Node tests passed",
@@ -165,17 +109,10 @@
       "chain": "foundation",
       "branch": "codex/foundation/evl-114",
       "baseBranch": "codex/foundation/evl-113",
-      "requires": [
-        "EVL-113"
-      ],
+      "requires": ["EVL-113"],
       "stage": "awaiting_merge",
       "agent": null,
-      "commits": [
-        "bab9eb2",
-        "115c638",
-        "873c829",
-        "074f814"
-      ],
+      "commits": ["bab9eb2", "115c638", "873c829", "074f814"],
       "pr": "https://github.com/the-evillevi/karma/pull/5",
       "checks": [
         "8 real hosted browser/RLS tests passed independently by root",
@@ -197,17 +134,10 @@
       "chain": "foundation",
       "branch": "codex/foundation/evl-116",
       "baseBranch": "codex/foundation/evl-114",
-      "requires": [
-        "EVL-114"
-      ],
+      "requires": ["EVL-114"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "c38a398",
-        "741aaef",
-        "df4ec46",
-        "331a87b"
-      ],
+      "commits": ["c38a398", "741aaef", "df4ec46", "331a87b"],
       "pr": "https://github.com/the-evillevi/karma/pull/10",
       "checks": [
         "Root pnpm check passed: scopedformat/lint/types,14Node,builds,bundlescan,PWAoffline restart",
@@ -231,9 +161,7 @@
       "chain": "foundation",
       "branch": "codex/foundation/evl-118",
       "baseBranch": "codex/foundation/access-base",
-      "requires": [
-        "EVL-116"
-      ],
+      "requires": ["EVL-116"],
       "stage": "reviewed_slice",
       "agent": null,
       "commits": [
@@ -276,9 +204,7 @@
       "chain": "foundation",
       "branch": "codex/foundation/evl-126-preparation",
       "baseBranch": "codex/foundation/evl-126-lifecycle",
-      "requires": [
-        "EVL-118"
-      ],
+      "requires": ["EVL-118"],
       "stage": "implementing",
       "agent": "foundation_xhigh",
       "commits": [
@@ -342,16 +268,9 @@
       "requires": [],
       "stage": "awaiting_input",
       "agent": null,
-      "commits": [
-        "fed6ab5",
-        "38b721d",
-        "8f8edd0"
-      ],
+      "commits": ["fed6ab5", "38b721d", "8f8edd0"],
       "pr": "https://github.com/the-evillevi/karma/pull/1",
-      "checks": [
-        "Source/token/contrast review",
-        "git diff --check"
-      ],
+      "checks": ["Source/token/contrast review", "git diff --check"],
       "review": "passed_after_fixes",
       "blockers": [
         "Team acceptance and merge pending; Carlos flow validation is EVL-115."
@@ -364,10 +283,7 @@
       "chain": "design",
       "branch": "codex/design/evl-156",
       "baseBranch": "codex/design/evl-154",
-      "requires": [
-        "EVL-154",
-        "EVL-116"
-      ],
+      "requires": ["EVL-154", "EVL-116"],
       "stage": "awaiting_input",
       "agent": null,
       "commits": [
@@ -401,16 +317,10 @@
       "chain": "design",
       "branch": "codex/design/evl-158",
       "baseBranch": "codex/design/base",
-      "requires": [
-        "EVL-156"
-      ],
+      "requires": ["EVL-156"],
       "stage": "awaiting_input",
       "agent": null,
-      "commits": [
-        "ddf2a93",
-        "705dd91",
-        "8bf3782"
-      ],
+      "commits": ["ddf2a93", "705dd91", "8bf3782"],
       "pr": "https://github.com/the-evillevi/karma/pull/14",
       "checks": [
         "Root22combinedcomponents5responsive2previewroutes passed",
@@ -429,11 +339,7 @@
       "chain": "design",
       "branch": "codex/design/evl-115",
       "baseBranch": "codex/design/evl-158",
-      "requires": [
-        "EVL-158",
-        "EVL-121",
-        "EVL-124"
-      ],
+      "requires": ["EVL-158", "EVL-121", "EVL-124"],
       "stage": "queued",
       "agent": null,
       "commits": [],
@@ -451,13 +357,7 @@
       "requires": [],
       "stage": "awaiting_input",
       "agent": null,
-      "commits": [
-        "17a0f25",
-        "06ac089",
-        "bf3c424",
-        "654f345",
-        "80fd189"
-      ],
+      "commits": ["17a0f25", "06ac089", "bf3c424", "654f345", "80fd189"],
       "pr": "https://github.com/the-evillevi/karma/pull/4",
       "checks": [
         "9 Node tests passed",
@@ -478,19 +378,10 @@
       "chain": "catalog",
       "branch": "codex/catalog/evl-119",
       "baseBranch": "codex/catalog/evl-112",
-      "requires": [
-        "EVL-112",
-        "EVL-116",
-        "EVL-118",
-        "EVL-126"
-      ],
+      "requires": ["EVL-112", "EVL-116", "EVL-118", "EVL-126"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "fd83d62",
-        "3225008",
-        "4c5937b"
-      ],
+      "commits": ["fd83d62", "3225008", "4c5937b"],
       "pr": "https://github.com/the-evillevi/karma/pull/7",
       "checks": [
         "17 focused Node tests passed",
@@ -508,17 +399,10 @@
       "chain": "catalog",
       "branch": "codex/catalog/evl-120",
       "baseBranch": "codex/catalog/evl-119",
-      "requires": [
-        "EVL-119",
-        "EVL-113"
-      ],
+      "requires": ["EVL-119", "EVL-113"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "af890ae",
-        "0b17618",
-        "ffbc8bf"
-      ],
+      "commits": ["af890ae", "0b17618", "ffbc8bf"],
       "pr": "https://github.com/the-evillevi/karma/pull/8",
       "checks": [
         "27 focusedNode tests passed; real113validatorincluded no skips",
@@ -536,19 +420,10 @@
       "chain": "catalog",
       "branch": "codex/catalog/evl-121",
       "baseBranch": "codex/catalog/evl-120",
-      "requires": [
-        "EVL-120",
-        "EVL-122",
-        "EVL-123",
-        "EVL-158"
-      ],
+      "requires": ["EVL-120", "EVL-122", "EVL-123", "EVL-158"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "062537e",
-        "fee12e8",
-        "e02b812"
-      ],
+      "commits": ["062537e", "fee12e8", "e02b812"],
       "pr": "https://github.com/the-evillevi/karma/pull/11",
       "checks": [
         "Root23catalog tests with real113validator passed no skips",
@@ -565,19 +440,12 @@
       "chain": "orders",
       "branch": "codex/orders/evl-185",
       "baseBranch": "codex/orders/base",
-      "requires": [
-        "EVL-126"
-      ],
+      "requires": ["EVL-126"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "a53d707",
-        "7fe4b88"
-      ],
+      "commits": ["a53d707", "7fe4b88"],
       "pr": "https://github.com/the-evillevi/karma/pull/12",
-      "checks": [
-        "Root17componenttests54unitnoskipsfourentrybuildpassed"
-      ],
+      "checks": ["Root17componenttests54unitnoskipsfourentrybuildpassed"],
       "review": "fixed_and_rereviewed_actual_app",
       "blockers": [
         "Production durability126 and preparation-device access integration remain open."
@@ -590,17 +458,10 @@
       "chain": "orders",
       "branch": "codex/orders/evl-188",
       "baseBranch": "codex/orders/evl-185",
-      "requires": [
-        "EVL-185",
-        "EVL-113",
-        "EVL-126"
-      ],
+      "requires": ["EVL-185", "EVL-113", "EVL-126"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "5366d2b",
-        "e92f1b5"
-      ],
+      "commits": ["5366d2b", "e92f1b5"],
       "pr": "https://github.com/the-evillevi/karma/pull/17",
       "checks": [
         "Root combined 31 component tests and four-entry build passed after merge reconciliation",
@@ -621,18 +482,10 @@
       "chain": "orders",
       "branch": "codex/orders/evl-122",
       "baseBranch": "codex/orders/accounts-base",
-      "requires": [
-        "EVL-188",
-        "EVL-120",
-        "EVL-118"
-      ],
+      "requires": ["EVL-188", "EVL-120", "EVL-118"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "b12ec4d",
-        "0173778",
-        "32c750d"
-      ],
+      "commits": ["b12ec4d", "0173778", "32c750d"],
       "pr": "https://github.com/the-evillevi/karma/pull/19",
       "checks": [
         "Root18 combined account/cancellation tests passed; Luna41 regressions and normal/PWA builds passed"
@@ -649,16 +502,10 @@
       "chain": "orders",
       "branch": "codex/orders/evl-189",
       "baseBranch": "codex/orders/split-base",
-      "requires": [
-        "EVL-122"
-      ],
+      "requires": ["EVL-122"],
       "stage": "reviewed_slice",
       "agent": null,
-      "commits": [
-        "55ee685",
-        "2e01d1c",
-        "8ac4ee5"
-      ],
+      "commits": ["55ee685", "2e01d1c", "8ac4ee5"],
       "pr": "https://github.com/the-evillevi/karma/pull/20",
       "checks": [
         "Root full77domain/79component/10Edge and PWA restart check passed; final12 split guards passed; scoped scan no new findings."
@@ -674,16 +521,10 @@
       "chain": "orders",
       "branch": "codex/orders/evl-155",
       "baseBranch": "codex/orders/evl-189",
-      "requires": [
-        "EVL-189"
-      ],
+      "requires": ["EVL-189"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "0006f0b",
-        "6b6c425",
-        "b61a477"
-      ],
+      "commits": ["0006f0b", "6b6c425", "b61a477"],
       "pr": "https://github.com/the-evillevi/karma/pull/22",
       "checks": [
         "17 focused split and86 component on agent stack; combined integration fullcheck82 domain,94 component,10 Edge, format/lint/types/build/PWA restart and credential scans"
@@ -700,22 +541,14 @@
       "chain": "payments",
       "branch": "codex/payments/evl-186",
       "baseBranch": "codex/payments/base",
-      "requires": [
-        "EVL-126"
-      ],
+      "requires": ["EVL-126"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "74a8cd3"
-      ],
+      "commits": ["74a8cd3"],
       "pr": "https://github.com/the-evillevi/karma/pull/13",
-      "checks": [
-        "Root20componenttests60unitnoskipsfourentrybuildpassed"
-      ],
+      "checks": ["Root20componenttests60unitnoskipsfourentrybuildpassed"],
       "review": "fixed_and_rereviewed_net_payment_actual_app",
-      "blockers": [
-        "Real Excel export130 and durable126 remain open."
-      ],
+      "blockers": ["Real Excel export130 and durable126 remain open."],
       "nextAction": "Draft bounded cash net fix; export and production foundation acceptance remain open.",
       "artifactsReady": true
     },
@@ -724,17 +557,10 @@
       "chain": "payments",
       "branch": "codex/payments/evl-123",
       "baseBranch": "codex/payments/evl-186",
-      "requires": [
-        "EVL-186",
-        "EVL-122",
-        "EVL-118"
-      ],
+      "requires": ["EVL-186", "EVL-122", "EVL-118"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "cd2562e",
-        "c8777ef"
-      ],
+      "commits": ["cd2562e", "c8777ef"],
       "pr": "https://github.com/the-evillevi/karma/pull/15",
       "checks": [
         "Root combined 26 component tests passed after manual-history fix",
@@ -752,16 +578,10 @@
       "chain": "payments",
       "branch": "codex/payments/evl-187",
       "baseBranch": "codex/payments/cancellation-base",
-      "requires": [
-        "EVL-123",
-        "EVL-118"
-      ],
+      "requires": ["EVL-123", "EVL-118"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "4d441e7",
-        "b699692"
-      ],
+      "commits": ["4d441e7", "b699692"],
       "pr": "https://github.com/the-evillevi/karma/pull/18",
       "checks": [
         "8 actual POS cancellation cases passed; 39 predecessor combined component regressions passed; 4-entry build and credential scan passed"
@@ -778,15 +598,10 @@
       "chain": "payments",
       "branch": "codex/payments/evl-125",
       "baseBranch": "codex/payments/corrections-base",
-      "requires": [
-        "EVL-187",
-        "EVL-129"
-      ],
+      "requires": ["EVL-187", "EVL-129"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "07cf51b"
-      ],
+      "commits": ["07cf51b"],
       "pr": "https://github.com/the-evillevi/karma/pull/21",
       "checks": [
         "Full payment-stack check:77 domain,77 component,10 Edge; final5 domain/8 actual POS; combined41 refund/split/cancel/access cases"
@@ -803,19 +618,10 @@
       "chain": "inventory",
       "branch": "codex/inventory/evl-128-catalog",
       "baseBranch": "codex/inventory/evl-128",
-      "requires": [
-        "EVL-126",
-        "EVL-118"
-      ],
+      "requires": ["EVL-126", "EVL-118"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "20035f3",
-        "2fc994c",
-        "47a8951",
-        "389c3b9",
-        "2693cd4"
-      ],
+      "commits": ["20035f3", "2fc994c", "47a8951", "389c3b9", "2693cd4"],
       "pr": "https://github.com/the-evillevi/karma/pull/26",
       "checks": [
         "Root10 domain /9 actualUI; combined96domain/103components/10Edge/fullbuild/PWA/bundlescans",
@@ -835,18 +641,10 @@
       "chain": "inventory",
       "branch": "codex/inventory/evl-129",
       "baseBranch": "codex/inventory/evl-128-catalog",
-      "requires": [
-        "EVL-128",
-        "EVL-122"
-      ],
+      "requires": ["EVL-128", "EVL-122"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "0da84f3",
-        "024543d",
-        "8297e8c",
-        "1162163"
-      ],
+      "commits": ["0da84f3", "024543d", "8297e8c", "1162163"],
       "pr": "https://github.com/the-evillevi/karma/pull/31",
       "checks": [
         "Root8recipe-domain/7actualrecipe-screen, shared106domain/109components (two workers after busy default timeout), builds/PWA/credential scans passed; no newly introduced medium+ findings.",
@@ -864,17 +662,10 @@
       "chain": "inventory",
       "branch": "codex/inventory/evl-153",
       "baseBranch": "codex/inventory/audit-base",
-      "requires": [
-        "EVL-129"
-      ],
+      "requires": ["EVL-129"],
       "stage": "reviewed_slice",
       "agent": null,
-      "commits": [
-        "5c4494a",
-        "da069af",
-        "a062876",
-        "6bb32ea"
-      ],
+      "commits": ["5c4494a", "da069af", "a062876", "6bb32ea"],
       "pr": "https://github.com/the-evillevi/karma/pull/33",
       "checks": [
         "Root5auditdomain/4actualUI, related29domain/16UI; integrated11report+audit and8compensation screens plus build pass; newreports and integratedPosApp0medium+."
@@ -890,11 +681,7 @@
       "chain": "inventory",
       "branch": "codex/inventory/evl-157",
       "baseBranch": "codex/inventory/evl-153",
-      "requires": [
-        "EVL-153",
-        "EVL-126",
-        "EVL-158"
-      ],
+      "requires": ["EVL-153", "EVL-126", "EVL-158"],
       "stage": "queued",
       "agent": null,
       "commits": [],
@@ -909,20 +696,10 @@
       "chain": "reports",
       "branch": "codex/reports/evl-130-periods",
       "baseBranch": "codex/reports/evl-130",
-      "requires": [
-        "EVL-125",
-        "EVL-135",
-        "EVL-153"
-      ],
+      "requires": ["EVL-125", "EVL-135", "EVL-153"],
       "stage": "reviewed_slice",
       "agent": null,
-      "commits": [
-        "b39c1a7",
-        "3ecb8be",
-        "27dc6d6",
-        "f1b13ce",
-        "c71c7f9"
-      ],
+      "commits": ["b39c1a7", "3ecb8be", "27dc6d6", "f1b13ce", "c71c7f9"],
       "pr": "https://github.com/the-evillevi/karma/pull/32",
       "checks": [
         "Root3domain29screensactualChromiumCSVdownload+independentCSVparser; finalCSV0medium+/PosApp4unchangedbaseline",
@@ -941,18 +718,10 @@
       "chain": "reports",
       "branch": "codex/reports/evl-127",
       "baseBranch": "codex/reports/recovery-base",
-      "requires": [
-        "EVL-130",
-        "EVL-126"
-      ],
+      "requires": ["EVL-130", "EVL-126"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "a7e598d",
-        "e6c79ab",
-        "6934f79",
-        "5daa9fb"
-      ],
+      "commits": ["a7e598d", "e6c79ab", "6934f79", "5daa9fb"],
       "pr": "https://github.com/the-evillevi/karma/pull/35",
       "checks": [
         "Root43focused+43affected integration screens and5audit domain passed; scopedPosApp/reports0medium+.",
@@ -970,11 +739,7 @@
       "chain": "customers",
       "branch": "codex/customers/evl-135",
       "baseBranch": "codex/customers/credit-base",
-      "requires": [
-        "EVL-123",
-        "EVL-126",
-        "EVL-118"
-      ],
+      "requires": ["EVL-123", "EVL-126", "EVL-118"],
       "stage": "awaiting_foundation",
       "agent": null,
       "commits": [
@@ -1003,17 +768,10 @@
       "chain": "customers",
       "branch": "codex/customers/evl-136",
       "baseBranch": "codex/customers/evl-135",
-      "requires": [
-        "EVL-135"
-      ],
+      "requires": ["EVL-135"],
       "stage": "awaiting_foundation",
       "agent": null,
-      "commits": [
-        "74e7313",
-        "74e7313",
-        "489fb17",
-        "9d891ad"
-      ],
+      "commits": ["74e7313", "74e7313", "489fb17", "9d891ad"],
       "pr": "https://github.com/the-evillevi/karma/pull/37",
       "checks": [
         "Root14domain+22mounted customer/inventory passed. Agent2accesspassed. Format/types/lint/build/clientscan passed. Customers0medium+;4oldReports sinks exact baseline bytes. Integration7106870 preserves130rewrite/129recipes/127save-before-publish and notesactualpolicywrites; combined check/scan running. PR37attached CI pending.",
@@ -1035,11 +793,7 @@
       "requires": [],
       "stage": "awaiting_input",
       "agent": null,
-      "commits": [
-        "066905c",
-        "f77bb83",
-        "955094c"
-      ],
+      "commits": ["066905c", "f77bb83", "955094c"],
       "pr": "https://github.com/the-evillevi/karma/pull/3",
       "checks": [
         "Root Chrome CSS/layout inspection passed",
@@ -1057,11 +811,7 @@
       "chain": "hardware",
       "branch": "codex/hardware/evl-124",
       "baseBranch": "codex/hardware/evl-117",
-      "requires": [
-        "EVL-117",
-        "EVL-121",
-        "EVL-123"
-      ],
+      "requires": ["EVL-117", "EVL-121", "EVL-123"],
       "stage": "queued",
       "agent": null,
       "commits": [],
@@ -1076,10 +826,7 @@
       "chain": "hardware",
       "branch": "codex/hardware/evl-133",
       "baseBranch": "codex/hardware/evl-124",
-      "requires": [
-        "EVL-124",
-        "EVL-132"
-      ],
+      "requires": ["EVL-124", "EVL-132"],
       "stage": "queued",
       "agent": null,
       "commits": [],
@@ -1116,9 +863,7 @@
       "chain": "pilot",
       "branch": "codex/pilot/evl-132",
       "baseBranch": "codex/pilot/evl-131",
-      "requires": [
-        "EVL-131"
-      ],
+      "requires": ["EVL-131"],
       "stage": "queued",
       "agent": null,
       "commits": [],
@@ -1133,11 +878,7 @@
       "chain": "public",
       "branch": "codex/public/evl-134",
       "baseBranch": "main",
-      "requires": [
-        "EVL-120",
-        "EVL-126",
-        "EVL-158"
-      ],
+      "requires": ["EVL-120", "EVL-126", "EVL-158"],
       "stage": "queued",
       "agent": null,
       "commits": [],
@@ -1152,10 +893,7 @@
       "chain": "public",
       "branch": "codex/public/evl-138",
       "baseBranch": "codex/public/evl-134",
-      "requires": [
-        "EVL-134",
-        "EVL-122"
-      ],
+      "requires": ["EVL-134", "EVL-122"],
       "stage": "queued",
       "agent": null,
       "commits": [],
@@ -1170,9 +908,7 @@
       "chain": "bluetooth",
       "branch": "codex/bluetooth/evl-139",
       "baseBranch": "codex/foundation/evl-114",
-      "requires": [
-        "EVL-114"
-      ],
+      "requires": ["EVL-114"],
       "stage": "awaiting_input",
       "agent": null,
       "commits": [
@@ -1199,10 +935,7 @@
       "chain": "bluetooth",
       "branch": "codex/bluetooth/evl-140",
       "baseBranch": "codex/bluetooth/evl-139",
-      "requires": [
-        "EVL-139",
-        "EVL-126"
-      ],
+      "requires": ["EVL-139", "EVL-126"],
       "stage": "queued",
       "agent": null,
       "commits": [],
@@ -1217,21 +950,21 @@
     "manualResume": true,
     "reason": "User requested resume and GPT-6 Luna xhigh for delegates",
     "runningAgents": 2,
-    "integration": "7b0d967",
+    "integration": "096e13f",
     "mainMerged": false,
-    "nextIssue": "126lifecycle;136birthday-policy",
+    "nextIssue": "EVL-126 preparation then checkout",
     "resumeDocument": "docs/execution/RESUME.md",
-    "status": "active_lifecycle_and_birthday",
+    "status": "active_preparation_review_payment_bridge_integrated",
     "usage": {
-      "primaryUsedPercent": 35,
-      "weeklyUsedPercent": 21,
+      "primaryUsedPercent": 93,
+      "weeklyUsedPercent": 30,
       "ordinaryUsageAllowed": true,
       "resetCreditsRemaining": 3
     },
     "preparedWorktrees": {
       "customers": "74e7313"
     },
-    "verification": "Combined checkPASS atdbfa7cd:155domain,146screens,10Edge,1PWA,7phase1journal,5operationsjournal,format/lint/types/bothbuilds/credential scans; explicitDemo PWA build because private local proof defaultssecure."
+    "verification": "Fullcombined check PASS7106870:164domain151screens10Edge1PWA7phase1journal5operationsjournal+format/lint/types/builds/scans. Paymentbridge integration root8domain1mounted/typecheck PASS; no production wiring."
   },
   "activeSlices": [
     {
@@ -1250,9 +983,15 @@
       "branch": "codex/payments/checkout-bridge",
       "baseBranch": "codex/payments/checkout-bridge-base",
       "worktree": "/Users/evillevi/.codex/worktrees/karma-payments/karma",
-      "owner": "orders_xhigh",
-      "stage": "implementing_unreviewed_unwired",
-      "nextAction": "Actual captured pairedpayments/tenders\u2192reducer differential; safe gross/change sums; root code-review --fix/types/tests/security before draft. No UI wiring/backend apply/customer benefit."
+      "owner": "root",
+      "stage": "reviewed_published_integrated_unwired",
+      "nextAction": "Use reviewed translator in forthcoming checkout family with authoritative operation due. No runtime wiring/server writes/customer benefits in this slice. PR38CI pending.",
+      "commits": ["507d011", "462d896"],
+      "pr": "https://github.com/the-evillevi/karma/pull/38",
+      "review": "root_fixed_and_rereviewed",
+      "checks": [
+        "Root8bridge domain and1mounted actualcheckout test PASS in standalone andintegration;types/lint/format/diff PASS; scoped source0medium+; agent172domain/build PASS"
+      ]
     }
   ]
 }
