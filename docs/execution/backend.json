@@ -36,9 +36,16 @@
       "sha256": "8fef21b96d7881ea801e0f056cf1d1fbd8127d2a105093c21782030de034b140",
       "method": "Root exact reviewed forward file via linked Management API; migrationhistory repair",
       "verification": "Root independent local PostgreSQL stale-conflict unchanged-state and late rollback/retry passed;8/8 actual hosted no skips passed20seconds, including PT409/HTTP409 one-winner staleedit race. Immutable after application."
+    },
+    {
+      "version": "20260930000300",
+      "issue": "EVL-126",
+      "sha256": "06808e81f81d7ffd81daf38cc0191898e49aef817e8496f630b32cae6d21f6cc",
+      "method": "Root exact reviewed file via linked Management API; migration history repair",
+      "verification": "Root real local PostgreSQL grants/strict history/late discount+cancel rollback/retry passed. Actual hosted10/10 without skips35.6s: reducer parity, current authority, PT409 concurrent lifecycle race, creator-scoped legacy guard, discounted open state and terminal facts. Immutable after application."
     }
   ],
-  "schemaScope": "114command proof,118access and126open-order-only server boundary applied; no POS operational UI sync integration or durable-sale claim",
+  "schemaScope": "114command proof,118access and126open/edit/details/discount/cancellation server boundary applied; no POS operational UI sync integration or durable-sale claim",
   "deployedFunctions": [
     {
       "slug": "owner-provision-user",
