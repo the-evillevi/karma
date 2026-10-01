@@ -956,8 +956,8 @@
     "resumeDocument": "docs/execution/RESUME.md",
     "status": "active_preparation_review_payment_bridge_integrated",
     "usage": {
-      "primaryUsedPercent": 93,
-      "weeklyUsedPercent": 30,
+      "primaryUsedPercent": 98,
+      "weeklyUsedPercent": 31,
       "ordinaryUsageAllowed": true,
       "resetCreditsRemaining": 3
     },
@@ -975,7 +975,10 @@
       "worktree": "/Users/evillevi/.codex/worktrees/karma-foundation/karma",
       "owner": "foundation_xhigh",
       "stage": "implementing_unreviewed_unapplied",
-      "nextAction": "Commit candidate+real local SQL proofs; root code-review --fix/exact new hash before approvedisolated apply/actualhosted proof. Five appliedmigrations immutable."
+      "nextAction": "Commit candidate+real local SQL proofs; root code-review --fix/exact new hash before approvedisolated apply/actualhosted proof. Five appliedmigrations immutable.",
+      "checks": [
+        "Root independent earlylocalSQL snapshot7c953d91 PASS inclbaseline/send2events oneSequence/final-order late rollback+same-ID retry/terminal queue/corruptstatus/ACL/realcash\u2192prepdevice transition coherence/revocationbefore retry. Finalcandidatehash/full proof/hosted pending. Secondary staticreview noadditionalblocker."
+      ]
     },
     {
       "issue": "EVL-126 / EVL-123",

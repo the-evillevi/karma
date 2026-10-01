@@ -38,7 +38,7 @@ Private`.env.offline-test.local`0600 foundation/integration; private metadata`/U
 
 Four historical Reports prototypesinks remainedexactbaselinebytes;130functionalrewrite separately0medium+. NeverclaimwholeprojectsSAST-clean. Preserveperissuedocs/manifest partialcriteria.
 
-Latestobserved ordinaryallowance allowedprimary93%, weekly30%,3resetcreditsremain. Rootredeemednone. Continue authorizedworkuntilactualboundary, checkpointfrequently, no automaticcreditredemption or automation. Preservemain anddraftstacks.
+Latestobserved ordinaryallowance allowedprimary98%, weekly31%,3resetcreditsremain. Rootredeemednone. Continue authorizedworkuntilactualboundary, checkpointfrequently, no automaticcreditredemption or automation. Preservemain anddraftstacks.
 
 Root actual390/1280Chromium DOB/event-preservation/policy-scroll/Escape-focus/no-runtimeerrors proofPASS. Temporarybrowsercontextsclosed; rootdevserver4199session16612wasstoppedaftervisualinspection.
 
@@ -47,3 +47,5 @@ Root earlyindependent preparation snapshot478c4f compiles/applies in ownnetwork-
 Root extendedpreparation proof7c953d91 PASS: forcedfinalORDERprojectionwrite afterticketwrite rollsback allsequence/command/events/heads/projections, exactsame-ID retry thenidenticalretry; corruptqueuestatusXX001 and new/renamedRPC ACL. Script `/tmp/karma-root-126-prep-rollback.sql` joins earlyrunner; finalcandidate stillagent-owned/unapplied.
 
 Ordersagent secondarypreparation staticreviewcompleted withoutadditionalblocker; report `/tmp/karma-126-prep-secondary-review.md`. AgentnowexclusiveRW paymentsWT `codex/payments/evl-126-checkout-server`, base `codex/payments/checkout-server-base`7f19b18. Implementing new005checkoutONLY candidate/tests/compositecash-saleclosedfeed; depends004externaltemporarysnapshot. DoNOTtrack/copyunreviewed004 intoitsWT, applyremotely, orwireUI/refund/provider/customerstock. Rootmustreview004andmergeinto005base beforedraft. Priorbridgebranch462d896clean/published. Rootrenewed SAME existingfixturelease~00:42UTC30min preservingvalid_from (expires~01:12UTC); privateenv0600.
+
+Root independentactualLOCAL cross-device proof PASS on7c953d91: cashcreated ticket visibleto preparationdevice; prepdevice advances ticket withorderbyteunchanged;cashqueueseeschange;prepdevicecashfinancialread42501;revokedcashdevice identicalsendretrydenied/no businesssequencechange. Immutable001requires preparationtransport `no-cash-lease` sentinel while sessionleaseNULL; initialrootfixturecorrected. Temporaryproof `/tmp/karma-root-126-prep-cross-device.sql`, fulljoinedlog `/tmp/karma-root-126-prep-early.log`. This isnot hosted orfullTSreplayevidence; no004/005apply.
