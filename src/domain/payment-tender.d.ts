@@ -2,7 +2,7 @@ export type TenderMethod = "cash" | "card" | "transfer";
 
 export interface EnteredTender {
   id: string | number;
-  method: TenderMethod;
+  method: TenderMethod | "efectivo" | "tarjeta" | "transferencia";
   amount: string | number;
 }
 
@@ -38,3 +38,10 @@ export function calculateTender(
   tenders: readonly EnteredTender[],
   options?: { tipCents?: number },
 ): TenderCalculation;
+
+/** Additional exports from the existing JS payment module. */
+export function centsToMoney(cents: number): number;
+export function paymentNetCents(payment: unknown): number | null;
+export function paymentMethodTotalsCents(
+  sales: unknown,
+): Record<string, number>;

@@ -16,3 +16,5 @@ This checkpoint does not change reports or legacy payment handling. It does not 
 
 - `src/domain/posapp-payment-operation-bridge-v1.test.ts`: pure current-tender calculation, bridge, and reducer differential cases for mixed tender/tip/change, zero-net returned cash, empty zero sale, unsupported tip-only sale, invalid or conflicting capture evidence, ID mismatch, and aggregate overflow.
 - `src/domain/posapp-payment-operation-bridge-ui.test.jsx`: mounted `PosApp.register()` captures an actual sale record, then the bridge consumes that saved record and reconciles the captured food due, tip, and payment facts.
+
+Root code-review --fix completed: safe aggregate gross/change proof and complete legacy-module type declaration. Root8focused domain and1actual mounted checkout-to-bridge cases, types/lint/format/diff passed; final scoped bridge scan0medium+. See reviews/EVL-126-payment-bridge.md for explicit partial acceptance.
