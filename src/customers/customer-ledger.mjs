@@ -1,8 +1,10 @@
 import { moneyToCents } from "../domain/payment-tender.js";
+import { validateCustomerBirthDate } from "./customer-birthday.mjs";
 
 const kinds = new Set([
   "profile.create",
   "profile.update",
+  "profile.birthday.set.v1",
   "profile.archive",
   "credit.limit",
   "debt.charge",
@@ -20,6 +22,7 @@ const financialKinds = new Set([
 const managerKinds = new Set([
   "profile.create",
   "profile.update",
+  "profile.birthday.set.v1",
   "profile.archive",
   "debt.repayment",
   "prepaid.deposit",
@@ -107,6 +110,9 @@ function canonicalCommand(value) {
     exact(payload, ["name", "phone"]);
     text(payload.name, 120);
     text(payload.phone, 40, true);
+  } else if (command.kind === "profile.birthday.set.v1") {
+    exact(payload, ["birthDate"]);
+    validateCustomerBirthDate(payload.birthDate);
   } else if (command.kind === "profile.archive") {
     exact(payload, []);
   } else if (command.kind === "credit.limit") {
@@ -186,6 +192,8 @@ function replay(events) {
       if (command.kind === "profile.update") {
         customer.name = payload.name;
         customer.phone = payload.phone;
+      } else if (command.kind === "profile.birthday.set.v1") {
+        customer.birthDate = payload.birthDate;
       } else if (command.kind === "credit.limit") {
         if (payload.limitCents < customer.debtCents) fail("limit_below_debt");
         customer.creditLimitCents = payload.limitCents;

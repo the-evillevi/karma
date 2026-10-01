@@ -244,6 +244,39 @@ test("allows a manager to archive only a zero-balance account without changing i
   assert.equal(archived.events.at(-1).kind, "profile.archive");
 });
 
+test("records birthdays in a separate versioned event and never rewrites the old profile payload", () => {
+  const legacy = registered();
+  const manager = { actorId: "manager-birthday", role: "encargado" };
+  const birthdayCommand = (expectedRevision, birthDate, commandId) => ({
+    commandId,
+    customerId: "customer-1",
+    kind: "profile.birthday.set.v1",
+    expectedRevision,
+    actorId: manager.actorId,
+    actorName: "Encargado",
+    roleSnapshot: manager.role,
+    occurredAt: "2026-09-30T12:00:00.000Z",
+    reason: "Fecha confirmada con el cliente",
+    payload: { birthDate },
+  });
+  const withBirthday = planCustomerCommand(
+    legacy,
+    birthdayCommand(1, "2000-02-29", "birthday:set"),
+    manager,
+  ).ledger;
+  assert.deepEqual(legacy.events[0].payload, { name: "Ana", phone: null });
+  assert.deepEqual(withBirthday.events[0], legacy.events[0]);
+  assert.equal(withBirthday.events[1].kind, "profile.birthday.set.v1");
+  assert.equal(customerAccounts(withBirthday)[0].birthDate, "2000-02-29");
+  const cleared = planCustomerCommand(
+    withBirthday,
+    birthdayCommand(2, null, "birthday:clear"),
+    manager,
+  ).ledger;
+  assert.equal(customerAccounts(cleared)[0].birthDate, null);
+  assert.equal(cleared.events.length, 3);
+});
+
 test("rejects corrupt/unsupported history, unsafe amounts, extra secrets and fractional centavos", () => {
   const state = registered();
   const broken = structuredClone(state);
