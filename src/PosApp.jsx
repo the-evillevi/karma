@@ -455,10 +455,14 @@ export default class PosApp extends React.Component {
     patch.kitchenTickets = persistedRecords(persisted, 'kitchenTickets', this.state.kitchenTickets);
     patch.sales = persistedRecords(persisted, 'sales', this.state.sales);
     patch.pending = persistedPending(persisted, this.state.pending);
-    patch.customerLedger = Object.prototype.hasOwnProperty.call(persisted, 'customerLedger')
-      ? validateCustomerLedger(persisted.customerLedger) : this.state.customerLedger;
-    patch.customerBirthdayPolicyLedger = Object.prototype.hasOwnProperty.call(persisted, 'customerBirthdayPolicyLedger')
-      ? validateCustomerBirthdayPolicyLedger(persisted.customerBirthdayPolicyLedger) : this.state.customerBirthdayPolicyLedger;
+    if (Object.prototype.hasOwnProperty.call(persisted, 'customerLedger')) {
+      try { patch.customerLedger = validateCustomerLedger(persisted.customerLedger); patch.customerLedgerError = ''; }
+      catch { patch.customerLedger = null; patch.customerLedgerError = 'El registro guardado de clientes requiere revisión. No se aplicaron cambios.'; }
+    } else patch.customerLedger = this.state.customerLedger;
+    if (Object.prototype.hasOwnProperty.call(persisted, 'customerBirthdayPolicyLedger')) {
+      try { patch.customerBirthdayPolicyLedger = validateCustomerBirthdayPolicyLedger(persisted.customerBirthdayPolicyLedger); patch.customerBirthdayPolicyError = ''; }
+      catch { patch.customerBirthdayPolicyLedger = null; patch.customerBirthdayPolicyError = 'La regla local de cumpleaños requiere revisión. No se muestran previsiones.'; }
+    } else patch.customerBirthdayPolicyLedger = this.state.customerBirthdayPolicyLedger;
     if (Object.prototype.hasOwnProperty.call(persisted, 'order')) patch.order = restoreStoredOrder(persisted.order);
     else patch.order = this.state.order;
     if (Object.prototype.hasOwnProperty.call(persisted, 'orderSettings')) {
@@ -2992,7 +2996,7 @@ export default class PosApp extends React.Component {
 <Button type="button" className="ml-auto" onClick={V.newCustomer} disabled={!V.customerCanManage}>+ Nuevo perfil</Button>
 </div>
 <p role="note" className="text-xs text-muted-foreground">Perfiles mínimos y saldos separados de ventas. Los cambios se guardan en esta estación y quedan pendientes de sincronización. Los pagos externos se registran manualmente; su liquidación no se verifica aquí.</p>
-{V.customerReady && <Card className="gap-2 p-3"><div className="font-medium">Regla de cumpleaños · {V.customerBirthdayPolicySummary}</div>{V.customerBirthdayPolicyAudit && <p className="m-0 text-xs text-muted-foreground">{V.customerBirthdayPolicyAudit}</p>}<p className="m-0 text-xs text-muted-foreground">{V.customerBirthdayPolicyError || 'La previsión solo explica la regla configurada. No reserva ni aplica beneficios; cualquier consumo requiere el flujo atómico de cobro.'}</p></Card>}
+{V.customerReady && <Card role={V.customerBirthdayPolicyError ? 'alert' : undefined} className="gap-2 p-3"><div className="font-medium">Regla de cumpleaños · {V.customerBirthdayPolicySummary}</div>{V.customerBirthdayPolicyAudit && <p className="m-0 text-xs text-muted-foreground">{V.customerBirthdayPolicyAudit}</p>}<p className="m-0 text-xs text-muted-foreground">{V.customerBirthdayPolicyError || 'La previsión solo explica la regla configurada. No reserva ni aplica beneficios; cualquier consumo requiere el flujo atómico de cobro.'}</p></Card>}
 {V.customerError && <Card role="alert" className="gap-2 border-destructive/40 p-3"><span>{V.customerError}</span><Button type="button" variant="outline" onClick={V.retryCustomers}>Reintentar carga</Button></Card>}
 {V.customerReady && <>
 <div style={css("display:flex;gap:10px;flex-wrap:wrap")}>

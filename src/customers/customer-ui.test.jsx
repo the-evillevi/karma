@@ -486,7 +486,7 @@ it('fails closed on a corrupt saved birthday policy without showing eligibility 
   const view = mountDemo();
   await user.click(await screen.findByRole('button', { name: 'Clientes y cuentas' }));
   await screen.findByRole('heading', { name: 'Clientes y cuentas' });
-  expect((await screen.findByRole('alert')).textContent).toContain('No se pudo cargar el registro local de clientes');
+  expect((await screen.findByRole('alert')).textContent).toContain('La regla local de cumpleaños requiere revisión. No se muestran previsiones.');
   expect(screen.queryByRole('button', { name: 'Regla de cumpleaños' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Previsión de cumpleaños' })).toBeNull();
   expect(JSON.parse(storage.getItem('karma-pos-v1')).customerBirthdayPolicyLedger).toEqual(broken);
