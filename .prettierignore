@@ -1,0 +1,11 @@
+node_modules
+dist
+pnpm-lock.yaml
+src/**/*.jsx
+src/**/*.js
+catalog/catalog.json
+DESIGN.md
+docs/**
+design/**
+index.html
+comanda.html
