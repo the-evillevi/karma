@@ -2,12 +2,14 @@
 // returns the batch to append to the journal. They never change state
 // themselves; `applyBatch` does, when the batch is committed.
 import type { Permission } from "./access.ts";
+import { can } from "./access.ts";
 import type {
   CommandBatch,
   CommandMeta,
   OrderHeader,
   PosState,
 } from "./journal.ts";
+import { folioFor } from "./journal.ts";
 import type { OrderLine } from "./order.ts";
 
 export type CommandRejection =
@@ -42,8 +44,29 @@ export function saveOrder(
   meta: CommandMeta,
   input: SaveOrderInput,
 ): CommandBatch {
-  void state;
-  void meta;
-  void input;
-  throw new Error("not implemented");
+  if (!can(meta.actor.role, "capture-order")) {
+    throw new CommandRejectedError("not-allowed", "capture-order");
+  }
+  if (input.lines.length === 0) {
+    throw new CommandRejectedError("empty-order");
+  }
+  const existing = Object.hasOwn(state.orders, input.orderId)
+    ? state.orders[input.orderId]
+    : undefined;
+  if (existing && existing.status !== "open") {
+    throw new CommandRejectedError("order-closed");
+  }
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "order-saved",
+        orderId: input.orderId,
+        folio: existing?.folio ?? folioFor(state.lastFolioNumber + 1),
+        header: structuredClone(input.header),
+        lines: structuredClone(input.lines),
+      },
+    ],
+  };
 }

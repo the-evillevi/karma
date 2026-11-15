@@ -1,6 +1,7 @@
 // The app's single source of state: a journal kept in durable storage plus
 // the state replayed from it. Screens read `getState()` and call `commit()`.
 import type { CommandBatch, PosState } from "../domain/journal.ts";
+import { applyBatch, replay } from "../domain/journal.ts";
 
 /** Where batches are kept. Implementations: memory (tests) and RxDB (browser). */
 export interface JournalStorage {
@@ -23,24 +24,60 @@ export class StorageWriteError extends Error {
 export function createMemoryStorage(
   initial: readonly CommandBatch[] = [],
 ): JournalStorage {
-  void initial;
-  throw new Error("not implemented");
+  const batches = structuredClone([...initial]);
+  const listeners = new Set<(batch: CommandBatch) => void>();
+  return {
+    load: async () => structuredClone(batches),
+    append: async (batch) => {
+      if (batches.some((stored) => stored.commandId === batch.commandId))
+        return;
+      const snapshot = structuredClone(batch);
+      batches.push(snapshot);
+      for (const listener of listeners) listener(structuredClone(snapshot));
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
 }
 
 export class PosStore {
+  private readonly listeners = new Set<() => void>();
+  private readonly batches: CommandBatch[];
+  private unsubscribeStorage: () => void = () => {};
+
+  private constructor(
+    private readonly storage: JournalStorage,
+    private state: PosState,
+    batches: readonly CommandBatch[],
+  ) {
+    this.batches = [
+      ...new Map(
+        batches.map((batch) => [batch.commandId, structuredClone(batch)]),
+      ).values(),
+    ];
+  }
+
   /** Loads the journal and replays it. */
   static async open(storage: JournalStorage): Promise<PosStore> {
-    void storage;
-    throw new Error("not implemented");
+    const batches = structuredClone(await storage.load());
+    const store = new PosStore(storage, replay(batches), batches);
+    store.unsubscribeStorage = storage.subscribe((batch) => {
+      store.publish(batch, applyBatch(store.state, batch));
+    });
+    return store;
   }
 
   getState(): PosState {
-    throw new Error("not implemented");
+    return this.state;
   }
 
   /** Every committed batch, oldest first. None is synced yet (EVL-126 [D]). */
   pendingBatches(): CommandBatch[] {
-    throw new Error("not implemented");
+    return structuredClone(this.batches);
   }
 
   /**
@@ -48,18 +85,38 @@ export class PosStore {
    * If the write fails it throws StorageWriteError and the state is unchanged.
    */
   async commit(batch: CommandBatch): Promise<void> {
-    void batch;
-    throw new Error("not implemented");
+    const snapshot = structuredClone(batch);
+    const before = this.state;
+    const candidate = applyBatch(before, snapshot);
+    if (candidate === before) return;
+    try {
+      await this.storage.append(snapshot);
+    } catch (cause) {
+      throw new StorageWriteError(cause);
+    }
+    this.publish(
+      snapshot,
+      this.state === before ? candidate : applyBatch(this.state, snapshot),
+    );
   }
 
   /** Calls `listener` after every state change. Returns the unsubscribe. */
   subscribe(listener: () => void): () => void {
-    void listener;
-    throw new Error("not implemented");
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   /** Stops listening to storage. */
   close(): void {
-    throw new Error("not implemented");
+    this.unsubscribeStorage();
+  }
+
+  private publish(batch: CommandBatch, next: PosState): void {
+    if (next === this.state) return;
+    this.batches.push(structuredClone(batch));
+    this.state = next;
+    for (const listener of this.listeners) listener();
   }
 }

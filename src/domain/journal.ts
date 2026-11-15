@@ -133,13 +133,32 @@ export class JournalConflictError extends Error {
 }
 
 export function emptyState(): PosState {
-  throw new Error("not implemented");
+  return {
+    orders: {},
+    comandas: {},
+    tableCount: DEFAULT_TABLE_COUNT,
+    lastFolioNumber: 0,
+    applied: {},
+  };
 }
 
 /** "A-0001" for 1. */
 export function folioFor(folioNumber: number): string {
-  void folioNumber;
-  throw new Error("not implemented");
+  return `A-${String(folioNumber).padStart(4, "0")}`;
+}
+
+function fingerprint(batch: CommandBatch): string {
+  return JSON.stringify(batch, (_key, value: unknown) => {
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      const record = value as Record<string, unknown>;
+      return Object.fromEntries(
+        Object.keys(record)
+          .sort()
+          .map((key) => [key, record[key]]),
+      );
+    }
+    return value;
+  });
 }
 
 /**
@@ -148,13 +167,69 @@ export function folioFor(folioNumber: number): string {
  * `state` unchanged; with different content it throws JournalConflictError.
  */
 export function applyBatch(state: PosState, batch: CommandBatch): PosState {
-  void state;
-  void batch;
-  throw new Error("not implemented");
+  const identity = fingerprint(batch);
+  if (Object.hasOwn(state.applied, batch.commandId)) {
+    if (state.applied[batch.commandId] !== identity) {
+      throw new JournalConflictError(batch.commandId);
+    }
+    return state;
+  }
+  const next = structuredClone(state);
+  const snapshot = structuredClone(batch);
+  for (const event of snapshot.events) {
+    switch (event.type) {
+      case "order-saved": {
+        const existing = Object.hasOwn(next.orders, event.orderId)
+          ? next.orders[event.orderId]
+          : undefined;
+        const order: Order = existing
+          ? {
+              ...existing,
+              header: event.header,
+              lines: event.lines,
+              version: existing.version + 1,
+              updatedAt: snapshot.at,
+              updatedBy: snapshot.actor,
+            }
+          : {
+              orderId: event.orderId,
+              folio: event.folio,
+              header: event.header,
+              lines: event.lines,
+              status: "open",
+              version: 1,
+              openedAt: snapshot.at,
+              updatedAt: snapshot.at,
+              openedBy: snapshot.actor,
+              updatedBy: snapshot.actor,
+              sentQuantities: {},
+              sale: null,
+            };
+        next.orders = { ...next.orders, [event.orderId]: order };
+        if (!existing) {
+          next.lastFolioNumber = Math.max(
+            next.lastFolioNumber,
+            Number(event.folio.slice(2)),
+          );
+        }
+        break;
+      }
+      case "comanda-sent":
+      case "preparation-advanced":
+      case "sale-closed":
+      case "tables-configured":
+        throw new Error(`not implemented: ${event.type}`);
+      default: {
+        const unhandled: never = event;
+        throw new Error(`Unknown event: ${JSON.stringify(unhandled)}`);
+      }
+    }
+  }
+  next.applied = { ...next.applied, [snapshot.commandId]: identity };
+  return next;
 }
 
 /** Rebuilds the state from the journal, in order. */
 export function replay(batches: readonly CommandBatch[]): PosState {
-  void batches;
-  throw new Error("not implemented");
+  return batches.reduce(applyBatch, emptyState());
 }
