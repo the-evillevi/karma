@@ -28,13 +28,19 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 /** Whether `role` may perform `permission`. Unknown roles may do nothing. */
 export function can(role: string, permission: Permission): boolean {
-  void role;
-  void permission;
-  throw new Error("not implemented");
+  return permissionsOf(role).includes(permission);
 }
 
 /** Every permission the role has, in PERMISSIONS order. */
 export function permissionsOf(role: string): Permission[] {
-  void role;
-  throw new Error("not implemented");
+  switch (role) {
+    case "admin":
+      return [...PERMISSIONS];
+    case "barra":
+      return ["capture-order", "send-comanda", "charge"];
+    case "mesero":
+      return ["capture-order", "send-comanda"];
+    default:
+      return [];
+  }
 }
