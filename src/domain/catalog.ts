@@ -258,7 +258,10 @@ export function modifierGroupsFor(
   catalog: Catalog,
   product: Product,
 ): ModifierGroup[] {
-  void catalog;
-  void product;
-  throw new Error("not implemented");
+  return product.modifierGroupIds.flatMap((groupId) => {
+    const group = catalog.modifierGroups.find(
+      (candidate) => candidate.id === groupId,
+    );
+    return group ? [group] : [];
+  });
 }
