@@ -1,33 +1,8 @@
 # Karma POS
 
-Punto de venta para cafetería (Karma · Abboth) — a **Vite + React** app.
+Offline-first point of sale for a single-branch café in Mexico (MXN). One PWA covers the register, menu, kitchen tickets (comandas), inventory and reports.
 
-Originally imported from the Claude Design project **"Karma POS para cafetería"**
-as a self-contained [Datacosm](https://claude.ai/design) (`.dc.html`) prototype,
-then migrated to a standard Vite React app: the declarative `<x-dc>` templates
-were converted to native JSX and the custom `support.js` runtime (which loaded
-React/ReactDOM/Babel from a CDN) was dropped. React is now a bundled dependency —
-no CDN, no runtime Babel, no network needed to run.
-
-## Structure
-
-```
-index.html            POS entry     → src/pos-main.jsx
-comanda.html          Comanda entry → src/comanda-main.jsx
-src/
-  PosApp.jsx          Main app — login/PIN, punto de venta, órdenes, cobro,
-                      menú, inventario, reportes, usuarios (React.Component)
-  ComandaApp.jsx      Kitchen/bar ticket display
-  karma-data.js       Seed data (products, modifiers, users, inventory, sales…)
-  css.js              css("a:b;c:d") → React style object (bridges the many
-                      inline-style strings ported from the templates)
-  styles.css          Global CSS (resets, keyframes; body bg per page)
-vite.config.js        Multi-page build (POS + Comanda entries)
-design/               Original .dc.html + support.js, kept for reference
-```
-
-The two pages share state through `localStorage` (key `karma-pos-v1`); the POS
-and Comanda screens stay in sync live (via `storage` events + polling).
+**Working on this repo? Read [`AGENTS.md`](AGENTS.md) first.** Specs live in Linear issues; every scenario becomes a test.
 
 ## Run
 
@@ -36,19 +11,27 @@ This project uses **pnpm**.
 ```sh
 pnpm install      # first time
 pnpm dev          # dev server (Vite)
-pnpm build        # production build → dist/
-pnpm preview      # serve the production build
+pnpm test:domain  # fast inner loop
+pnpm check        # full gate: format, lint, types, tests, build
 ```
 
-Then open the printed URL (POS at `/`, Comanda at `/comanda.html`).
+| URL                       | What                                                           |
+| ------------------------- | -------------------------------------------------------------- |
+| `/`                       | The app (`src/app`). The kitchen view is `/#/cocina`.          |
+| `/prototype.html`         | The original prototype, kept as a visual reference.            |
+| `/prototype-comanda.html` | The prototype's kitchen screen. Shares `localStorage` with it. |
 
-> `pnpm-workspace.yaml` approves `esbuild`'s install script via `allowBuilds`
-> (pnpm 11 blocks dependency build scripts until approved). Commit
-> `pnpm-lock.yaml` for reproducible installs. If you ever bump Vite/esbuild and
-> see an "ignored build scripts" warning again, run `pnpm approve-builds`.
+## Layout
 
-## Demo logins (PIN)
+```
+src/domain/          Pure business logic in TypeScript, tests next to code
+src/app/             The app: screens in TSX built from src/components/ui
+src/components/ui/   shadcn/ui primitives styled from DESIGN.md
+catalog/             catalog.json, generated from the workbook Carlos validated
+docs/                ADRs and the order lifecycle contract
+src/PosApp.jsx, src/ComandaApp.jsx, src/karma-data.js, src/css.js
+                     The prototype. Reference only; do not extend it.
+design/              Original design export, kept for reference
+```
 
-- Sofía — `3333` (cajero / barista)
-- Iván — `2222` (encargado)
-- Marcela — `1111` (dueña)
+> `pnpm-workspace.yaml` approves `esbuild`'s install script via `allowBuilds` (pnpm 11 blocks dependency build scripts until approved).
