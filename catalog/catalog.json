@@ -1,7 +1,7 @@
 {
   "schema": "karma.catalog/v2",
   "catalogId": "karma-cafe",
-  "revision": 2,
+  "revision": 3,
   "currency": "MXN",
   "taxRateBps": 1600,
   "pricesIncludeTax": true,
@@ -39,7 +39,376 @@
       "sortOrder": 4
     }
   ],
-  "modifierGroups": [],
+  "modifierGroups": [
+    {
+      "id": "leche",
+      "name": "Tipo de leche",
+      "min": 1,
+      "max": 1,
+      "defaultOptionId": "entera",
+      "options": [
+        {
+          "id": "entera",
+          "name": "Entera",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "deslactosada",
+          "name": "Deslactosada",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "coco",
+          "name": "Coco",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "almendras",
+          "name": "Almendras",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "avena",
+          "name": "Avena",
+          "priceDeltaCents": 1000
+        }
+      ]
+    },
+    {
+      "id": "shot",
+      "name": "Shot de sabor",
+      "min": 0,
+      "max": 8,
+      "options": [
+        {
+          "id": "amareto",
+          "name": "Amareto",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "avellana",
+          "name": "Avellana",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "caramelo",
+          "name": "Caramelo",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "vainilla",
+          "name": "Vainilla",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "chai",
+          "name": "Chai",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "chocolate",
+          "name": "Chocolate",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "crema-irlandesa",
+          "name": "Crema irlandesa",
+          "priceDeltaCents": 1000
+        },
+        {
+          "id": "vainilla-francesa",
+          "name": "Vainilla Francesa",
+          "priceDeltaCents": 1000
+        }
+      ]
+    },
+    {
+      "id": "acompanamiento",
+      "name": "Acompañamiento",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "id": "ensalada",
+          "name": "Ensalada",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "papas",
+          "name": "Papas",
+          "priceDeltaCents": 0
+        }
+      ]
+    },
+    {
+      "id": "aderezo-extra",
+      "name": "Aderezo extra",
+      "min": 0,
+      "max": 3,
+      "options": [
+        {
+          "id": "52000822125",
+          "name": "Aderezo Ranch",
+          "priceDeltaCents": 1000,
+          "sku": "52000822125"
+        },
+        {
+          "id": "52000822126",
+          "name": "Aderezo Mostaza Miel",
+          "priceDeltaCents": 1000,
+          "sku": "52000822126"
+        },
+        {
+          "id": "52000822127",
+          "name": "Aderezo Mayonesa Chipotle",
+          "priceDeltaCents": 1000,
+          "sku": "52000822127"
+        }
+      ]
+    },
+    {
+      "id": "proteina",
+      "name": "Proteína",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "id": "pollo",
+          "name": "Pollo",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "queso-panela",
+          "name": "Queso panela",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "jamon-de-pavo",
+          "name": "Jamón de pavo",
+          "priceDeltaCents": 0
+        }
+      ]
+    },
+    {
+      "id": "aderezo-incluido",
+      "name": "Aderezo incluido",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "id": "ranch",
+          "name": "Ranch",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "mostaza-miel",
+          "name": "Mostaza Miel",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "mayonesa-chipotle",
+          "name": "Mayonesa Chipotle",
+          "priceDeltaCents": 0
+        }
+      ]
+    },
+    {
+      "id": "topping-incluido",
+      "name": "Topping incluido",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "id": "almendra-fileteada",
+          "name": "Almendra fileteada",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "ajonjoli-tostado",
+          "name": "Ajonjolí tostado",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "granola",
+          "name": "Granola",
+          "priceDeltaCents": 0
+        }
+      ]
+    },
+    {
+      "id": "fruta-acompanamiento",
+      "name": "Fruta de acompañamiento",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "id": "durazno",
+          "name": "Durazno",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "fresa",
+          "name": "Fresa",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "platano",
+          "name": "Plátano",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "manzana",
+          "name": "Manzana",
+          "priceDeltaCents": 0
+        }
+      ]
+    },
+    {
+      "id": "affogato",
+      "name": "Variedad",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "id": "tradicional",
+          "name": "Tradicional",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "moka",
+          "name": "Moka",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "matcha",
+          "name": "Matcha",
+          "priceDeltaCents": 0
+        }
+      ]
+    },
+    {
+      "id": "extras-dulces",
+      "name": "Extras",
+      "min": 0,
+      "max": 6,
+      "options": [
+        {
+          "id": "52000822134",
+          "name": "Bola de Helado",
+          "priceDeltaCents": 1300,
+          "sku": "52000822134"
+        },
+        {
+          "id": "52000822117",
+          "name": "Philadelphia (Extra)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822117"
+        },
+        {
+          "id": "52000822118",
+          "name": "Crema batida (Extra)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822118"
+        },
+        {
+          "id": "52000822112",
+          "name": "Fresas (Extra)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822112"
+        },
+        {
+          "id": "52000822113",
+          "name": "Mango (Extra)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822113"
+        },
+        {
+          "id": "52000822114",
+          "name": "Manzana (Extra)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822114"
+        },
+        {
+          "id": "52000822115",
+          "name": "Piña (Extra)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822115"
+        },
+        {
+          "id": "52000822116",
+          "name": "Platano (Extra)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822116"
+        },
+        {
+          "id": "52000822119",
+          "name": "Cajeta (Topping)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822119"
+        },
+        {
+          "id": "52000822120",
+          "name": "Chocolate (Topping)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822120"
+        },
+        {
+          "id": "52000822121",
+          "name": "Lechera (Topping)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822121"
+        },
+        {
+          "id": "52000822122",
+          "name": "Mapple (Topping)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822122"
+        },
+        {
+          "id": "52000822123",
+          "name": "Miel (Topping)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822123"
+        },
+        {
+          "id": "52000822124",
+          "name": "Caramelo (Topping)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822124"
+        },
+        {
+          "id": "52000822131",
+          "name": "Oreo (Topping)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822131"
+        },
+        {
+          "id": "52000822132",
+          "name": "Lotus (Topping)",
+          "priceDeltaCents": 1000,
+          "sku": "52000822132"
+        },
+        {
+          "id": "52000822128",
+          "name": "Almendras fileteadas",
+          "priceDeltaCents": 1000,
+          "sku": "52000822128"
+        },
+        {
+          "id": "52000822133",
+          "name": "Amaranto",
+          "priceDeltaCents": 1000,
+          "sku": "52000822133"
+        },
+        {
+          "id": "52000822130",
+          "name": "Granola",
+          "priceDeltaCents": 1000,
+          "sku": "52000822130"
+        }
+      ]
+    }
+  ],
   "products": [
     {
       "id": "52000822112",
@@ -300,7 +669,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822141",
@@ -309,7 +681,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822142",
@@ -318,7 +693,9 @@
       "categoryId": "bebidas",
       "priceCents": 2900,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822143",
@@ -327,7 +704,9 @@
       "categoryId": "bebidas",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822144",
@@ -336,7 +715,10 @@
       "categoryId": "bebidas",
       "priceCents": 6000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822145",
@@ -345,7 +727,9 @@
       "categoryId": "bebidas",
       "priceCents": 6000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822146",
@@ -354,7 +738,9 @@
       "categoryId": "bebidas",
       "priceCents": 5000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822147",
@@ -363,7 +749,9 @@
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822148",
@@ -372,7 +760,10 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822149",
@@ -381,7 +772,10 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822150",
@@ -390,7 +784,10 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822151",
@@ -399,7 +796,10 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822152",
@@ -408,7 +808,10 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822153",
@@ -417,7 +820,10 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822154",
@@ -426,7 +832,10 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822155",
@@ -435,7 +844,10 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822156",
@@ -444,7 +856,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822157",
@@ -453,7 +868,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822158",
@@ -462,7 +880,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822159",
@@ -471,7 +892,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822160",
@@ -480,7 +904,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822161",
@@ -489,7 +916,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822162",
@@ -498,7 +928,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822163",
@@ -507,7 +940,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822164",
@@ -516,7 +952,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822165",
@@ -525,7 +964,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822166",
@@ -534,7 +976,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822167",
@@ -543,7 +988,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822168",
@@ -552,7 +1000,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822169",
@@ -561,7 +1012,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822170",
@@ -570,7 +1024,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822171",
@@ -579,7 +1036,10 @@
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "leche",
+        "shot"
+      ]
     },
     {
       "id": "52000822172",
@@ -714,7 +1174,10 @@
       "categoryId": "postres",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "affogato",
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822187",
@@ -723,7 +1186,9 @@
       "categoryId": "postres",
       "priceCents": 4000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822188",
@@ -732,7 +1197,10 @@
       "categoryId": "postres",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "fruta-acompanamiento",
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822189",
@@ -777,7 +1245,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822194",
@@ -786,7 +1256,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822195",
@@ -795,7 +1267,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822196",
@@ -804,7 +1278,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822197",
@@ -813,7 +1289,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822198",
@@ -822,7 +1300,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822199",
@@ -831,7 +1311,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822200",
@@ -840,7 +1322,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822201",
@@ -849,7 +1333,10 @@
       "categoryId": "postres",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "fruta-acompanamiento",
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822202",
@@ -858,7 +1345,10 @@
       "categoryId": "postres",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "fruta-acompanamiento",
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822203",
@@ -867,7 +1357,10 @@
       "categoryId": "postres",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "fruta-acompanamiento",
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822204",
@@ -876,7 +1369,9 @@
       "categoryId": "postres",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "extras-dulces"
+      ]
     },
     {
       "id": "52000822205",
@@ -903,7 +1398,10 @@
       "categoryId": "salado",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822208",
@@ -912,7 +1410,10 @@
       "categoryId": "salado",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822209",
@@ -921,7 +1422,10 @@
       "categoryId": "salado",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822210",
@@ -930,7 +1434,10 @@
       "categoryId": "salado",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822211",
@@ -939,7 +1446,10 @@
       "categoryId": "salado",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822212",
@@ -948,7 +1458,10 @@
       "categoryId": "salado",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822213",
@@ -957,7 +1470,10 @@
       "categoryId": "salado",
       "priceCents": 6000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822214",
@@ -966,7 +1482,10 @@
       "categoryId": "salado",
       "priceCents": 6000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822215",
@@ -975,7 +1494,10 @@
       "categoryId": "salado",
       "priceCents": 6000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822216",
@@ -984,7 +1506,10 @@
       "categoryId": "salado",
       "priceCents": 6000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822217",
@@ -993,7 +1518,10 @@
       "categoryId": "salado",
       "priceCents": 6000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822218",
@@ -1002,7 +1530,10 @@
       "categoryId": "salado",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822219",
@@ -1011,7 +1542,10 @@
       "categoryId": "salado",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822220",
@@ -1020,7 +1554,10 @@
       "categoryId": "salado",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822221",
@@ -1029,7 +1566,10 @@
       "categoryId": "salado",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "acompanamiento",
+        "aderezo-extra"
+      ]
     },
     {
       "id": "52000822222",
@@ -1038,7 +1578,10 @@
       "categoryId": "salado",
       "priceCents": 6000,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "proteina",
+        "aderezo-incluido"
+      ]
     },
     {
       "id": "52000822223",
@@ -1047,7 +1590,9 @@
       "categoryId": "salado",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "topping-incluido"
+      ]
     },
     {
       "id": "52000822224",

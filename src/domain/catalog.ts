@@ -252,3 +252,16 @@ export function findProduct(
 ): Product | undefined {
   return catalog.products.find((product) => product.id === productId);
 }
+
+/** The product's modifier groups, in the order the product lists them. */
+export function modifierGroupsFor(
+  catalog: Catalog,
+  product: Product,
+): ModifierGroup[] {
+  return product.modifierGroupIds.flatMap((groupId) => {
+    const group = catalog.modifierGroups.find(
+      (candidate) => candidate.id === groupId,
+    );
+    return group ? [group] : [];
+  });
+}
