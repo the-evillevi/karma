@@ -41,7 +41,36 @@ export function settle(
   amountDueCents: number,
   payment: PaymentInput,
 ): Settlement {
-  void amountDueCents;
-  void payment;
-  throw new Error("not implemented");
+  const { method, receivedCents } = payment;
+  if (
+    !Number.isSafeInteger(amountDueCents) ||
+    amountDueCents < 0 ||
+    !Number.isSafeInteger(receivedCents)
+  ) {
+    throw new RangeError(
+      "Payment amounts must be safe integer centavos with a non-negative amount due",
+    );
+  }
+  if (receivedCents <= 0) {
+    throw new PaymentRejectedError("invalid-amount");
+  }
+  if (method !== "cash" && receivedCents > amountDueCents) {
+    throw new PaymentRejectedError("only-cash-gives-change");
+  }
+
+  const changeCents =
+    method === "cash" && receivedCents > amountDueCents
+      ? receivedCents - amountDueCents
+      : 0;
+  const netCents = receivedCents - changeCents;
+  const pendingCents = amountDueCents - netCents;
+  return {
+    method,
+    amountDueCents,
+    receivedCents,
+    changeCents,
+    netCents,
+    pendingCents,
+    canConfirm: pendingCents === 0,
+  };
 }
