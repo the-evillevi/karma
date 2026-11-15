@@ -75,6 +75,12 @@
   --color-sidebar: var(--sidebar);
 }
 
+/* Typography roles from DESIGN.md that Tailwind does not provide. */
+@utility font-display {
+  font-family: Georgia, serif;
+  font-style: italic;
+}
+
 /* Global CSS ported from the two original style blocks of the DC artifacts.
    Shared resets + keyframes here; body background differs per page and is set
    via the body class (.pos / .comanda) so the two entries don't collide. */
@@ -92,7 +98,8 @@ body {
   background-color: var(--background);
   color: var(--foreground);
 }
-body.pos {
+body.pos,
+body.app {
   background: var(--background);
 }
 body.comanda {

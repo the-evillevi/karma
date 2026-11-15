@@ -3,16 +3,16 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
 
-// Multi-page app: the POS (root) and the kitchen Comanda screen are separate
-// HTML entry points, mirroring the original two-file design. They share state
-// through localStorage ('karma-pos-v1'), so keeping them as distinct documents
-// preserves the cross-tab sync behavior.
+// index.html is the app (src/app). The kitchen view is its `#/cocina` route.
+// prototype.html and prototype-comanda.html keep the original prototype
+// runnable as a visual and behavioural reference; it is not extended.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
     include: ["src/**/*.test.{ts,tsx,js,jsx}"],
     passWithNoTests: true,
     environment: "jsdom",
+    setupFiles: ["src/test/setup.ts"],
   },
   server: {
     fs: { deny: [".env", ".env.*", "*.{crt,pem}"] },
@@ -26,7 +26,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        comanda: resolve(__dirname, "comanda.html"),
+        prototype: resolve(__dirname, "prototype.html"),
+        prototypeComanda: resolve(__dirname, "prototype-comanda.html"),
       },
     },
   },
