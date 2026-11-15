@@ -252,3 +252,13 @@ export function findProduct(
 ): Product | undefined {
   return catalog.products.find((product) => product.id === productId);
 }
+
+/** The product's modifier groups, in the order the product lists them. */
+export function modifierGroupsFor(
+  catalog: Catalog,
+  product: Product,
+): ModifierGroup[] {
+  void catalog;
+  void product;
+  throw new Error("not implemented");
+}
