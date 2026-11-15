@@ -1,7 +1,7 @@
-import * as React from "react"
-import { cva } from "class-variance-authority";
-import { cn } from "@/lib/utils"
-import { Slot } from "radix-ui"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+import { Slot } from "radix-ui";
 
 const buttonVariants = cva(
   "inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-button)] text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -15,8 +15,7 @@ const buttonVariants = cva(
           "border border-primary bg-card text-foreground hover:bg-accent hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -34,17 +33,24 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 
-const Button = React.forwardRef(function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}, ref) {
-  const Comp = asChild ? Slot.Root : "button"
+const Button = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<"button"> &
+    VariantProps<typeof buttonVariants> & { asChild?: boolean }
+>(function Button(
+  {
+    className,
+    variant = "default",
+    size = "default",
+    asChild = false,
+    ...props
+  },
+  ref,
+) {
+  const Comp = asChild ? Slot.Root : "button";
 
   return (
     <Comp
@@ -55,9 +61,9 @@ const Button = React.forwardRef(function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
-  )
-})
+  );
+});
 
-Button.displayName = "Button"
+Button.displayName = "Button";
 
-export { Button, buttonVariants }
+export { Button, buttonVariants };
