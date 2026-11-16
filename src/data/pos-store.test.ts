@@ -209,6 +209,7 @@ describe("EVL-126 [A] Guardar en el dispositivo", () => {
     // Dado el almacenamiento local rechaza la escritura, cuando guardo una
     // cuenta, entonces veo un error y la app no muestra "Guardado"
     const failing: JournalStorage = {
+      exclusive: (task) => task(),
       load: async () => [],
       append: async () => {
         throw new Error("QuotaExceededError");

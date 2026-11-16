@@ -124,8 +124,7 @@ export function useCommand() {
         actor: { userId: user.userId, name: user.name, role: user.role },
         deviceId: deviceId(),
       };
-      await store.commit(decide(store.getState(), meta));
-      return store.getState();
+      return store.run((state) => decide(state, meta));
     },
     [store, user],
   );

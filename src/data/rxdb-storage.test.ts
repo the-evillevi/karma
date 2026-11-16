@@ -18,6 +18,7 @@ addRxPlugin(RxDBDevModePlugin);
 const instances = new Set<RxdbJournalStorage>();
 
 it("concurrent appends replay in the order they were applied live", async () => {
+  vi.stubGlobal("navigator", undefined);
   const name = `ordered${randomUUID().replaceAll("-", "")}`;
   const engine = wrappedValidateAjvStorage({ storage: getRxStorageMemory() });
   const a = await createRxdbStorage({ name, storage: engine });
@@ -62,6 +63,7 @@ it("concurrent appends replay in the order they were applied live", async () => 
   } finally {
     left.close();
     right.close();
+    vi.unstubAllGlobals();
   }
 });
 

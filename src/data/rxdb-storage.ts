@@ -12,6 +12,24 @@ type BatchDocument = {
   batch: CommandBatch;
 };
 
+const queues = new Map<string, Promise<void>>();
+
+async function exclusive<T>(name: string, task: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    return await navigator.locks.request(`karma-journal:${name}`, task);
+  }
+  const result = (queues.get(name) ?? Promise.resolve()).then(task);
+  const settled = result.then(
+    () => {},
+    () => {},
+  );
+  queues.set(name, settled);
+  void settled.then(() => {
+    if (queues.get(name) === settled) queues.delete(name);
+  });
+  return result;
+}
+
 const schema: RxJsonSchema<BatchDocument> = {
   version: 0,
   primaryKey: "commandId",
@@ -50,6 +68,7 @@ export async function createRxdbStorage(options: {
   }
   const collection = database.command_batches;
   return {
+    exclusive: (task) => exclusive(options.name, task),
     load: async () => {
       const documents = await collection
         .find({ selector: {}, sort: [{ seq: "asc" }] })
