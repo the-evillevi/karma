@@ -44,3 +44,22 @@ export function permissionsOf(role: string): Permission[] {
       return [];
   }
 }
+
+export type User = {
+  userId: string;
+  name: string;
+  role: Role;
+  /** Digest of the PIN. The PIN itself is never stored. */
+  pinDigest: string;
+  active: boolean;
+};
+
+/** The active user whose PIN has this digest, or null. */
+export function findUserByPinDigest(
+  users: readonly User[],
+  pinDigest: string,
+): User | null {
+  return (
+    users.find((user) => user.active && user.pinDigest === pinDigest) ?? null
+  );
+}
