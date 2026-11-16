@@ -2,6 +2,11 @@
 // change forever: it cannot be charged again or edited.
 import type { CommandBatch, CommandMeta, Order, PosState } from "./journal.ts";
 import type { PaymentInput, PaymentMethod } from "./payment.ts";
+import { can } from "./access.ts";
+import { CommandRejectedError } from "./commands.ts";
+import { orderTotals } from "./order.ts";
+import { settle } from "./payment.ts";
+import { amountDue } from "./tip.ts";
 
 /** How each method is named on screen and on the ticket (EVL-123 [C]). */
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -26,15 +31,49 @@ export function closeSale(
   input: CloseSaleInput,
   taxRateBps: number,
 ): CommandBatch {
-  void state;
-  void meta;
-  void input;
-  void taxRateBps;
-  throw new Error("not implemented");
+  if (!can(meta.actor.role, "charge")) {
+    throw new CommandRejectedError("not-allowed", "charge");
+  }
+  const order = Object.hasOwn(state.orders, input.orderId)
+    ? state.orders[input.orderId]
+    : undefined;
+  if (!order) throw new CommandRejectedError("unknown-order");
+  if (order.status !== "open") throw new CommandRejectedError("order-closed");
+  if (!Number.isSafeInteger(input.tipCents) || input.tipCents < 0) {
+    throw new CommandRejectedError("invalid-tip");
+  }
+  const totals = orderTotals(order.lines, taxRateBps);
+  const settlement = settle(
+    amountDue(totals.totalCents, input.tipCents).totalDueCents,
+    input.payment,
+  );
+  if (!settlement.canConfirm) throw new CommandRejectedError("pending-balance");
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "sale-closed",
+        orderId: input.orderId,
+        tipCents: input.tipCents,
+        settlement,
+        totals,
+      },
+    ],
+  };
 }
 
 /** Closed sales, most recent first. */
 export function closedSales(state: PosState): Order[] {
-  void state;
-  throw new Error("not implemented");
+  return Object.values(state.orders)
+    .filter((order) => order.sale !== null)
+    .sort(
+      (left, right) =>
+        compare(right.sale?.closedAt ?? "", left.sale?.closedAt ?? "") ||
+        compare(right.folio, left.folio),
+    );
+}
+
+function compare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
