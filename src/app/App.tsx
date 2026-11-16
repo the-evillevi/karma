@@ -2,7 +2,7 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS } from "../domain/access.ts";
-import { useSession } from "./context.tsx";
+import { useSession, useStoreProblem } from "./context.tsx";
 import { ROUTES, hrefFor, useRoute } from "./router.ts";
 import { Accounts } from "./screens/Accounts.tsx";
 import { Login } from "./screens/Login.tsx";
@@ -13,6 +13,22 @@ import { Station } from "./screens/Station.tsx";
 export function App() {
   const route = useRoute();
   const { user, signOut } = useSession();
+  const problem = useStoreProblem();
+
+  if (problem) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center text-foreground">
+        <h1 className="text-xl font-medium">
+          Esta pantalla quedó desactualizada
+        </h1>
+        <p>
+          Recarga la página para continuar. No se perdió ninguna operación
+          guardada.
+        </p>
+        <Button onClick={() => window.location.reload()}>Recargar</Button>
+      </main>
+    );
+  }
 
   if (!user) return <Login />;
 

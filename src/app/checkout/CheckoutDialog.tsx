@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -58,6 +58,16 @@ export function CheckoutDialog({
   const [received, setReceived] = useState("");
   const [failure, setFailure] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openedVersion] = useState(order.version);
+  const [receivedVersion, setReceivedVersion] = useState(order.version);
+  useEffect(() => {
+    if (receivedVersion !== order.version) {
+      setReceived("");
+      setFailure("");
+      setReceivedVersion(order.version);
+    }
+  }, [order.version, receivedVersion]);
+  const versionChanged = order.version !== openedVersion;
 
   const options = tipOptions(totals.totalCents);
   const customTipCents = parsePesos(customTip);
@@ -94,14 +104,13 @@ export function CheckoutDialog({
       problem = errorText(error);
     }
   }
-  const canConfirm = settlement?.canConfirm === true && !busy;
+  const canConfirm =
+    settlement?.canConfirm === true &&
+    !busy &&
+    receivedVersion === order.version;
 
   async function confirm() {
-    if (
-      !settlement?.canConfirm ||
-      tipCents === null ||
-      receivedCents === null
-    ) {
+    if (!canConfirm || tipCents === null || receivedCents === null) {
       return;
     }
     setBusy(true);
@@ -109,6 +118,7 @@ export function CheckoutDialog({
     try {
       await onConfirm({
         orderId: order.orderId,
+        expectedVersion: order.version,
         tipCents,
         payment: { method, receivedCents },
       });
@@ -314,7 +324,12 @@ export function CheckoutDialog({
           )}
 
           <p role="alert" className="min-h-5 text-sm font-medium">
-            {failure || (canConfirm || busy ? "" : problem)}
+            {failure ||
+              (versionChanged
+                ? "La cuenta cambió mientras cobrabas. Revisa el total antes de registrar el pago."
+                : canConfirm || busy
+                  ? ""
+                  : problem)}
           </p>
         </div>
 

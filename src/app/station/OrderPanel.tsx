@@ -8,6 +8,7 @@ import type { OrderLine } from "../../domain/order.ts";
 type OrderPanelProps = {
   lines: OrderLine[];
   taxRateBps: number;
+  busy?: boolean;
   /** "Cuenta A-0001" when editing a saved account. */
   title?: string;
   /** Quantity of each line already sent to the kitchen, by lineId. */
@@ -29,6 +30,7 @@ export function itemCountLabel(count: number): string {
 export function OrderPanel({
   lines,
   taxRateBps,
+  busy = false,
   title = "Orden actual",
   sentQuantities = {},
   header,
@@ -40,7 +42,12 @@ export function OrderPanel({
   const totals = orderTotals(lines, taxRateBps);
 
   return (
-    <section aria-label="Orden actual" className="flex min-h-0 flex-1 flex-col">
+    <section
+      aria-label="Orden actual"
+      aria-busy={busy}
+      {...(busy ? { inert: "" } : {})}
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <div className="flex items-baseline justify-between gap-2 pt-4 pr-14 pb-2 pl-4 lg:pr-4">
         <h2 className="text-base font-medium">{title}</h2>
         <span className="text-xs text-muted-foreground">

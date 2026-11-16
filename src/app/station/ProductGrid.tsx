@@ -7,6 +7,7 @@ import { formatMXN } from "../../domain/money.ts";
 type ProductGridProps = {
   catalog: Catalog;
   onPick: (product: Product) => void;
+  busy?: boolean;
 };
 
 /** Lowercase without accents, so "cafe" finds "Café". */
@@ -17,7 +18,11 @@ function normalize(text: string): string {
     .toLowerCase();
 }
 
-export function ProductGrid({ catalog, onPick }: ProductGridProps) {
+export function ProductGrid({
+  catalog,
+  onPick,
+  busy = false,
+}: ProductGridProps) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
@@ -38,7 +43,12 @@ export function ProductGrid({ catalog, onPick }: ProductGridProps) {
   ];
 
   return (
-    <section aria-label="Menú" className="flex min-h-0 flex-1 flex-col gap-3">
+    <section
+      aria-label="Menú"
+      aria-busy={busy}
+      {...(busy ? { inert: "" } : {})}
+      className="flex min-h-0 flex-1 flex-col gap-3"
+    >
       <Input
         type="search"
         inputMode="search"

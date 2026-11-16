@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,7 +37,8 @@ import { catalog } from "../catalog.ts";
 import { CheckoutDialog } from "../checkout/CheckoutDialog.tsx";
 import { Ticket } from "../checkout/Ticket.tsx";
 import { useCommand, usePosState, useSession } from "../context.tsx";
-import { EMPTY_DRAFT, useDraft } from "../draft.ts";
+import { EMPTY_DRAFT, loadDraft, useDraft } from "../draft.ts";
+import type { Draft } from "../draft.ts";
 import { errorMessage } from "../errors.ts";
 import { newId } from "../ids.ts";
 import { HeaderEditor } from "../station/HeaderEditor.tsx";
@@ -73,10 +74,12 @@ export function Station() {
   const [draft, setDraft] = useDraft();
   const [editing, setEditing] = useState<Editing | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [charging, setCharging] = useState<Order | null>(null);
+  const [charging, setCharging] = useState<string | null>(null);
   const [ticket, setTicket] = useState<Order | null>(null);
   const [failure, setFailure] = useState("");
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const chargingOrder = charging ? state.orders[charging] : undefined;
 
   const { lines } = draft;
   const totals = orderTotals(lines, catalog.taxRateBps);
@@ -85,11 +88,13 @@ export function Station() {
   const mayCharge = user ? can(user.role, "charge") : false;
 
   function setLines(next: OrderLine[]) {
+    if (busyRef.current) return;
     setFailure("");
     setDraft({ ...draft, lines: next });
   }
 
   function pick(product: Product) {
+    if (busyRef.current) return;
     if (modifierGroupsFor(catalog, product).length > 0) {
       setEditing({ kind: "add", product });
       return;
@@ -98,7 +103,7 @@ export function Station() {
   }
 
   function confirmLine(modifiers: LineModifier[], note: string) {
-    if (!editing) return;
+    if (!editing || busyRef.current) return;
     setLines(
       editing.kind === "add"
         ? addLine(lines, editing.product, { lineId: newId(), modifiers, note })
@@ -108,17 +113,38 @@ export function Station() {
   }
 
   /** Saves the draft as an account and returns it with the new state. */
-  async function save(): Promise<{ order: Order; orderId: string }> {
-    const orderId = draft.orderId ?? newId();
+  async function save(): Promise<{
+    order: Order;
+    orderId: string;
+    savedDraft: Draft | null;
+  }> {
+    const captured = draft;
+    const orderId = captured.orderId ?? newId();
     const after = await run((current, meta) =>
-      saveOrder(current, meta, { orderId, header: draft.header, lines }),
+      saveOrder(current, meta, {
+        orderId,
+        expectedVersion: captured.baseVersion,
+        header: captured.header,
+        lines: captured.lines,
+      }),
     );
     // Keep the draft attached to the account in case the next step fails.
-    setDraft({ ...draft, orderId });
-    return { order: after.orders[orderId], orderId };
+    const order = after.orders[orderId];
+    const savedDraft =
+      loadDraft() === captured
+        ? { ...captured, orderId, baseVersion: order.version }
+        : null;
+    if (savedDraft) setDraft(savedDraft);
+    return { order, orderId, savedDraft };
+  }
+
+  function clearSavedDraft(saved: Draft | null) {
+    if (saved && loadDraft() === saved) setDraft(EMPTY_DRAFT);
   }
 
   async function attempt(action: () => Promise<void>) {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setFailure("");
     try {
@@ -126,25 +152,26 @@ export function Station() {
     } catch (error) {
       setFailure(errorMessage(error));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
 
   const saveAccount = () =>
     attempt(async () => {
-      const { order } = await save();
-      setDraft(EMPTY_DRAFT);
+      const { order, savedDraft } = await save();
+      clearSavedDraft(savedDraft);
       setSheetOpen(false);
       notify(`Cuenta ${order.folio} guardada`);
     });
 
   const sendToKitchen = () =>
     attempt(async () => {
-      const { order, orderId } = await save();
+      const { order, orderId, savedDraft } = await save();
       await run((current, meta) =>
         sendComanda(current, meta, { orderId, comandaId: newId() }),
       );
-      setDraft(EMPTY_DRAFT);
+      clearSavedDraft(savedDraft);
       setSheetOpen(false);
       notify(`Comanda de ${order.folio} enviada a cocina`);
     });
@@ -153,15 +180,16 @@ export function Station() {
     attempt(async () => {
       const { order } = await save();
       setSheetOpen(false);
-      setCharging(order);
+      setCharging(order.orderId);
     });
 
   async function confirmCharge(input: CloseSaleInput) {
+    const captured = loadDraft();
     const after = await run((current, meta) =>
       closeSale(current, meta, input, catalog.taxRateBps),
     );
     setCharging(null);
-    setDraft(EMPTY_DRAFT);
+    clearSavedDraft(captured);
     setTicket(after.orders[input.orderId]);
   }
 
@@ -214,6 +242,7 @@ export function Station() {
     <OrderPanel
       title={account ? `Cuenta ${account.folio}` : "Orden actual"}
       lines={lines}
+      busy={busy}
       taxRateBps={catalog.taxRateBps}
       sentQuantities={sentQuantities}
       header={
@@ -221,19 +250,23 @@ export function Station() {
           header={draft.header}
           tables={tableNumbers(state)}
           onChange={(header) => {
+            if (busyRef.current) return;
             setFailure("");
             setDraft({ ...draft, header });
           }}
         />
       }
       actions={actions}
-      onChangeQuantity={(lineId, delta) =>
-        setLines(changeQuantity(lines, lineId, delta))
-      }
-      onRemove={(lineId) => setLines(removeLine(lines, lineId))}
-      onEdit={(line) =>
-        setEditing({ kind: "edit", product: productOf(line), line })
-      }
+      onChangeQuantity={(lineId, delta) => {
+        if (!busyRef.current) setLines(changeQuantity(lines, lineId, delta));
+      }}
+      onRemove={(lineId) => {
+        if (!busyRef.current) setLines(removeLine(lines, lineId));
+      }}
+      onEdit={(line) => {
+        if (!busyRef.current)
+          setEditing({ kind: "edit", product: productOf(line), line });
+      }}
     />
   );
 
@@ -241,7 +274,7 @@ export function Station() {
     <div className="flex min-h-0 flex-1">
       <h1 className="sr-only">Venta</h1>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
-        <ProductGrid catalog={catalog} onPick={pick} />
+        <ProductGrid catalog={catalog} onPick={pick} busy={busy} />
       </div>
 
       <aside className="hidden w-[24rem] shrink-0 flex-col border-l border-border bg-card lg:flex">
@@ -286,9 +319,9 @@ export function Station() {
         />
       )}
 
-      {charging && (
+      {chargingOrder && (
         <CheckoutDialog
-          order={charging}
+          order={chargingOrder}
           taxRateBps={catalog.taxRateBps}
           onCancel={() => setCharging(null)}
           onConfirm={confirmCharge}

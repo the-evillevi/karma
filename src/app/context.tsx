@@ -26,6 +26,7 @@ type AppContextValue = {
   store: PosStore;
   users: readonly User[];
   user: User | null;
+  problem: Error | null;
   /** Resolves to false when the PIN matches no active user. */
   signIn: (pin: string) => Promise<boolean>;
   signOut: () => void;
@@ -69,6 +70,10 @@ export function AppProvider({
   children,
 }: AppProviderProps) {
   const [user, setUser] = useState<User | null>(initialUser ?? null);
+  const problem = useSyncExternalStore(
+    (onChange) => store.subscribe(onChange),
+    () => store.getProblem(),
+  );
   const signIn = useCallback(
     async (pin: string) => {
       const found = findUserByPinDigest(users, await pinDigest(pin));
@@ -79,8 +84,8 @@ export function AppProvider({
   );
   const signOut = useCallback(() => setUser(null), []);
   const value = useMemo(
-    () => ({ store, users, user, signIn, signOut }),
-    [store, users, user, signIn, signOut],
+    () => ({ store, users, user, problem, signIn, signOut }),
+    [store, users, user, problem, signIn, signOut],
   );
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
@@ -97,6 +102,10 @@ export function usePosState(): PosState {
 export function useSession() {
   const { user, signIn, signOut } = useApp();
   return { user, signIn, signOut };
+}
+
+export function useStoreProblem(): Error | null {
+  return useApp().problem;
 }
 
 /** The signed-in user as the actor of a command. Throws when signed out. */

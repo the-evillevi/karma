@@ -33,7 +33,12 @@ export function Accounts() {
       );
       return;
     }
-    setDraft({ orderId, header: order.header, lines: order.lines });
+    setDraft({
+      orderId,
+      baseVersion: order.version,
+      header: order.header,
+      lines: order.lines,
+    });
     navigate("/");
   }
 
