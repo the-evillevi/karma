@@ -1,8 +1,9 @@
 // Spec: Linear EVL-121 slice [B] and EVL-120 slice [B].
 // Test names are the scenario titles.
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import { renderApp } from "../testing.tsx";
 import { Station } from "./Station.tsx";
 
 beforeEach(() => window.localStorage.clear());
@@ -34,7 +35,7 @@ describe("EVL-121 [B] Estación de venta", () => {
   it("[B] El menú muestra categorías y búsqueda", async () => {
     // Dado el catálogo de 115 productos, cuando elijo Postres o busco "crepa",
     // entonces veo sólo esos productos, cada uno con nombre y precio
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     expect(productNames()).toHaveLength(115);
 
     await userEvent.click(menu().getByRole("button", { name: "Postres" }));
@@ -62,7 +63,7 @@ describe("EVL-121 [B] Estación de venta", () => {
   it("[B] Tocar un producto sin modificadores lo agrega de inmediato", async () => {
     // Dado la orden vacía, cuando toco "Coca Cola" ($25.00), entonces la
     // orden actual muestra 1 Coca Cola y total $25.00
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     expect(order().getByText("Sin productos")).toBeDefined();
     await addProduct(/^Coca Cola/);
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -76,7 +77,7 @@ describe("EVL-121 [B] Estación de venta", () => {
   it("[B] La orden actual permite cambiar cantidades y eliminar", async () => {
     // Dado 1 Coca Cola, cuando toco "+" y luego elimino la partida, entonces
     // primero veo cantidad 2 y total $50.00, y después "Sin productos"
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     await addProduct(/^Coca Cola/);
     await userEvent.click(
       order().getByRole("button", { name: "Agregar uno de Coca Cola" }),
@@ -99,13 +100,13 @@ describe("EVL-121 [B] Estación de venta", () => {
   it("[B] El borrador sobrevive a recargar", async () => {
     // Dado una orden sin guardar con 2 Coca Colas, cuando recargo la app,
     // entonces la estación muestra la misma orden con total $50.00
-    const first = render(<Station />);
+    const first = await renderApp(<Station />, { as: "barra" });
     await addProduct(/^Coca Cola/);
     await addProduct(/^Coca Cola/);
     expect(total()).toBe("$50.00");
     first.unmount();
 
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     expect(order().getByLabelText("Cantidad de Coca Cola").textContent).toBe(
       "2",
     );
@@ -115,7 +116,7 @@ describe("EVL-121 [B] Estación de venta", () => {
   it("[B] La orden es accesible en tablet y teléfono", async () => {
     // Dado una pantalla angosta, cuando agrego productos, entonces el total y
     // el acceso a la orden actual siguen visibles
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     await addProduct(/^Coca Cola/);
     await addProduct(/^Brownie/);
     const access = screen.getByRole("button", { name: /^Ver orden/ });
@@ -128,7 +129,7 @@ describe("EVL-121 [B] Estación de venta", () => {
   });
 
   it("shows the IVA contained in the total", async () => {
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     await addProduct(/^Coca Cola/);
     await addProduct(/^Brownie/);
     // $63.00 = $54.31 + $8.69 de IVA
@@ -142,7 +143,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     // Dado la estación, cuando toco "Latte", entonces veo "Tipo de leche"
     // (obligatorio) y "Shot de sabor" (opcional) con el costo de cada opción,
     // un campo de nota y el precio de la partida actualizado al elegir
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     await addProduct(/^Latte/);
     const dialog = within(screen.getByRole("dialog", { name: "Latte" }));
     const milk = within(
@@ -179,7 +180,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
   it("[B] El botón de agregar explica qué falta", async () => {
     // Dado la hoja de la Crepa de Pollo sin acompañamiento elegido, cuando
     // intento agregar, entonces no se agrega y se señala "Acompañamiento"
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     await addProduct(/^Crepa de Pollo/);
     const dialog = within(screen.getByRole("dialog"));
     await userEvent.click(
@@ -203,7 +204,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
   });
 
   it("re-edits a captured line without changing its quantity", async () => {
-    render(<Station />);
+    await renderApp(<Station />, { as: "barra" });
     await addProduct(/^Latte/);
     await userEvent.click(
       screen.getByRole("button", { name: "Agregar · $65.00" }),

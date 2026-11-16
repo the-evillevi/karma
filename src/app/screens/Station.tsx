@@ -1,14 +1,28 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { can } from "../../domain/access.ts";
 import { findProduct, modifierGroupsFor } from "../../domain/catalog.ts";
 import type { Product } from "../../domain/catalog.ts";
+import { closeSale } from "../../domain/checkout.ts";
+import type { CloseSaleInput } from "../../domain/checkout.ts";
+import { sendComanda } from "../../domain/comanda.ts";
+import { saveOrder } from "../../domain/commands.ts";
+import type { Order } from "../../domain/journal.ts";
 import { editLine } from "../../domain/modifiers.ts";
 import { formatMXN } from "../../domain/money.ts";
 import {
@@ -18,12 +32,19 @@ import {
   removeLine,
 } from "../../domain/order.ts";
 import type { LineModifier, OrderLine } from "../../domain/order.ts";
+import { tableNumbers } from "../../domain/tables.ts";
 import { catalog } from "../catalog.ts";
-import { useDraft } from "../draft.ts";
+import { CheckoutDialog } from "../checkout/CheckoutDialog.tsx";
+import { Ticket } from "../checkout/Ticket.tsx";
+import { useCommand, usePosState, useSession } from "../context.tsx";
+import { EMPTY_DRAFT, useDraft } from "../draft.ts";
+import { errorMessage } from "../errors.ts";
 import { newId } from "../ids.ts";
+import { HeaderEditor } from "../station/HeaderEditor.tsx";
 import { ModifierDialog } from "../station/ModifierDialog.tsx";
 import { OrderPanel, itemCountLabel } from "../station/OrderPanel.tsx";
 import { ProductGrid } from "../station/ProductGrid.tsx";
+import { useToast } from "../toast.tsx";
 
 type Editing =
   | { kind: "add"; product: Product }
@@ -45,13 +66,26 @@ function productOf(line: OrderLine): Product {
 }
 
 export function Station() {
+  const state = usePosState();
+  const run = useCommand();
+  const notify = useToast();
+  const { user } = useSession();
   const [draft, setDraft] = useDraft();
   const [editing, setEditing] = useState<Editing | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [charging, setCharging] = useState<Order | null>(null);
+  const [ticket, setTicket] = useState<Order | null>(null);
+  const [failure, setFailure] = useState("");
+  const [busy, setBusy] = useState(false);
+
   const { lines } = draft;
   const totals = orderTotals(lines, catalog.taxRateBps);
+  const account = draft.orderId ? state.orders[draft.orderId] : undefined;
+  const sentQuantities = account?.sentQuantities ?? {};
+  const mayCharge = user ? can(user.role, "charge") : false;
 
   function setLines(next: OrderLine[]) {
+    setFailure("");
     setDraft({ ...draft, lines: next });
   }
 
@@ -63,7 +97,7 @@ export function Station() {
     setLines(addLine(lines, product, { lineId: newId() }));
   }
 
-  function confirm(modifiers: LineModifier[], note: string) {
+  function confirmLine(modifiers: LineModifier[], note: string) {
     if (!editing) return;
     setLines(
       editing.kind === "add"
@@ -73,10 +107,126 @@ export function Station() {
     setEditing(null);
   }
 
+  /** Saves the draft as an account and returns it with the new state. */
+  async function save(): Promise<{ order: Order; orderId: string }> {
+    const orderId = draft.orderId ?? newId();
+    const after = await run((current, meta) =>
+      saveOrder(current, meta, { orderId, header: draft.header, lines }),
+    );
+    // Keep the draft attached to the account in case the next step fails.
+    setDraft({ ...draft, orderId });
+    return { order: after.orders[orderId], orderId };
+  }
+
+  async function attempt(action: () => Promise<void>) {
+    setBusy(true);
+    setFailure("");
+    try {
+      await action();
+    } catch (error) {
+      setFailure(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const saveAccount = () =>
+    attempt(async () => {
+      const { order } = await save();
+      setDraft(EMPTY_DRAFT);
+      setSheetOpen(false);
+      notify(`Cuenta ${order.folio} guardada`);
+    });
+
+  const sendToKitchen = () =>
+    attempt(async () => {
+      const { order, orderId } = await save();
+      await run((current, meta) =>
+        sendComanda(current, meta, { orderId, comandaId: newId() }),
+      );
+      setDraft(EMPTY_DRAFT);
+      setSheetOpen(false);
+      notify(`Comanda de ${order.folio} enviada a cocina`);
+    });
+
+  const startCharge = () =>
+    attempt(async () => {
+      const { order } = await save();
+      setSheetOpen(false);
+      setCharging(order);
+    });
+
+  async function confirmCharge(input: CloseSaleInput) {
+    const after = await run((current, meta) =>
+      closeSale(current, meta, input, catalog.taxRateBps),
+    );
+    setCharging(null);
+    setDraft(EMPTY_DRAFT);
+    setTicket(after.orders[input.orderId]);
+  }
+
+  const empty = lines.length === 0;
+  const actions = (
+    <div className="flex flex-col gap-2 border-t border-border px-4 py-3">
+      <p role="alert" className="min-h-5 text-sm font-medium">
+        {failure}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          variant="outline"
+          disabled={empty || busy}
+          onClick={saveAccount}
+        >
+          Guardar cuenta
+        </Button>
+        <Button
+          variant="outline"
+          disabled={empty || busy}
+          onClick={sendToKitchen}
+        >
+          Enviar comanda
+        </Button>
+      </div>
+      {mayCharge && (
+        <Button size="lg" disabled={empty || busy} onClick={startCharge}>
+          Cobrar · {formatMXN(totals.totalCents)}
+        </Button>
+      )}
+      {(draft.orderId !== null || !empty) && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onClick={() => {
+            setFailure("");
+            setDraft(EMPTY_DRAFT);
+          }}
+        >
+          {draft.orderId !== null
+            ? "Dejar de editar la cuenta"
+            : "Vaciar orden"}
+        </Button>
+      )}
+    </div>
+  );
+
   const panel = (
     <OrderPanel
+      title={account ? `Cuenta ${account.folio}` : "Orden actual"}
       lines={lines}
       taxRateBps={catalog.taxRateBps}
+      sentQuantities={sentQuantities}
+      header={
+        <HeaderEditor
+          header={draft.header}
+          tables={tableNumbers(state)}
+          onChange={(header) => {
+            setFailure("");
+            setDraft({ ...draft, header });
+          }}
+        />
+      }
+      actions={actions}
       onChangeQuantity={(lineId, delta) =>
         setLines(changeQuantity(lines, lineId, delta))
       }
@@ -94,7 +244,7 @@ export function Station() {
         <ProductGrid catalog={catalog} onPick={pick} />
       </div>
 
-      <aside className="hidden w-[23rem] shrink-0 flex-col border-l border-border bg-card lg:flex">
+      <aside className="hidden w-[24rem] shrink-0 flex-col border-l border-border bg-card lg:flex">
         {panel}
       </aside>
 
@@ -132,9 +282,51 @@ export function Station() {
           product={editing.product}
           line={editing.kind === "edit" ? editing.line : undefined}
           onCancel={() => setEditing(null)}
-          onConfirm={confirm}
+          onConfirm={confirmLine}
         />
       )}
+
+      {charging && (
+        <CheckoutDialog
+          order={charging}
+          taxRateBps={catalog.taxRateBps}
+          onCancel={() => setCharging(null)}
+          onConfirm={confirmCharge}
+          errorText={errorMessage}
+        />
+      )}
+
+      {ticket && (
+        <TicketDialog order={ticket} onClose={() => setTicket(null)} />
+      )}
     </div>
+  );
+}
+
+export function TicketDialog({
+  order,
+  onClose,
+}: {
+  order: Order;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="flex max-h-[95dvh] flex-col gap-4 overflow-hidden sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Venta {order.folio} cobrada</DialogTitle>
+          <DialogDescription>
+            El ticket se muestra en pantalla; la impresión llega después del
+            piloto.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <Ticket order={order} />
+        </div>
+        <DialogFooter>
+          <Button onClick={onClose}>Listo</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

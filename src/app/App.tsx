@@ -4,21 +4,14 @@ import { cn } from "@/lib/utils";
 import { ROLE_LABELS } from "../domain/access.ts";
 import { useSession } from "./context.tsx";
 import { ROUTES, hrefFor, useRoute } from "./router.ts";
-import type { RoutePath } from "./router.ts";
+import { Accounts } from "./screens/Accounts.tsx";
 import { Login } from "./screens/Login.tsx";
-import { Placeholder } from "./screens/Placeholder.tsx";
+import { Kitchen } from "./screens/Kitchen.tsx";
+import { Sales } from "./screens/Sales.tsx";
 import { Station } from "./screens/Station.tsx";
-
-const PENDING: Record<Exclude<RoutePath, "/">, string> = {
-  "/cuentas": "Aquí se retoman las cuentas guardadas. Llega con EVL-122 [C].",
-  "/cocina": "Aquí cocina ve las comandas pendientes. Llega con EVL-124 [B].",
-  "/ventas":
-    "Aquí se consultan las ventas cerradas hoy. Llega con EVL-130 [A].",
-};
 
 export function App() {
   const route = useRoute();
-  const current = ROUTES.find((candidate) => candidate.path === route);
   const { user, signOut } = useSession();
 
   if (!user) return <Login />;
@@ -65,11 +58,10 @@ export function App() {
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">
-        {route === "/" ? (
-          <Station />
-        ) : (
-          <Placeholder title={current?.label ?? ""} detail={PENDING[route]} />
-        )}
+        {route === "/" && <Station />}
+        {route === "/cuentas" && <Accounts />}
+        {route === "/cocina" && <Kitchen />}
+        {route === "/ventas" && <Sales />}
       </main>
     </div>
   );
