@@ -76,6 +76,16 @@ export function saveOrder(
   if (existing && existing.status !== "open") {
     throw new CommandRejectedError("order-closed");
   }
+  if (input.header.type === "mesa") {
+    const table = input.header.table;
+    if (table === null) throw new CommandRejectedError("table-required");
+    if (
+      (!Number.isSafeInteger(table) || table < 1 || table > state.tableCount) &&
+      existing?.header.table !== table
+    ) {
+      throw new CommandRejectedError("table-unavailable");
+    }
+  }
   return {
     ...meta,
     actor: structuredClone(meta.actor),
