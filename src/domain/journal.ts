@@ -217,8 +217,37 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
       case "tables-configured":
         next.tableCount = event.count;
         break;
-      case "comanda-sent":
+      case "comanda-sent": {
+        const order = next.orders[event.orderId];
+        next.comandas = {
+          ...next.comandas,
+          [event.comandaId]: {
+            comandaId: event.comandaId,
+            orderId: event.orderId,
+            folio: order.folio,
+            header: structuredClone(order.header),
+            lines: event.lines,
+            status: "queued",
+            sentAt: snapshot.at,
+            sentBy: snapshot.actor,
+            updatedAt: snapshot.at,
+          },
+        };
+        for (const line of event.lines) {
+          const sent = Object.hasOwn(order.sentQuantities, line.lineId)
+            ? order.sentQuantities[line.lineId]
+            : 0;
+          order.sentQuantities = {
+            ...order.sentQuantities,
+            [line.lineId]: sent + line.quantity,
+          };
+        }
+        break;
+      }
       case "preparation-advanced":
+        next.comandas[event.comandaId].status = event.status;
+        next.comandas[event.comandaId].updatedAt = snapshot.at;
+        break;
       case "sale-closed":
         throw new Error(`not implemented: ${event.type}`);
       default: {

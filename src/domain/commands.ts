@@ -57,6 +57,18 @@ export type SaveOrderInput = {
   lines: OrderLine[];
 };
 
+function modifierPairs(line: OrderLine): string {
+  return JSON.stringify(
+    [
+      ...new Set(
+        line.modifiers.map(({ groupId, optionId }) =>
+          JSON.stringify([groupId, optionId]),
+        ),
+      ),
+    ].sort(),
+  );
+}
+
 /**
  * Saves an open account: creates it with the next folio, or replaces the
  * header and lines of an existing open one.
@@ -91,6 +103,22 @@ export function saveOrder(
   const missing = missingCustomerFields(input.header);
   if (missing.length > 0) {
     throw new CommandRejectedError("missing-customer-data", undefined, missing);
+  }
+  if (existing) {
+    for (const [lineId, sent] of Object.entries(existing.sentQuantities)) {
+      if (sent <= 0) continue;
+      const before = existing.lines.find((line) => line.lineId === lineId);
+      const after = input.lines.find((line) => line.lineId === lineId);
+      if (
+        !before ||
+        !after ||
+        after.quantity < sent ||
+        after.note !== before.note ||
+        modifierPairs(after) !== modifierPairs(before)
+      ) {
+        throw new CommandRejectedError("sent-to-kitchen");
+      }
+    }
   }
   const header = structuredClone(input.header);
   header.customer = {
