@@ -45,3 +45,15 @@ export function taxBreakdown(
   );
   return { netCents, taxCents: totalCents - netCents };
 }
+
+/**
+ * Centavos from what a cashier types: "150", "150.5", "150.50", "$1,250.00".
+ * Returns null when the text is not a non-negative peso amount with at most
+ * two decimals. Uses no floating point.
+ */
+export function parsePesos(text: string): number | null {
+  const cleaned = text.trim().replace(/^\$/, "").replace(/,/g, "");
+  const match = /^(\d{1,9})(?:\.(\d{1,2}))?$/.exec(cleaned);
+  if (!match) return null;
+  return Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
+}

@@ -43,6 +43,15 @@ describe("EVL-116 [A] Base de la app", () => {
 
     goTo("#/cocina");
     expect(screen.getByRole("heading", { name: "Cocina" })).toBeDefined();
+    goTo("#/cuentas");
+    expect(
+      screen.getByRole("heading", { name: "Cuentas abiertas" }),
+    ).toBeDefined();
+    goTo("#/ventas");
+    expect(
+      screen.getByRole("heading", { name: "Ventas de hoy" }),
+    ).toBeDefined();
+    goTo("#/cocina");
     expect(
       screen.getByRole("link", { name: "Cocina" }).getAttribute("aria-current"),
     ).toBe("page");

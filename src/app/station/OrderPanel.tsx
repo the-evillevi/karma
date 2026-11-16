@@ -1,4 +1,5 @@
 import { Minus, Pencil, Plus, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { formatMXN } from "../../domain/money.ts";
 import { lineTotalCents, orderTotals } from "../../domain/order.ts";
@@ -7,6 +8,14 @@ import type { OrderLine } from "../../domain/order.ts";
 type OrderPanelProps = {
   lines: OrderLine[];
   taxRateBps: number;
+  /** "Cuenta A-0001" when editing a saved account. */
+  title?: string;
+  /** Quantity of each line already sent to the kitchen, by lineId. */
+  sentQuantities?: Record<string, number>;
+  /** Order type, table and customer editor. */
+  header?: ReactNode;
+  /** Save, send and charge actions. */
+  actions?: ReactNode;
   onChangeQuantity: (lineId: string, delta: number) => void;
   onRemove: (lineId: string) => void;
   onEdit: (line: OrderLine) => void;
@@ -20,6 +29,10 @@ export function itemCountLabel(count: number): string {
 export function OrderPanel({
   lines,
   taxRateBps,
+  title = "Orden actual",
+  sentQuantities = {},
+  header,
+  actions,
   onChangeQuantity,
   onRemove,
   onEdit,
@@ -29,11 +42,13 @@ export function OrderPanel({
   return (
     <section aria-label="Orden actual" className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-baseline justify-between gap-2 px-4 pt-4 pb-2">
-        <h2 className="text-base font-medium">Orden actual</h2>
+        <h2 className="text-base font-medium">{title}</h2>
         <span className="text-xs text-muted-foreground">
           {itemCountLabel(totals.itemCount)}
         </span>
       </div>
+
+      {header}
 
       {lines.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 py-10 text-center">
@@ -58,6 +73,11 @@ export function OrderPanel({
                         .join(" · ")}
                     </p>
                   )}
+                  {(sentQuantities[line.lineId] ?? 0) > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      En cocina: {sentQuantities[line.lineId]}
+                    </p>
+                  )}
                   {line.note !== "" && (
                     <p className="text-xs text-foreground italic">
                       Nota: {line.note}
@@ -74,6 +94,9 @@ export function OrderPanel({
                     variant="outline"
                     size="icon"
                     aria-label={`Quitar uno de ${line.name}`}
+                    disabled={
+                      line.quantity <= (sentQuantities[line.lineId] ?? 0)
+                    }
                     onClick={() => onChangeQuantity(line.lineId, -1)}
                   >
                     <Minus />
@@ -98,6 +121,7 @@ export function OrderPanel({
                     variant="ghost"
                     size="icon"
                     aria-label={`Editar ${line.name}`}
+                    disabled={(sentQuantities[line.lineId] ?? 0) > 0}
                     onClick={() => onEdit(line)}
                   >
                     <Pencil />
@@ -106,6 +130,7 @@ export function OrderPanel({
                     variant="ghost"
                     size="icon"
                     aria-label={`Eliminar ${line.name}`}
+                    disabled={(sentQuantities[line.lineId] ?? 0) > 0}
                     onClick={() => onRemove(line.lineId)}
                   >
                     <Trash2 />
@@ -134,6 +159,7 @@ export function OrderPanel({
           </dd>
         </div>
       </dl>
+      {actions}
     </section>
   );
 }

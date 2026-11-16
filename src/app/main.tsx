@@ -4,6 +4,7 @@ import "../styles.css";
 import { App } from "./App.tsx";
 import { openBrowserStore } from "./boot.ts";
 import { AppProvider } from "./context.tsx";
+import { ToastProvider } from "./toast.tsx";
 import { PILOT_USERS } from "./users.ts";
 
 const container = document.getElementById("root");
@@ -32,7 +33,9 @@ openBrowserStore().then(
     root.render(
       <StrictMode>
         <AppProvider store={store} users={PILOT_USERS}>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </AppProvider>
       </StrictMode>,
     ),
