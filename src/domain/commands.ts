@@ -11,6 +11,7 @@ import type {
 } from "./journal.ts";
 import { folioFor } from "./journal.ts";
 import type { OrderLine } from "./order.ts";
+import { missingCustomerFields } from "./order-header.ts";
 
 export type CommandRejection =
   | "not-allowed"
@@ -86,6 +87,16 @@ export function saveOrder(
       throw new CommandRejectedError("table-unavailable");
     }
   }
+  const missing = missingCustomerFields(input.header);
+  if (missing.length > 0) {
+    throw new CommandRejectedError("missing-customer-data", undefined, missing);
+  }
+  const header = structuredClone(input.header);
+  header.customer = {
+    name: header.customer.name.trim(),
+    phone: header.customer.phone.trim(),
+    address: header.customer.address.trim(),
+  };
   return {
     ...meta,
     actor: structuredClone(meta.actor),
@@ -94,7 +105,7 @@ export function saveOrder(
         type: "order-saved",
         orderId: input.orderId,
         folio: existing?.folio ?? folioFor(state.lastFolioNumber + 1),
-        header: structuredClone(input.header),
+        header,
         lines: structuredClone(input.lines),
       },
     ],
