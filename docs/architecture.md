@@ -38,6 +38,10 @@ screen ── useCommand(decide) ──▶ decide(state, meta)        src/domain
                               usePosState() re-renders screens (and other tabs, via storage.subscribe)
 ```
 
+`PosStore.run(decide)` does steps 1–3 inside `storage.exclusive`, a lock shared by every tab (Web Locks in the browser). Before deciding it catches up with batches other tabs appended, so two tabs can never both close the same account and the append order always equals the order applied live. **Always use `run` for anything that depends on the current state.** `commit(batch)` exists for tests and replays of an already-decided batch; it does not re-check the rules, so a batch decided against an old state can still be appended through it.
+
+Saves and charges also carry the account `version` the screen last saw (`expectedVersion`); if another tab changed the account meanwhile, the command is rejected with `account-changed` instead of overwriting it. If a batch from another tab cannot be applied, the store reloads the journal; if that fails too, `getProblem()` is set, writes are refused and the app shows a "Recarga la página" notice.
+
 `useCommand` (in `src/app/context.tsx`) builds `meta`: a new `commandId`, the local time, the signed-in user as actor and the device ID. Domain code never reads the clock or generates IDs.
 
 ## Commands and events today
