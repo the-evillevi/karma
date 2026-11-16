@@ -35,6 +35,67 @@ function run(steps: ((state: PosState) => CommandBatch)[]) {
 }
 
 describe("EVL-122 [C] Cuentas abiertas", () => {
+  it("[D] Aviso al editar una cuenta cambiada en otro dispositivo", () => {
+    let state = emptyState();
+    for (let version = 1; version <= 4; version++) {
+      state = applyBatch(
+        state,
+        saveOrder(state, meta(`version-${version}`, luis), {
+          orderId: "o-1",
+          header: mesa(3),
+          lines: linesOf([americano]),
+        }),
+      );
+    }
+    expect(state.orders["o-1"].version).toBe(4);
+    state = applyBatch(
+      state,
+      saveOrder(state, meta("screen-b", sofi), {
+        orderId: "o-1",
+        expectedVersion: 4,
+        header: mesa(3),
+        lines: linesOf([americano], [brownie]),
+      }),
+    );
+    expect(state.orders["o-1"].version).toBe(5);
+    expect(() =>
+      saveOrder(state, meta("screen-a", luis), {
+        orderId: "o-1",
+        expectedVersion: 4,
+        header: mesa(3),
+        lines: linesOf([americano]),
+      }),
+    ).toThrow(expect.objectContaining({ reason: "account-changed" }));
+    expect(state.orders["o-1"].lines.map((line) => line.name)).toEqual([
+      "Americano",
+      "Brownie",
+    ]);
+    expect(() =>
+      saveOrder(state, meta("new-over-existing", luis), {
+        orderId: "o-1",
+        expectedVersion: null,
+        header: mesa(3),
+        lines: linesOf([americano]),
+      }),
+    ).toThrow(expect.objectContaining({ reason: "account-changed" }));
+    expect(() =>
+      saveOrder(emptyState(), meta("missing", luis), {
+        orderId: "missing",
+        expectedVersion: 4,
+        header: mesa(3),
+        lines: linesOf([americano]),
+      }),
+    ).toThrow(expect.objectContaining({ reason: "account-changed" }));
+    expect(() =>
+      saveOrder(state, meta("current", luis), {
+        orderId: "o-1",
+        expectedVersion: 5,
+        header: mesa(3),
+        lines: state.orders["o-1"].lines,
+      }),
+    ).not.toThrow();
+  });
+
   it("[C] Guardar sin cobrar y reabrir después de recargar", () => {
     // Dado una cuenta en la mesa 3 con un Americano de $50, cuando la guardo
     // sin cobrar, recargo la app y la reabro, entonces la cuenta tiene las

@@ -83,6 +83,36 @@ describe("EVL-123 [C] Tarjeta manual y transferencia sin conexión", () => {
 });
 
 describe("EVL-123 [D] Cierre de la venta", () => {
+  it("refuses to close an account that changed since it was previewed", () => {
+    const { state } = fifty();
+    const changed = applyBatch(
+      state,
+      saveOrder(state, meta("edit", luis), {
+        orderId: "o-1",
+        header: mostrador,
+        lines: linesOf([americano, 2]),
+      }),
+    );
+    const input = {
+      orderId: "o-1",
+      expectedVersion: 1,
+      tipCents: 0,
+      payment: { method: "cash" as const, receivedCents: 10000 },
+    };
+    expect(() =>
+      closeSale(changed, meta("close-old", luis), input, IVA),
+    ).toThrow(expect.objectContaining({ reason: "account-changed" }));
+    expect(changed.orders["o-1"].status).toBe("open");
+    expect(() =>
+      closeSale(
+        changed,
+        meta("close-current", luis),
+        { ...input, expectedVersion: 2 },
+        IVA,
+      ),
+    ).not.toThrow();
+  });
+
   it("[D] El cierre conserva pagos, propina y cambio", () => {
     // Dado una orden de $50.00 pagada con $100.00 en efectivo, cuando
     // confirmo el cobro y recargo la app, entonces la venta cerrada conserva
