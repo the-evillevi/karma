@@ -214,10 +214,12 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
         }
         break;
       }
+      case "tables-configured":
+        next.tableCount = event.count;
+        break;
       case "comanda-sent":
       case "preparation-advanced":
       case "sale-closed":
-      case "tables-configured":
         throw new Error(`not implemented: ${event.type}`);
       default: {
         const unhandled: never = event;
