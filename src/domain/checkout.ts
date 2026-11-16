@@ -17,6 +17,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 
 export type CloseSaleInput = {
   orderId: string;
+  expectedVersion?: number;
   tipCents: number;
   payment: PaymentInput;
 };
@@ -39,6 +40,12 @@ export function closeSale(
     : undefined;
   if (!order) throw new CommandRejectedError("unknown-order");
   if (order.status !== "open") throw new CommandRejectedError("order-closed");
+  if (
+    input.expectedVersion !== undefined &&
+    input.expectedVersion !== order.version
+  ) {
+    throw new CommandRejectedError("account-changed");
+  }
   if (!Number.isSafeInteger(input.tipCents) || input.tipCents < 0) {
     throw new CommandRejectedError("invalid-tip");
   }
