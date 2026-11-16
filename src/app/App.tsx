@@ -18,7 +18,7 @@ export function App() {
 
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-40 flex min-h-14 items-center gap-4 border-b border-border bg-card px-4">
+      <header className="sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-border bg-card px-3 sm:gap-4 sm:px-4">
         <a
           href={hrefFor("/")}
           className="font-display text-2xl leading-none text-foreground"
@@ -45,7 +45,7 @@ export function App() {
           ))}
         </nav>
         <div className="flex shrink-0 items-center gap-2">
-          <p className="text-right text-sm leading-tight">
+          <p className="hidden text-right text-sm leading-tight sm:block">
             <span className="block font-medium">{user.name}</span>
             <span className="block text-xs text-muted-foreground">
               {ROLE_LABELS[user.role]}
@@ -53,7 +53,7 @@ export function App() {
           </p>
           <Button variant="outline" size="sm" onClick={signOut}>
             <LogOut />
-            Salir
+            <span className="sr-only sm:not-sr-only">Salir</span>
           </Button>
         </div>
       </header>

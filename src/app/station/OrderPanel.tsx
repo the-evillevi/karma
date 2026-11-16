@@ -41,7 +41,7 @@ export function OrderPanel({
 
   return (
     <section aria-label="Orden actual" className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-baseline justify-between gap-2 px-4 pt-4 pb-2">
+      <div className="flex items-baseline justify-between gap-2 pt-4 pr-14 pb-2 pl-4 lg:pr-4">
         <h2 className="text-base font-medium">{title}</h2>
         <span className="text-xs text-muted-foreground">
           {itemCountLabel(totals.itemCount)}
