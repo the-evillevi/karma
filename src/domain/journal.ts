@@ -147,7 +147,11 @@ export function folioFor(folioNumber: number): string {
   return `A-${String(folioNumber).padStart(4, "0")}`;
 }
 
-function fingerprint(batch: CommandBatch): string {
+/**
+ * Canonical text of a batch: equal for two batches exactly when their content
+ * is equal, whatever the order of their object keys.
+ */
+export function batchFingerprint(batch: CommandBatch): string {
   return JSON.stringify(batch, (_key, value: unknown) => {
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
       const record = value as Record<string, unknown>;
@@ -167,7 +171,7 @@ function fingerprint(batch: CommandBatch): string {
  * `state` unchanged; with different content it throws JournalConflictError.
  */
 export function applyBatch(state: PosState, batch: CommandBatch): PosState {
-  const identity = fingerprint(batch);
+  const identity = batchFingerprint(batch);
   if (Object.hasOwn(state.applied, batch.commandId)) {
     if (state.applied[batch.commandId] !== identity) {
       throw new JournalConflictError(batch.commandId);
