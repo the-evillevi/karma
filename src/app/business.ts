@@ -1,3 +1,3 @@
-// Shown on the customer ticket. To confirm with Carlos: the printed menu says
-// "Abboth" while the project documents call the café "Karma".
-export const BUSINESS_NAME = "Karma";
+// The café's name as printed on the customer ticket (Levi, 16 Nov 2026).
+// "Karma" is the name of this POS, not of the business.
+export const BUSINESS_NAME = "Abboth";

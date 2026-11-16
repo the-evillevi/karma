@@ -267,6 +267,7 @@ describe("EVL-123 Cobro en pantalla", () => {
       await screen.findByRole("article", { name: "Ticket A-0001" }),
     );
     for (const text of [
+      "Abboth",
       "Folio A-0001",
       "2 × Coca Cola",
       "$43.10",
