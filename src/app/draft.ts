@@ -7,11 +7,12 @@ import type { OrderLine } from "../domain/order.ts";
 export type Draft = {
   /** The saved account this draft edits, or null for a new order. */
   orderId: string | null;
+  baseVersion: number | null;
   header: OrderHeader;
   lines: OrderLine[];
 };
 
-const STORAGE_KEY = "karma.draft.v2";
+const STORAGE_KEY = "karma.draft.v3";
 
 export const EMPTY_HEADER: OrderHeader = {
   type: "mostrador",
@@ -21,6 +22,7 @@ export const EMPTY_HEADER: OrderHeader = {
 
 export const EMPTY_DRAFT: Draft = {
   orderId: null,
+  baseVersion: null,
   header: EMPTY_HEADER,
   lines: [],
 };
@@ -34,7 +36,9 @@ function isDraft(value: unknown): value is Draft {
     "header" in value &&
     typeof value.header === "object" &&
     value.header !== null &&
-    "orderId" in value
+    "orderId" in value &&
+    "baseVersion" in value &&
+    (value.baseVersion === null || typeof value.baseVersion === "number")
   );
 }
 

@@ -17,6 +17,7 @@ export type CommandRejection =
   | "not-allowed"
   | "empty-order"
   | "order-closed"
+  | "account-changed"
   | "unknown-order"
   | "table-required"
   | "table-unavailable"
@@ -53,6 +54,7 @@ export class CommandRejectedError extends Error {
 export type SaveOrderInput = {
   /** Stable ID chosen by the caller when the order is first captured. */
   orderId: string;
+  expectedVersion?: number | null;
   header: OrderHeader;
   lines: OrderLine[];
 };
@@ -89,6 +91,14 @@ export function saveOrder(
     : undefined;
   if (existing && existing.status !== "open") {
     throw new CommandRejectedError("order-closed");
+  }
+  if (
+    input.expectedVersion !== undefined &&
+    (existing
+      ? existing.version !== input.expectedVersion
+      : typeof input.expectedVersion === "number")
+  ) {
+    throw new CommandRejectedError("account-changed");
   }
   if (input.header.type === "mesa") {
     const table = input.header.table;

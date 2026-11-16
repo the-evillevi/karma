@@ -9,6 +9,8 @@ const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
   "not-allowed": "Tu usuario no tiene permiso para esta acción.",
   "empty-order": "Agrega al menos un producto.",
   "order-closed": "Esta cuenta ya fue cobrada y no se puede modificar.",
+  "account-changed":
+    "Esta cuenta cambió en otra pantalla. Ábrela de nuevo desde Cuentas abiertas para ver la versión actual.",
   "unknown-order": "No se encontró la cuenta.",
   "table-required": "Elige una mesa.",
   "table-unavailable": "Esa mesa no está disponible.",
