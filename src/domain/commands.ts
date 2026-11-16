@@ -26,6 +26,7 @@ export type CommandRejection =
   | "nothing-new"
   | "unknown-comanda"
   | "comanda-finished"
+  | "invalid-preparation-step"
   | "pending-balance"
   | "invalid-tip";
 
