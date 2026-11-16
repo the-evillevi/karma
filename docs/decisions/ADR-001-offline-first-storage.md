@@ -3,6 +3,10 @@
 **Status:** Proposed for EVL-114 review  
 **Date:** 2026-09-29
 
+## Pilot scope (17 November 2026)
+
+The pilot implements only the local half of this decision: the RxDB journal of immutable command batches on one device (`src/data/rxdb-storage.ts`, described in `docs/architecture.md`). Supabase, the writer lease, authentication beyond a local PIN, and conflict handling are not built yet; they are EVL-126 slices [C]–[E] and EVL-118 [D]. Nothing below about the server is in the running app.
+
 ## Decision
 
 Use the existing Vite + React client, RxDB with the Dexie/IndexedDB storage adapter for device-local data, and Supabase Postgres for authenticated cloud acknowledgement and shared projections. Financial commands are written locally as one immutable document containing the complete ordered event batch. A single `command_batches` row is the server commit point; PostgreSQL commits the envelope and all its events atomically. Local views and future server projections are derived and replayable. This prototype does not claim a cross-collection transaction.
