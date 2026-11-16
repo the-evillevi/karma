@@ -13,18 +13,38 @@ import { folioFor } from "./journal.ts";
 import type { OrderLine } from "./order.ts";
 
 export type CommandRejection =
-  "not-allowed" | "empty-order" | "order-closed" | "unknown-order";
+  | "not-allowed"
+  | "empty-order"
+  | "order-closed"
+  | "unknown-order"
+  | "table-required"
+  | "table-unavailable"
+  | "invalid-table-count"
+  | "missing-customer-data"
+  | "sent-to-kitchen"
+  | "nothing-new"
+  | "unknown-comanda"
+  | "comanda-finished"
+  | "pending-balance"
+  | "invalid-tip";
 
 export class CommandRejectedError extends Error {
   readonly reason: CommandRejection;
   /** The permission that was missing, for "not-allowed". */
   readonly permission: Permission | undefined;
+  /** The customer fields that are missing, for "missing-customer-data". */
+  readonly fields: readonly string[];
 
-  constructor(reason: CommandRejection, permission?: Permission) {
+  constructor(
+    reason: CommandRejection,
+    permission?: Permission,
+    fields: readonly string[] = [],
+  ) {
     super(`Command rejected: ${reason}`);
     this.name = "CommandRejectedError";
     this.reason = reason;
     this.permission = permission;
+    this.fields = fields;
   }
 }
 

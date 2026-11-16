@@ -71,3 +71,32 @@ export function linesOf(
     [],
   );
 }
+
+export function recoger(name: string, phone: string): OrderHeader {
+  return {
+    type: "recoger",
+    table: null,
+    customer: { name, phone, address: "" },
+  };
+}
+
+export function entrega(
+  name: string,
+  phone: string,
+  address: string,
+): OrderHeader {
+  return { type: "entrega", table: null, customer: { name, phone, address } };
+}
+
+/** The rejection reason of a command, or "not rejected". */
+export function rejectionOf(action: () => unknown): string {
+  try {
+    action();
+  } catch (error) {
+    if (error instanceof Error && error.name === "CommandRejectedError") {
+      return (error as Error & { reason: string }).reason;
+    }
+    throw error;
+  }
+  return "not rejected";
+}
