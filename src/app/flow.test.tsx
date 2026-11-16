@@ -1,10 +1,17 @@
 // The sale flow across screens. Spec: Linear EVL-122, EVL-123, EVL-124,
 // EVL-130 and EVL-118 [B]. Test names are scenario titles where one exists.
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App } from "./App.tsx";
 import { renderApp } from "./testing.tsx";
+import { PosStore, createMemoryStorage } from "../data/pos-store.ts";
+import type { JournalStorage } from "../data/pos-store.ts";
+import { saveOrder } from "../domain/commands.ts";
+import { emptyState } from "../domain/journal.ts";
+import type { CommandBatch } from "../domain/journal.ts";
+import { americano, linesOf, luis, mesa, meta } from "../domain/testing.ts";
+import { loadDraft } from "./draft.ts";
 
 function goTo(hash: string) {
   act(() => {
@@ -37,6 +44,180 @@ async function chooseTable(table: number) {
   await click(panel().getByRole("radio", { name: "Mesa" }));
   await click(panel().getByRole("radio", { name: `Mesa ${table}` }));
 }
+
+describe("Review regressions", () => {
+  it("no se pierde un producto capturado mientras se guarda la cuenta", async () => {
+    const backing = createMemoryStorage();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let writes = 0;
+    const storage: JournalStorage = {
+      ...backing,
+      append: async (batch) => {
+        writes++;
+        await gate;
+        await backing.append(batch);
+      },
+    };
+    const app = await renderApp(<App />, { as: "barra", storage });
+    await addCokes(1);
+    const menu = screen.getByRole("region", { name: "Menú" });
+    const order = panel().getByRole("region", { name: "Orden actual" });
+    const brownie = button(/^Brownie/);
+    try {
+      await click(button("Guardar cuenta"));
+      await waitFor(() => expect(writes).toBe(1));
+      expect(menu.getAttribute("aria-busy")).toBe("true");
+      expect(menu.hasAttribute("inert")).toBe(true);
+      expect(order.getAttribute("aria-busy")).toBe("true");
+      expect(order.hasAttribute("inert")).toBe(true);
+      await click(brownie);
+      expect(total()).toBe("$25.00");
+      expect(screen.queryByText("Cuenta A-0001 guardada")).toBeNull();
+    } finally {
+      await act(async () => {
+        release();
+      });
+    }
+    await screen.findByText("Cuenta A-0001 guardada");
+    expect(
+      Object.values(app.store.getState().orders)[0].lines.map(
+        (line) => line.name,
+      ),
+    ).toEqual(["Coca Cola"]);
+    expect(loadDraft().lines).toEqual([]);
+    app.store.close();
+  });
+
+  it("un borrador viejo no sobrescribe una cuenta más nueva", async () => {
+    const seed = saveOrder(emptyState(), meta("seed", luis), {
+      orderId: "o",
+      header: mesa(3),
+      lines: linesOf([americano]),
+    });
+    const storage = createMemoryStorage([seed]);
+    const app = await renderApp(<App />, { as: "barra", storage });
+    const other = await PosStore.open(storage);
+    try {
+      goTo("#/cuentas");
+      await click(button("Abrir"));
+      await screen.findByRole("heading", { name: "Cuenta A-0001" });
+      await act(async () => {
+        await other.run((state) =>
+          saveOrder(state, meta("other", luis), {
+            orderId: "o",
+            header: mesa(3),
+            lines: linesOf([americano, 2]),
+          }),
+        );
+      });
+      await click(button("Guardar cuenta"));
+      await waitFor(() =>
+        expect(panel().getByRole("alert").textContent).toBe(
+          "Esta cuenta cambió en otra pantalla. Ábrela de nuevo desde Cuentas abiertas para ver la versión actual.",
+        ),
+      );
+      expect(app.store.getState().orders.o.lines[0].quantity).toBe(2);
+      expect(app.store.getState().orders.o.version).toBe(2);
+      expect(loadDraft().lines[0].quantity).toBe(1);
+      expect(loadDraft().baseVersion).toBe(1);
+    } finally {
+      app.store.close();
+      other.close();
+    }
+  });
+
+  it("el cobro sigue la cuenta actual y pide revisar si cambió", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    const other = await PosStore.open(app.storage);
+    try {
+      await addCokes(1);
+      await click(button("Cobrar · $25.00"));
+      const checkout = within(await screen.findByRole("dialog"));
+      await userEvent.type(checkout.getByLabelText("Efectivo recibido"), "100");
+      const opened = Object.values(other.getState().orders)[0];
+      await act(async () => {
+        await other.run((state) =>
+          saveOrder(state, meta("other", luis), {
+            orderId: opened.orderId,
+            header: opened.header,
+            lines: [{ ...opened.lines[0], quantity: 2 }],
+          }),
+        );
+      });
+      await waitFor(() =>
+        expect(checkout.getByTestId("checkout-due").textContent).toBe("$50.00"),
+      );
+      expect(checkout.getByRole("alert").textContent).toBe(
+        "La cuenta cambió mientras cobrabas. Revisa el total antes de registrar el pago.",
+      );
+      expect(checkout.getByLabelText("Efectivo recibido")).toHaveProperty(
+        "value",
+        "",
+      );
+      expect(
+        checkout.getByRole("button", { name: "Registrar pago" }),
+      ).toHaveProperty("disabled", true);
+      await userEvent.type(checkout.getByLabelText("Efectivo recibido"), "100");
+      await click(checkout.getByRole("radio", { name: "Tarjeta manual" }));
+      await click(checkout.getByRole("radio", { name: "Efectivo" }));
+      expect(checkout.getByLabelText("Efectivo recibido")).toHaveProperty(
+        "value",
+        "100",
+      );
+      expect(checkout.getByTestId("checkout-change").textContent).toBe(
+        "$50.00",
+      );
+      await click(checkout.getByRole("button", { name: "Registrar pago" }));
+      await screen.findByRole("article", { name: "Ticket A-0001" });
+      expect(
+        app.store.getState().orders[opened.orderId].sale?.settlement,
+      ).toMatchObject({ amountDueCents: 5000, changeCents: 5000 });
+    } finally {
+      app.store.close();
+      other.close();
+    }
+  });
+
+  it("la app avisa cuando la pantalla quedó desactualizada", async () => {
+    const backing = createMemoryStorage();
+    let deliver!: (batch: CommandBatch) => void;
+    const storage: JournalStorage = {
+      ...backing,
+      subscribe: (listener) => {
+        deliver = listener;
+        return () => {};
+      },
+    };
+    const app = await renderApp(<App />, { as: "barra", storage });
+    const invalid: CommandBatch = {
+      ...meta("invalid", luis),
+      events: [
+        { type: "preparation-advanced", comandaId: "missing", status: "ready" },
+      ],
+    };
+    await backing.append(invalid);
+    await act(async () => {
+      deliver(invalid);
+    });
+    expect(
+      await screen.findByRole("heading", {
+        name: "Esta pantalla quedó desactualizada",
+      }),
+    ).toBeDefined();
+    expect(
+      screen.getByText(
+        "Recarga la página para continuar. No se perdió ninguna operación guardada.",
+      ),
+    ).toBeDefined();
+    expect(button("Recargar")).toBeDefined();
+    expect(screen.queryByRole("heading", { name: "Venta" })).toBeNull();
+    expect(app.store.getProblem()).toBeInstanceOf(Error);
+    app.store.close();
+  });
+});
 
 describe("EVL-122 Cuentas abiertas en pantalla", () => {
   it("[C] Guardar sin cobrar y reabrir después de recargar", async () => {

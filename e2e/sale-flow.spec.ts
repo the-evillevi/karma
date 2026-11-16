@@ -20,6 +20,9 @@ test("[B] Venta rápida en efectivo de principio a fin", async ({ page }) => {
   const ticket = page.getByRole("article", { name: "Ticket A-0001" });
   await expect(ticket.getByText("Cambio")).toBeVisible();
   await expect(ticket.getByText("$100.00")).toBeVisible();
+  await expect(
+    ticket.getByText("Cambio", { exact: true }).locator("..").locator("dd"),
+  ).toHaveText("$50.00");
   await page.getByRole("button", { name: "Listo" }).click();
 
   await page.getByRole("link", { name: "Ventas de hoy" }).click();
@@ -34,6 +37,12 @@ test("[B] Venta rápida en efectivo de principio a fin", async ({ page }) => {
   await expect(
     page.getByRole("listitem", { name: "Venta A-0001" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("listitem", { name: "Venta A-0001" }),
+  ).toContainText("$50.00");
+  await expect(
+    page.getByRole("listitem", { name: "Venta A-0001" }),
+  ).toContainText("Efectivo");
 });
 
 test("[B] Cuenta de mesa guardada, enviada a cocina y cobrada", async ({
