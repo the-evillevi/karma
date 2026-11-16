@@ -43,6 +43,41 @@ export function describeJournalStorage(
   make: () => Promise<StorageUnderTest>,
 ): void {
   describe(`JournalStorage contract: ${name}`, () => {
+    it("runs exclusive tasks one at a time across connections", async () => {
+      const subject = await make();
+      const other = await subject.secondTab();
+      const events: string[] = [];
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const first = subject.storage
+        .exclusive(async () => {
+          events.push("first-start");
+          await gate;
+          events.push("first-end");
+          throw new Error("first failed");
+        })
+        .catch((error: unknown) =>
+          error instanceof Error ? error.message : "unexpected",
+        );
+      const second = other.exclusive(async () => {
+        events.push("second");
+        return 2;
+      });
+      const third = subject.storage.exclusive(async () => {
+        events.push("third");
+        return 3;
+      });
+      await vi.waitFor(() => expect(events).toEqual(["first-start"]));
+      release();
+      expect(await first).toBe("first failed");
+      expect(await second).toBe(2);
+      expect(await third).toBe(3);
+      expect(events).toEqual(["first-start", "first-end", "second", "third"]);
+      await subject.cleanup();
+    });
+
     it("starts empty", async () => {
       const subject = await make();
       expect(await subject.storage.load()).toEqual([]);

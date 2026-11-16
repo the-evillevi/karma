@@ -2,7 +2,8 @@
 // Spec: Linear EVL-126, slice [A]. Test names are the scenario titles.
 import { describe, expect, it, vi } from "vitest";
 import { saveOrder } from "../domain/commands.ts";
-import { emptyState } from "../domain/journal.ts";
+import { closeSale } from "../domain/checkout.ts";
+import { applyBatch, emptyState } from "../domain/journal.ts";
 import type { CommandBatch } from "../domain/journal.ts";
 import {
   americano,
@@ -16,6 +17,7 @@ import {
 import {
   PosStore,
   StorageWriteError,
+  StoreOutOfSyncError,
   createMemoryStorage,
 } from "./pos-store.ts";
 import type { JournalStorage } from "./pos-store.ts";
@@ -29,6 +31,145 @@ function mesa3(store: PosStore, commandId = "op-1"): CommandBatch {
 }
 
 describe("EVL-126 [A] Guardar en el dispositivo", () => {
+  it("two tabs cannot both close the same account", async () => {
+    const storage = createMemoryStorage();
+    const first = await PosStore.open(storage);
+    const second = await PosStore.open(storage);
+    await first.commit(mesa3(first));
+    const input = {
+      orderId: "o-1",
+      tipCents: 0,
+      payment: { method: "cash" as const, receivedCents: 5000 },
+    };
+    const results = await Promise.allSettled([
+      first.run((state) =>
+        closeSale(state, meta("close-1", luis), input, 1600),
+      ),
+      second.run((state) =>
+        closeSale(state, meta("close-2", luis), input, 1600),
+      ),
+    ]);
+    expect(results[0].status).toBe("fulfilled");
+    expect(results[1]).toMatchObject({
+      status: "rejected",
+      reason: { reason: "order-closed" },
+    });
+    expect(
+      (await storage.load()).filter((batch) =>
+        batch.events.some((event) => event.type === "sale-closed"),
+      ),
+    ).toHaveLength(1);
+    first.close();
+    second.close();
+  });
+
+  it("open does not miss a batch appended while loading", async () => {
+    const backing = createMemoryStorage();
+    let release!: () => void;
+    let captured!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const loaded = new Promise<void>((resolve) => {
+      captured = resolve;
+    });
+    const storage: JournalStorage = {
+      ...backing,
+      load: async () => {
+        const rows = await backing.load();
+        captured();
+        await gate;
+        return rows;
+      },
+    };
+    const opening = PosStore.open(storage);
+    await loaded;
+    const batch = saveOrder(emptyState(), meta("during-open", luis), {
+      orderId: "o-1",
+      header: mesa(3),
+      lines: linesOf([americano]),
+    });
+    await backing.append(batch);
+    release();
+    const store = await opening;
+    expect(store.getState().orders["o-1"].folio).toBe("A-0001");
+    expect(store.pendingBatches()).toEqual([batch]);
+    store.close();
+  });
+
+  it("an invalid incoming batch triggers a resync instead of being skipped", async () => {
+    const seed = saveOrder(emptyState(), meta("seed", luis), {
+      orderId: "o-1",
+      header: mesa(3),
+      lines: linesOf([americano]),
+    });
+    const invalid: CommandBatch = {
+      ...meta("invalid-delivery", luis),
+      events: [
+        { type: "preparation-advanced", comandaId: "missing", status: "ready" },
+      ],
+    };
+    let deliver!: (batch: CommandBatch) => void;
+    const backing = createMemoryStorage();
+    const load = vi.fn(() => backing.load());
+    const storage: JournalStorage = {
+      ...backing,
+      load,
+      subscribe: (listener) => {
+        deliver = listener;
+        return () => {};
+      },
+    };
+    const store = await PosStore.open(storage);
+    const listener = vi.fn();
+    store.subscribe(listener);
+    await backing.append(seed);
+    expect(() => deliver(invalid)).not.toThrow();
+    await vi.waitFor(() =>
+      expect(store.getState()).toEqual(applyBatch(emptyState(), seed)),
+    );
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(store.getProblem()).toBeNull();
+    expect(store.pendingBatches()).toEqual([seed]);
+    expect(listener).toHaveBeenCalledTimes(1);
+    store.close();
+  });
+
+  it("reports a problem when the journal cannot be replayed", async () => {
+    const backing = createMemoryStorage();
+    let deliver!: (batch: CommandBatch) => void;
+    const storage: JournalStorage = {
+      ...backing,
+      subscribe: (listener) => {
+        deliver = listener;
+        return () => {};
+      },
+    };
+    const store = await PosStore.open(storage);
+    const before = store.getState();
+    const listener = vi.fn();
+    store.subscribe(listener);
+    const invalid: CommandBatch = {
+      ...meta("invalid", luis),
+      events: [
+        { type: "preparation-advanced", comandaId: "missing", status: "ready" },
+      ],
+    };
+    await backing.append(invalid);
+    expect(() => deliver(invalid)).not.toThrow();
+    await vi.waitFor(() => expect(store.getProblem()).toBeInstanceOf(Error));
+    expect(store.getState()).toBe(before);
+    expect(listener).toHaveBeenCalledTimes(1);
+    const decide = vi.fn(() => mesa3(store));
+    await expect(store.run(decide)).rejects.toBeInstanceOf(StoreOutOfSyncError);
+    await expect(store.commit(mesa3(store))).rejects.toBeInstanceOf(
+      StoreOutOfSyncError,
+    );
+    expect(decide).not.toHaveBeenCalled();
+    expect(await backing.load()).toEqual([invalid]);
+    store.close();
+  });
+
   it("[A] Una cuenta abierta sobrevive a recargar", async () => {
     // Dado una cuenta guardada en la mesa 3 con un Americano de $50, cuando
     // cierro y vuelvo a abrir la app, entonces la cuenta sigue ahí
