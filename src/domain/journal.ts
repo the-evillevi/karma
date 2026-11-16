@@ -249,7 +249,21 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
         next.comandas[event.comandaId].updatedAt = snapshot.at;
         break;
       case "sale-closed":
-        throw new Error(`not implemented: ${event.type}`);
+        next.orders = {
+          ...next.orders,
+          [event.orderId]: {
+            ...next.orders[event.orderId],
+            status: "paid",
+            sale: {
+              closedAt: snapshot.at,
+              closedBy: snapshot.actor,
+              tipCents: event.tipCents,
+              settlement: event.settlement,
+              totals: event.totals,
+            },
+          },
+        };
+        break;
       default: {
         const unhandled: never = event;
         throw new Error(`Unknown event: ${JSON.stringify(unhandled)}`);
