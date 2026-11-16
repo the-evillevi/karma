@@ -1,6 +1,11 @@
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ROLE_LABELS } from "../domain/access.ts";
+import { useSession } from "./context.tsx";
 import { ROUTES, hrefFor, useRoute } from "./router.ts";
 import type { RoutePath } from "./router.ts";
+import { Login } from "./screens/Login.tsx";
 import { Placeholder } from "./screens/Placeholder.tsx";
 import { Station } from "./screens/Station.tsx";
 
@@ -14,6 +19,9 @@ const PENDING: Record<Exclude<RoutePath, "/">, string> = {
 export function App() {
   const route = useRoute();
   const current = ROUTES.find((candidate) => candidate.path === route);
+  const { user, signOut } = useSession();
+
+  if (!user) return <Login />;
 
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
@@ -24,7 +32,10 @@ export function App() {
         >
           Karma
         </a>
-        <nav aria-label="Secciones" className="flex min-w-0 flex-1 gap-1">
+        <nav
+          aria-label="Secciones"
+          className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
+        >
           {ROUTES.map((candidate) => (
             <a
               key={candidate.path}
@@ -40,6 +51,18 @@ export function App() {
             </a>
           ))}
         </nav>
+        <div className="flex shrink-0 items-center gap-2">
+          <p className="text-right text-sm leading-tight">
+            <span className="block font-medium">{user.name}</span>
+            <span className="block text-xs text-muted-foreground">
+              {ROLE_LABELS[user.role]}
+            </span>
+          </p>
+          <Button variant="outline" size="sm" onClick={signOut}>
+            <LogOut />
+            Salir
+          </Button>
+        </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">
         {route === "/" ? (
