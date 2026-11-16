@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils";
 import { ROUTES, hrefFor, useRoute } from "./router.ts";
 import type { RoutePath } from "./router.ts";
 import { Placeholder } from "./screens/Placeholder.tsx";
+import { Station } from "./screens/Station.tsx";
 
-const PENDING: Record<RoutePath, string> = {
-  "/": "Aquí se capturan las órdenes. Llega con EVL-121 [B].",
+const PENDING: Record<Exclude<RoutePath, "/">, string> = {
   "/cuentas": "Aquí se retoman las cuentas guardadas. Llega con EVL-122 [C].",
   "/cocina": "Aquí cocina ve las comandas pendientes. Llega con EVL-124 [B].",
   "/ventas":
@@ -16,7 +16,7 @@ export function App() {
   const current = ROUTES.find((candidate) => candidate.path === route);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       <header className="sticky top-0 z-40 flex min-h-14 items-center gap-4 border-b border-border bg-card px-4">
         <a
           href={hrefFor("/")}
@@ -42,10 +42,11 @@ export function App() {
         </nav>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">
-        <Placeholder
-          title={current?.label ?? "Venta"}
-          detail={PENDING[route]}
-        />
+        {route === "/" ? (
+          <Station />
+        ) : (
+          <Placeholder title={current?.label ?? ""} detail={PENDING[route]} />
+        )}
       </main>
     </div>
   );
