@@ -33,13 +33,13 @@ async function addProduct(name: RegExp) {
 
 describe("EVL-121 [B] Estación de venta", () => {
   it("[B] El menú muestra categorías y búsqueda", async () => {
-    // Dado el catálogo de 115 productos, cuando elijo Postres o busco "crepa",
+    // Dado el catálogo de 112 productos, cuando elijo Postres o busco "crepa",
     // entonces veo sólo esos productos, cada uno con nombre y precio
     await renderApp(<Station />, { as: "barra" });
-    expect(productNames()).toHaveLength(115);
+    expect(productNames()).toHaveLength(112);
 
     await userEvent.click(menu().getByRole("button", { name: "Postres" }));
-    expect(productNames()).toHaveLength(21);
+    expect(productNames()).toHaveLength(20);
     expect(productNames()).toContain("Brownie");
     expect(productNames()).not.toContain("Americano");
     expect(
