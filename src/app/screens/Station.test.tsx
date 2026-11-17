@@ -144,7 +144,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     // (obligatorio) y "Shot de sabor" (opcional) con el costo de cada opción,
     // un campo de nota y el precio de la partida actualizado al elegir
     await renderApp(<Station />, { as: "barra" });
-    await addProduct(/^Latte/);
+    await addProduct(/^Latte(?! Honey)/);
     const dialog = within(screen.getByRole("dialog", { name: "Latte" }));
     const milk = within(
       dialog.getByRole("radiogroup", { name: "Tipo de leche" }),
@@ -184,7 +184,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     await addProduct(/^Crepa de Pollo/);
     const dialog = within(screen.getByRole("dialog"));
     await userEvent.click(
-      dialog.getByRole("button", { name: "Agregar · $45.00" }),
+      dialog.getByRole("button", { name: "Agregar · $60.00" }),
     );
     expect(dialog.getByRole("alert").textContent).toContain("Acompañamiento");
     expect(
@@ -197,15 +197,15 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     await userEvent.click(dialog.getByRole("radio", { name: "Papas" }));
     expect(dialog.queryByRole("alert")).toBeNull();
     await userEvent.click(
-      dialog.getByRole("button", { name: "Agregar · $45.00" }),
+      dialog.getByRole("button", { name: "Agregar · $60.00" }),
     );
     expect(order().getByText("Papas")).toBeDefined();
-    expect(total()).toBe("$45.00");
+    expect(total()).toBe("$60.00");
   });
 
   it("re-edits a captured line without changing its quantity", async () => {
     await renderApp(<Station />, { as: "barra" });
-    await addProduct(/^Latte/);
+    await addProduct(/^Latte(?! Honey)/);
     await userEvent.click(
       screen.getByRole("button", { name: "Agregar · $65.00" }),
     );
