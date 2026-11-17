@@ -23,7 +23,7 @@ function product(sku: string): Product {
 
 const americano = product("52000822146"); // $50.00, shots
 const latte = product("52000822148"); // $65.00, milk + shots
-const crepaPollo = product("52000822208"); // $45.00, side + dressing
+const crepaPollo = product("52000822208"); // $60.00, side + dressing
 const cocaCola = product("52000822136"); // $25.00, no modifiers
 
 function capture(target: Product, selection: ModifierSelection, note = "") {
@@ -114,7 +114,7 @@ describe("EVL-120 [A] Modificadores y nota", () => {
     });
     expect(refusal(crepaPollo, {}).reason).toBe("missing-required");
     const [line] = capture(crepaPollo, { acompanamiento: ["papas"] });
-    expect(lineUnitCents(line)).toBe(4500);
+    expect(lineUnitCents(line)).toBe(6000);
   });
 
   it("[A] No se excede el máximo del grupo", () => {

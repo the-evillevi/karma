@@ -33,13 +33,13 @@ async function addProduct(name: RegExp) {
 
 describe("EVL-121 [B] Estación de venta", () => {
   it("[B] El menú muestra categorías y búsqueda", async () => {
-    // Dado el catálogo de 115 productos, cuando elijo Postres o busco "crepa",
+    // Dado el catálogo de 112 productos, cuando elijo Postres o busco "crepa",
     // entonces veo sólo esos productos, cada uno con nombre y precio
     await renderApp(<Station />, { as: "barra" });
-    expect(productNames()).toHaveLength(115);
+    expect(productNames()).toHaveLength(112);
 
     await userEvent.click(menu().getByRole("button", { name: "Postres" }));
-    expect(productNames()).toHaveLength(21);
+    expect(productNames()).toHaveLength(20);
     expect(productNames()).toContain("Brownie");
     expect(productNames()).not.toContain("Americano");
     expect(
@@ -144,7 +144,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     // (obligatorio) y "Shot de sabor" (opcional) con el costo de cada opción,
     // un campo de nota y el precio de la partida actualizado al elegir
     await renderApp(<Station />, { as: "barra" });
-    await addProduct(/^Latte/);
+    await addProduct(/^Latte(?! Honey)/);
     const dialog = within(screen.getByRole("dialog", { name: "Latte" }));
     const milk = within(
       dialog.getByRole("radiogroup", { name: "Tipo de leche" }),
@@ -184,7 +184,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     await addProduct(/^Crepa de Pollo/);
     const dialog = within(screen.getByRole("dialog"));
     await userEvent.click(
-      dialog.getByRole("button", { name: "Agregar · $45.00" }),
+      dialog.getByRole("button", { name: "Agregar · $60.00" }),
     );
     expect(dialog.getByRole("alert").textContent).toContain("Acompañamiento");
     expect(
@@ -197,15 +197,15 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     await userEvent.click(dialog.getByRole("radio", { name: "Papas" }));
     expect(dialog.queryByRole("alert")).toBeNull();
     await userEvent.click(
-      dialog.getByRole("button", { name: "Agregar · $45.00" }),
+      dialog.getByRole("button", { name: "Agregar · $60.00" }),
     );
     expect(order().getByText("Papas")).toBeDefined();
-    expect(total()).toBe("$45.00");
+    expect(total()).toBe("$60.00");
   });
 
   it("re-edits a captured line without changing its quantity", async () => {
     await renderApp(<Station />, { as: "barra" });
-    await addProduct(/^Latte/);
+    await addProduct(/^Latte(?! Honey)/);
     await userEvent.click(
       screen.getByRole("button", { name: "Agregar · $65.00" }),
     );

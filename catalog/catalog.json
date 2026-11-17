@@ -1,7 +1,7 @@
 {
   "schema": "karma.catalog/v2",
   "catalogId": "karma-cafe",
-  "revision": 3,
+  "revision": 4,
   "currency": "MXN",
   "taxRateBps": 1600,
   "pricesIncludeTax": true,
@@ -10,7 +10,7 @@
     "sha256": "57efde7545fbaa18a035e5dd20ab7b1036687678f7b90b7210bc860445335499",
     "rows": 115,
     "validatedBy": "Carlos",
-    "note": "Workbook wins for products, SKUs and prices (EVL-112, 15 Nov 2026). The Disponible? column is ignored."
+    "note": "Workbook wins for products and SKUs; prices come from the printed menu (EVL-112 [C], 16 Nov 2026). Duplicates removed and obvious typos fixed. The Disponible? column is ignored."
   },
   "categories": [
     {
@@ -301,13 +301,13 @@
         {
           "id": "52000822117",
           "name": "Philadelphia (Extra)",
-          "priceDeltaCents": 1000,
+          "priceDeltaCents": 1300,
           "sku": "52000822117"
         },
         {
           "id": "52000822118",
           "name": "Crema batida (Extra)",
-          "priceDeltaCents": 1000,
+          "priceDeltaCents": 1300,
           "sku": "52000822118"
         },
         {
@@ -360,7 +360,7 @@
         },
         {
           "id": "52000822122",
-          "name": "Mapple (Topping)",
+          "name": "Maple (Topping)",
           "priceDeltaCents": 1000,
           "sku": "52000822122"
         },
@@ -460,7 +460,7 @@
       "sku": "52000822117",
       "name": "Philadelphia (Extra)",
       "categoryId": "extras",
-      "priceCents": 1000,
+      "priceCents": 1300,
       "available": true,
       "modifierGroupIds": []
     },
@@ -469,7 +469,7 @@
       "sku": "52000822118",
       "name": "Crema batida (Extra)",
       "categoryId": "extras",
-      "priceCents": 1000,
+      "priceCents": 1300,
       "available": true,
       "modifierGroupIds": []
     },
@@ -503,7 +503,7 @@
     {
       "id": "52000822122",
       "sku": "52000822122",
-      "name": "Mapple (Topping)",
+      "name": "Maple (Topping)",
       "categoryId": "extras",
       "priceCents": 1000,
       "available": true,
@@ -691,7 +691,7 @@
       "sku": "52000822142",
       "name": "Espresso",
       "categoryId": "bebidas",
-      "priceCents": 2900,
+      "priceCents": 3000,
       "available": true,
       "modifierGroupIds": [
         "shot"
@@ -702,7 +702,7 @@
       "sku": "52000822143",
       "name": "Espresso tonic",
       "categoryId": "bebidas",
-      "priceCents": 4500,
+      "priceCents": 5500,
       "available": true,
       "modifierGroupIds": [
         "shot"
@@ -768,7 +768,7 @@
     {
       "id": "52000822149",
       "sku": "52000822149",
-      "name": "Lette Honey",
+      "name": "Latte Honey",
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
@@ -1006,33 +1006,9 @@
       ]
     },
     {
-      "id": "52000822169",
-      "sku": "52000822169",
-      "name": "Frappe de Chocolate blanco",
-      "categoryId": "bebidas",
-      "priceCents": 7500,
-      "available": true,
-      "modifierGroupIds": [
-        "leche",
-        "shot"
-      ]
-    },
-    {
       "id": "52000822170",
       "sku": "52000822170",
       "name": "Frappe de Biscoff",
-      "categoryId": "bebidas",
-      "priceCents": 7500,
-      "available": true,
-      "modifierGroupIds": [
-        "leche",
-        "shot"
-      ]
-    },
-    {
-      "id": "52000822171",
-      "sku": "52000822171",
-      "name": "Frappe de Chocolate",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -1184,7 +1160,7 @@
       "sku": "52000822187",
       "name": "Helado",
       "categoryId": "postres",
-      "priceCents": 4000,
+      "priceCents": 4500,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1195,7 +1171,7 @@
       "sku": "52000822188",
       "name": "Croissant Dulce",
       "categoryId": "postres",
-      "priceCents": 5500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "fruta-acompanamiento",
@@ -1225,7 +1201,7 @@
       "sku": "52000822191",
       "name": "Muffin",
       "categoryId": "postres",
-      "priceCents": 2400,
+      "priceCents": 3000,
       "available": true,
       "modifierGroupIds": []
     },
@@ -1243,7 +1219,7 @@
       "sku": "52000822193",
       "name": "Crepa de Nutella",
       "categoryId": "postres",
-      "priceCents": 4500,
+      "priceCents": 5000,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1254,7 +1230,7 @@
       "sku": "52000822194",
       "name": "Crepa de Cajeta",
       "categoryId": "postres",
-      "priceCents": 4500,
+      "priceCents": 5000,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1265,7 +1241,7 @@
       "sku": "52000822195",
       "name": "Crepa de Mermelada de Fresa",
       "categoryId": "postres",
-      "priceCents": 4500,
+      "priceCents": 5000,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1276,7 +1252,7 @@
       "sku": "52000822196",
       "name": "Crepa de Mermelada de Zarzamora",
       "categoryId": "postres",
-      "priceCents": 4500,
+      "priceCents": 5000,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1287,7 +1263,7 @@
       "sku": "52000822197",
       "name": "Crepa de PBJ (Peanut Butter Jelly)",
       "categoryId": "postres",
-      "priceCents": 4500,
+      "priceCents": 5000,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1298,7 +1274,7 @@
       "sku": "52000822198",
       "name": "Crepa de Crema de cacahuate",
       "categoryId": "postres",
-      "priceCents": 4500,
+      "priceCents": 5000,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1309,7 +1285,7 @@
       "sku": "52000822199",
       "name": "Crepa de Biscoff",
       "categoryId": "postres",
-      "priceCents": 4500,
+      "priceCents": 5000,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1320,7 +1296,7 @@
       "sku": "52000822200",
       "name": "Crepa de Lechera",
       "categoryId": "postres",
-      "priceCents": 4500,
+      "priceCents": 5000,
       "available": true,
       "modifierGroupIds": [
         "extras-dulces"
@@ -1331,7 +1307,7 @@
       "sku": "52000822201",
       "name": "Croissant de biscoff",
       "categoryId": "postres",
-      "priceCents": 5500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "fruta-acompanamiento",
@@ -1343,7 +1319,7 @@
       "sku": "52000822202",
       "name": "Croissant de crema de avellana",
       "categoryId": "postres",
-      "priceCents": 5500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "fruta-acompanamiento",
@@ -1355,21 +1331,10 @@
       "sku": "52000822203",
       "name": "Croissant de crema de cacahuate",
       "categoryId": "postres",
-      "priceCents": 5500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "fruta-acompanamiento",
-        "extras-dulces"
-      ]
-    },
-    {
-      "id": "52000822204",
-      "sku": "52000822204",
-      "name": "Crepa de biscoff",
-      "categoryId": "postres",
-      "priceCents": 4500,
-      "available": true,
-      "modifierGroupIds": [
         "extras-dulces"
       ]
     },
@@ -1396,7 +1361,7 @@
       "sku": "52000822207",
       "name": "Crepa de Jamon c/Queso",
       "categoryId": "salado",
-      "priceCents": 4500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1408,7 +1373,7 @@
       "sku": "52000822208",
       "name": "Crepa de Pollo",
       "categoryId": "salado",
-      "priceCents": 4500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1420,7 +1385,7 @@
       "sku": "52000822209",
       "name": "Crepa de Quesos",
       "categoryId": "salado",
-      "priceCents": 4500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1430,9 +1395,9 @@
     {
       "id": "52000822210",
       "sku": "52000822210",
-      "name": "Crepa Hawaina",
+      "name": "Crepa Hawaiana",
       "categoryId": "salado",
-      "priceCents": 4500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1444,7 +1409,7 @@
       "sku": "52000822211",
       "name": "Crepa de Pepperoni",
       "categoryId": "salado",
-      "priceCents": 4500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1456,7 +1421,7 @@
       "sku": "52000822212",
       "name": "Crepa de Champiñones c/Queso",
       "categoryId": "salado",
-      "priceCents": 4500,
+      "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1468,7 +1433,7 @@
       "sku": "52000822213",
       "name": "Emparedado de Pollo",
       "categoryId": "salado",
-      "priceCents": 6000,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1480,7 +1445,7 @@
       "sku": "52000822214",
       "name": "Emparedado de Jamon c/Queso",
       "categoryId": "salado",
-      "priceCents": 6000,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1492,7 +1457,7 @@
       "sku": "52000822215",
       "name": "Emparedado de Quesos",
       "categoryId": "salado",
-      "priceCents": 6000,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1504,7 +1469,7 @@
       "sku": "52000822216",
       "name": "Emparedado Italiano",
       "categoryId": "salado",
-      "priceCents": 6000,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1516,7 +1481,7 @@
       "sku": "52000822217",
       "name": "Emparedado de Huevo c/Tocino",
       "categoryId": "salado",
-      "priceCents": 6000,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1528,7 +1493,7 @@
       "sku": "52000822218",
       "name": "Croissant de Quesos",
       "categoryId": "salado",
-      "priceCents": 6500,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1540,7 +1505,7 @@
       "sku": "52000822219",
       "name": "Croissant de Jamon c/Queso",
       "categoryId": "salado",
-      "priceCents": 6500,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1552,7 +1517,7 @@
       "sku": "52000822220",
       "name": "Croissant de Huevo c/Tocino",
       "categoryId": "salado",
-      "priceCents": 6500,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1564,7 +1529,7 @@
       "sku": "52000822221",
       "name": "Croissant de Pollo",
       "categoryId": "salado",
-      "priceCents": 6500,
+      "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
@@ -1576,7 +1541,7 @@
       "sku": "52000822222",
       "name": "Ensalada",
       "categoryId": "salado",
-      "priceCents": 6000,
+      "priceCents": 5500,
       "available": true,
       "modifierGroupIds": [
         "proteina",
@@ -1588,7 +1553,7 @@
       "sku": "52000822223",
       "name": "Bowl de Fruta",
       "categoryId": "salado",
-      "priceCents": 4500,
+      "priceCents": 5500,
       "available": true,
       "modifierGroupIds": [
         "topping-incluido"
