@@ -262,3 +262,206 @@ describe("EVL-119 [A] Review regressions", () => {
     app.store.close();
   });
 });
+
+function dialog() {
+  return within(screen.getByRole("dialog"));
+}
+
+async function fillNewProduct(fields: {
+  name?: string;
+  category?: string;
+  price?: string;
+  sku?: string;
+}) {
+  const form = dialog();
+  if (fields.name !== undefined) {
+    await userEvent.clear(form.getByLabelText("Nombre"));
+    if (fields.name !== "")
+      await userEvent.type(form.getByLabelText("Nombre"), fields.name);
+  }
+  if (fields.category !== undefined) {
+    await userEvent.selectOptions(
+      form.getByLabelText("Categoría"),
+      fields.category,
+    );
+  }
+  if (fields.price !== undefined) {
+    await userEvent.clear(form.getByLabelText("Precio"));
+    await userEvent.type(form.getByLabelText("Precio"), fields.price);
+  }
+  if (fields.sku !== undefined) {
+    await userEvent.clear(form.getByLabelText("SKU"));
+    await userEvent.type(form.getByLabelText("SKU"), fields.sku);
+  }
+}
+
+describe("EVL-119 [B] Crear y editar productos", () => {
+  it("[B] Admin crea un producto con el SKU sugerido", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(screen.getByRole("button", { name: "Nuevo producto" }));
+    expect(
+      screen.getByRole("dialog", { name: "Nuevo producto" }),
+    ).toBeDefined();
+    expect((dialog().getByLabelText("SKU") as HTMLInputElement).value).toBe(
+      "52000822227",
+    );
+    await fillNewProduct({
+      name: "Chai Sucio",
+      category: "Bebidas",
+      price: "75",
+    });
+    await click(dialog().getByRole("button", { name: "Guardar producto" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const bebidas = within(screen.getByRole("region", { name: "Bebidas" }));
+    const chai = within(bebidas.getByRole("listitem", { name: "Chai Sucio" }));
+    expect(chai.getByText("$75.00")).toBeDefined();
+    expect(chai.getByText("SKU 52000822227")).toBeDefined();
+
+    await click(screen.getByRole("button", { name: "Nuevo producto" }));
+    expect((dialog().getByLabelText("SKU") as HTMLInputElement).value).toBe(
+      "52000822228",
+    );
+    await click(dialog().getByRole("button", { name: "Cancelar" }));
+
+    goTo("#/");
+    expect(saleButton("Chai Sucio").textContent).toContain("$75.00");
+    app.store.close();
+  });
+
+  it("[B] Admin cambia el SKU sugerido antes de guardar", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(screen.getByRole("button", { name: "Nuevo producto" }));
+    await fillNewProduct({
+      name: "Agua Mineral 600 ml",
+      category: "Bebidas",
+      price: "30",
+      sku: "7501055300075",
+    });
+    await click(dialog().getByRole("button", { name: "Guardar producto" }));
+    expect(
+      row("Agua Mineral 600 ml").getByText("SKU 7501055300075"),
+    ).toBeDefined();
+    app.store.close();
+  });
+
+  it("[B] No se guarda un producto incompleto o con SKU repetido", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(screen.getByRole("button", { name: "Nuevo producto" }));
+    const save = () =>
+      click(dialog().getByRole("button", { name: "Guardar producto" }));
+    const alertText = () => dialog().getByRole("alert").textContent;
+
+    await fillNewProduct({ name: "   ", price: "75" });
+    await save();
+    expect(alertText()).toBe("Escribe el nombre del producto.");
+
+    await fillNewProduct({ name: "Chai Sucio" });
+    await save();
+    expect(alertText()).toBe("Elige una categoría.");
+
+    await fillNewProduct({ category: "Bebidas", price: "0" });
+    await save();
+    expect(alertText()).toBe("Escribe un precio mayor a $0.00.");
+
+    await fillNewProduct({ price: "75", sku: "abc" });
+    await save();
+    expect(alertText()).toBe("El SKU solo lleva números.");
+
+    await fillNewProduct({ sku: "52000822148" });
+    await save();
+    expect(alertText()).toBe("Ya existe un producto con ese SKU.");
+
+    expect(app.store.getState().menu.created).toEqual([]);
+    app.store.close();
+  });
+
+  it("[B] Admin renombra un producto y lo cambia de categoría", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(
+      row("Croissant Dulce").getByRole("button", {
+        name: "Editar Croissant Dulce",
+      }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Editar producto" }),
+    ).toBeDefined();
+    expect((dialog().getByLabelText("Nombre") as HTMLInputElement).value).toBe(
+      "Croissant Dulce",
+    );
+    expect(dialog().getByText("SKU 52000822188")).toBeDefined();
+    expect(dialog().queryByLabelText("SKU")).toBeNull();
+    await userEvent.clear(dialog().getByLabelText("Nombre"));
+    await userEvent.type(
+      dialog().getByLabelText("Nombre"),
+      "  Croissant de Mermelada ",
+    );
+    await userEvent.selectOptions(
+      dialog().getByLabelText("Categoría"),
+      "Salado",
+    );
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const salado = within(screen.getByRole("region", { name: "Salado" }));
+    expect(
+      within(
+        salado.getByRole("listitem", { name: "Croissant de Mermelada" }),
+      ).getByText("SKU 52000822188"),
+    ).toBeDefined();
+    expect(
+      within(screen.getByRole("region", { name: "Postres" })).queryByRole(
+        "listitem",
+        { name: "Croissant Dulce" },
+      ),
+    ).toBeNull();
+    goTo("#/");
+    expect(saleButton("Croissant de Mermelada")).toBeDefined();
+    app.store.close();
+  });
+
+  it("[B] Admin oculta un producto y lo vuelve a mostrar", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    const crepa = "Crepa de Champiñones c/Queso";
+    goTo("#/menu");
+    await click(row(crepa).getByRole("button", { name: `Ocultar ${crepa}` }));
+    expect(row(crepa).getByText("Oculto")).toBeDefined();
+
+    goTo("#/");
+    const sale = within(screen.getByRole("region", { name: "Menú" }));
+    expect(
+      sale.queryByRole("button", { name: /^Crepa de Champiñones/ }),
+    ).toBeNull();
+    await userEvent.type(sale.getByLabelText("Buscar producto"), "champi");
+    expect(
+      sale.queryByRole("button", { name: /^Crepa de Champiñones/ }),
+    ).toBeNull();
+
+    goTo("#/menu");
+    await click(row(crepa).getByRole("button", { name: `Mostrar ${crepa}` }));
+    expect(row(crepa).queryByText("Oculto")).toBeNull();
+    goTo("#/");
+    expect(saleButton(crepa)).toBeDefined();
+    app.store.close();
+  });
+
+  it("[B] Solo Admin crea, renombra, mueve u oculta productos", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    goTo("#/menu");
+    expect(screen.queryByRole("button", { name: "Nuevo producto" })).toBeNull();
+    expect(
+      row("Latte").queryByRole("button", { name: "Editar Latte" }),
+    ).toBeNull();
+    expect(
+      row("Latte").queryByRole("button", { name: "Ocultar Latte" }),
+    ).toBeNull();
+    expect(
+      row("Latte").getByRole("switch", { name: "Disponible" }),
+    ).toBeDefined();
+    app.store.close();
+  });
+});
