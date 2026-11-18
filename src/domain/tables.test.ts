@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-122, slice [A]. Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import { saveOrder } from "./commands.ts";
 import { applyBatch, emptyState, replay } from "./journal.ts";
@@ -26,8 +25,6 @@ function withTables(count: number, state: PosState = emptyState()): PosState {
 
 describe("EVL-122 [A] Mesas", () => {
   it("[A] Admin configura la cantidad de mesas", () => {
-    // Dado un Admin y 8 mesas configuradas, cuando cambia la cantidad a 10,
-    // entonces las mesas 1–10 están disponibles para asignar
     const initial = emptyState();
     expect(tableNumbers(initial)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     const batch = configureTables(initial, meta("op-1", admin), { count: 10 });
@@ -48,9 +45,6 @@ describe("EVL-122 [A] Mesas", () => {
   });
 
   it("[A] Reducir mesas conserva referencias históricas", () => {
-    // Dado una cuenta en la mesa 10 y 10 mesas configuradas, cuando un Admin
-    // reduce la cantidad a 8, entonces la mesa 10 ya no se puede asignar y la
-    // cuenta existente sigue mostrando "Mesa 10"
     let state = withTables(10);
     state = applyBatch(
       state,
@@ -74,7 +68,6 @@ describe("EVL-122 [A] Mesas", () => {
         }),
       ),
     ).toBe("table-unavailable");
-    // The existing account can still be saved again on its own table.
     expect(
       rejectionOf(() =>
         saveOrder(state, meta("op-3", luis), {
@@ -87,8 +80,6 @@ describe("EVL-122 [A] Mesas", () => {
   });
 
   it("[A] La mesa es opcional", () => {
-    // Dado una venta en caja sin mesa, cuando Barra la guarda, entonces se
-    // guarda sin mesa y se identifica por folio
     const state = emptyState();
     const next = applyBatch(
       state,
@@ -101,7 +92,6 @@ describe("EVL-122 [A] Mesas", () => {
     expect(next.orders["o-1"].header.table).toBeNull();
     expect(next.orders["o-1"].folio).toBe("A-0001");
     expect(tableLabel(null)).toBe("");
-    // An order of type "mesa" does need its table, and it must exist.
     const save = (header: ReturnType<typeof mesa>) =>
       rejectionOf(() =>
         saveOrder(state, meta("op-2", luis), {
@@ -118,8 +108,6 @@ describe("EVL-122 [A] Mesas", () => {
   });
 
   it("[A] Barra y Mesero no configuran mesas", () => {
-    // Dado un usuario Barra o Mesero, cuando intenta cambiar la cantidad de
-    // mesas, entonces la operación se rechaza y la cantidad no cambia
     const state = emptyState();
     for (const actor of [luis, sofi]) {
       expect(

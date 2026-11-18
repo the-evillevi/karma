@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-126, slice [A]. Test names are the scenario titles.
 import { describe, expect, it, vi } from "vitest";
 import { saveOrder } from "../domain/commands.ts";
 import { closeSale } from "../domain/checkout.ts";
@@ -171,8 +170,6 @@ describe("EVL-126 [A] Guardar en el dispositivo", () => {
   });
 
   it("[A] Una cuenta abierta sobrevive a recargar", async () => {
-    // Dado una cuenta guardada en la mesa 3 con un Americano de $50, cuando
-    // cierro y vuelvo a abrir la app, entonces la cuenta sigue ahí
     const storage = createMemoryStorage();
     const first = await PosStore.open(storage);
     await first.commit(mesa3(first));
@@ -188,9 +185,6 @@ describe("EVL-126 [A] Guardar en el dispositivo", () => {
   });
 
   it("[A] Las operaciones pendientes conservan actor y hora", async () => {
-    // Dado Barra "Luis" registra una operación a las 10:05 sin conexión,
-    // cuando recargo la app, entonces la operación pendiente conserva su
-    // identificador, a "Luis" y las 10:05
     const storage = createMemoryStorage();
     const first = await PosStore.open(storage);
     await first.commit(mesa3(first, "op-123"));
@@ -206,8 +200,6 @@ describe("EVL-126 [A] Guardar en el dispositivo", () => {
   });
 
   it("[A] Un fallo de guardado no se reporta como éxito", async () => {
-    // Dado el almacenamiento local rechaza la escritura, cuando guardo una
-    // cuenta, entonces veo un error y la app no muestra "Guardado"
     const failing: JournalStorage = {
       exclusive: (task) => task(),
       load: async () => [],
@@ -257,7 +249,6 @@ describe("EVL-126 [A] Guardar en el dispositivo", () => {
   });
 
   it("follows batches appended from another tab", async () => {
-    // The kitchen view runs in a second tab over the same storage.
     const storage = createMemoryStorage();
     const caja = await PosStore.open(storage);
     const cocina = await PosStore.open(storage);

@@ -10,7 +10,6 @@ type ProductGridProps = {
   busy?: boolean;
 };
 
-/** Lowercase without accents, so "cafe" finds "Café". */
 function normalize(text: string): string {
   return text
     .normalize("NFD")

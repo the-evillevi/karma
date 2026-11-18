@@ -1,4 +1,3 @@
-// Operator-facing Spanish for the errors a command can raise.
 import { StorageWriteError } from "../data/pos-store.ts";
 import { CommandRejectedError } from "../domain/commands.ts";
 import { CUSTOMER_FIELD_LABELS } from "../domain/order-header.ts";

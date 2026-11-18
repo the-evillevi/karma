@@ -85,3 +85,5 @@ Operator-facing text is Spanish. New rejection reasons need their message in `sr
 - Branch: use the issue's `gitBranchName` from Linear (for example `evl-123-cobrar-una-orden…`).
 - One issue or slice per PR. PR title: `EVL-123 [A]: short summary`.
 - Add a dependency only in the PR that first needs it.
+- No comments in our code; ESLint rejects them. The code is the documentation: if something needs explaining, rename or extract until it doesn't. Only tool directives are allowed (`// @vitest-environment …`, `/// <reference types="…" />`). Vendored shadcn components in `src/components/ui/` are exempt.
+- No `useEffect` or `useLayoutEffect` in `src/app/`; ESLint rejects them. Derive values during render, act in the event handler, or subscribe with `useSyncExternalStore`.

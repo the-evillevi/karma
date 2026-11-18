@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-122, slice [B]. Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import { CommandRejectedError, saveOrder } from "./commands.ts";
 import { applyBatch, emptyState } from "./journal.ts";
@@ -45,8 +44,6 @@ function missingOnSave(header: OrderHeader): readonly string[] | "saved" {
 
 describe("EVL-122 [B] Datos de entrega y recolección", () => {
   it("[B] Entrega exige nombre, teléfono y dirección", () => {
-    // Dado una orden de tipo Entrega sin dirección, cuando intento guardarla,
-    // entonces no se guarda y se indica que falta la dirección
     expect(requiredCustomerFields("entrega")).toEqual([
       "name",
       "phone",
@@ -66,8 +63,6 @@ describe("EVL-122 [B] Datos de entrega y recolección", () => {
   });
 
   it("[B] Recolección exige nombre y teléfono", () => {
-    // Dado una orden de tipo Recoger con nombre "Ana" y sin teléfono, cuando
-    // intento guardarla, entonces no se guarda y se indica que falta el teléfono
     expect(requiredCustomerFields("recoger")).toEqual(["name", "phone"]);
     expect(missingCustomerFields(recoger("Ana", ""))).toEqual(["phone"]);
     expect(missingOnSave(recoger("Ana", ""))).toEqual(["phone"]);
@@ -75,8 +70,6 @@ describe("EVL-122 [B] Datos de entrega y recolección", () => {
   });
 
   it("[B] Venta rápida en caja no exige cliente", () => {
-    // Dado una orden de tipo Mostrador sin datos de cliente, cuando la
-    // guardo, entonces se guarda correctamente
     expect(requiredCustomerFields("mostrador")).toEqual([]);
     expect(requiredCustomerFields("mesa")).toEqual([]);
     expect(missingOnSave(mostrador)).toBe("saved");

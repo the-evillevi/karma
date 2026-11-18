@@ -1,20 +1,15 @@
-// Menu catalog (EVL-112). Source of truth: catalog/catalog.json, generated from
-// the workbook Carlos validated. Money is integer centavos, IVA included.
-
 export type Category = { id: string; name: string; sortOrder: number };
 
 export type ModifierOption = {
   id: string;
   name: string;
   priceDeltaCents: number;
-  /** Present when the option is also a workbook product (an "Extra"). */
   sku?: string;
 };
 
 export type ModifierGroup = {
   id: string;
   name: string;
-  /** Minimum and maximum number of options the cashier must/may pick. */
   min: number;
   max: number;
   defaultOptionId?: string;
@@ -22,7 +17,6 @@ export type ModifierGroup = {
 };
 
 export type Product = {
-  /** Stable ID. Equal to the workbook SKU. */
   id: string;
   sku: string;
   name: string;
@@ -34,7 +28,6 @@ export type Product = {
 
 export type Catalog = {
   currency: "MXN";
-  /** IVA rate in basis points: 1600 is 16 %. */
   taxRateBps: number;
   pricesIncludeTax: boolean;
   categories: Category[];
@@ -50,7 +43,6 @@ export type CatalogProblem =
   | "unknown-modifier-group"
   | "invalid-modifier-group";
 
-/** Why a catalog was refused, and which product or group caused it. */
 export class CatalogError extends Error {
   readonly problem: CatalogProblem;
   readonly subjectId: string | undefined;
@@ -161,7 +153,6 @@ function parseGroup(raw: unknown): ModifierGroup {
   };
 }
 
-/** Validates raw JSON and returns a typed catalog. Throws CatalogError. */
 export function parseCatalog(raw: unknown): Catalog {
   const item = asRecord(raw);
   if (
@@ -236,7 +227,6 @@ export function parseCatalog(raw: unknown): Catalog {
   };
 }
 
-/** Products of one category, in catalog order. */
 export function productsInCategory(
   catalog: Catalog,
   categoryId: string,
@@ -253,7 +243,6 @@ export function findProduct(
   return catalog.products.find((product) => product.id === productId);
 }
 
-/** The product's modifier groups, in the order the product lists them. */
 export function modifierGroupsFor(
   catalog: Catalog,
   product: Product,

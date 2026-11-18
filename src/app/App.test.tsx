@@ -1,5 +1,3 @@
-// Spec: Linear EVL-116 slice [A] and EVL-118 slice [B].
-// Test names are the scenario titles.
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -69,8 +67,6 @@ describe("EVL-116 [A] Base de la app", () => {
 
 describe("EVL-118 [B] Entrar con PIN", () => {
   it("[B] El PIN correcto abre la sesión de esa persona", async () => {
-    // Dado los usuarios iniciales, cuando capturo 2222, entonces entro como
-    // Barra y veo la estación de venta
     await renderApp(<App />);
     expect(screen.queryByRole("navigation")).toBeNull();
     await typePin("2222");
@@ -80,21 +76,17 @@ describe("EVL-118 [B] Entrar con PIN", () => {
   });
 
   it("[B] Un PIN incorrecto no abre sesión", async () => {
-    // Cuando capturo 9999, entonces veo "PIN incorrecto" y sigo en el acceso
     await renderApp(<App />);
     await typePin("9999");
     expect((await screen.findByRole("alert")).textContent).toBe(
       "PIN incorrecto",
     );
     expect(screen.queryByRole("heading", { name: "Venta" })).toBeNull();
-    // The pad is ready for another try.
     await typePin("1111");
     expect(await screen.findByRole("heading", { name: "Venta" })).toBeDefined();
   });
 
   it("[B] Un usuario desactivado no entra", async () => {
-    // Dado el usuario Mesero desactivado, cuando capturo 3333, entonces veo
-    // "PIN incorrecto" y no se abre sesión
     const users = PILOT_USERS.map((user) =>
       user.role === "mesero" ? { ...user, active: false } : user,
     );
@@ -106,8 +98,6 @@ describe("EVL-118 [B] Entrar con PIN", () => {
   });
 
   it("[B] Se puede entrar sin conexión", async () => {
-    // Dado el dispositivo sin internet, cuando capturo 1111, entonces entro
-    // como Admin sin esperar la red
     const originalFetch = globalThis.fetch;
     globalThis.fetch = () => {
       throw new Error("offline: signing in must not use the network");
@@ -127,8 +117,6 @@ describe("EVL-118 [B] Entrar con PIN", () => {
   });
 
   it("[B] Cambiar de usuario conserva la orden en captura", async () => {
-    // Dado Mesero con una orden sin guardar de 2 Coca Colas, cuando cierra
-    // sesión y Barra entra con 2222, entonces Barra ve la misma orden
     await renderApp(<App />, { as: "mesero" });
     const coke = screen.getByRole("button", { name: /^Coca Cola/ });
     await userEvent.click(coke);
@@ -142,8 +130,6 @@ describe("EVL-118 [B] Entrar con PIN", () => {
   });
 
   it("[B] Los PIN no se guardan legibles", async () => {
-    // Dado los usuarios iniciales, cuando reviso lo almacenado, entonces no
-    // aparece ningún PIN en texto claro, sólo su huella
     const serialized = JSON.stringify(PILOT_USERS);
     for (const pin of ["1111", "2222", "3333"]) {
       expect(serialized).not.toContain(pin);

@@ -1,6 +1,3 @@
-// Roles and permissions (EVL-118). Matrix from EVL-111, 13 Nov 2026:
-// Admin can do everything, Barra can charge, Mesero cannot charge.
-
 export const ROLES = ["admin", "barra", "mesero"] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -19,19 +16,16 @@ export const PERMISSIONS = [
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-/** Operator-facing role names, as written in Linear and shown in the app. */
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   barra: "Barra",
   mesero: "Mesero",
 };
 
-/** Whether `role` may perform `permission`. Unknown roles may do nothing. */
 export function can(role: string, permission: Permission): boolean {
   return permissionsOf(role).includes(permission);
 }
 
-/** Every permission the role has, in PERMISSIONS order. */
 export function permissionsOf(role: string): Permission[] {
   switch (role) {
     case "admin":
@@ -49,12 +43,10 @@ export type User = {
   userId: string;
   name: string;
   role: Role;
-  /** Digest of the PIN. The PIN itself is never stored. */
   pinDigest: string;
   active: boolean;
 };
 
-/** The active user whose PIN has this digest, or null. */
 export function findUserByPinDigest(
   users: readonly User[],
   pinDigest: string,

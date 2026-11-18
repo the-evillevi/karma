@@ -52,7 +52,6 @@ const schema: RxJsonSchema<BatchDocument> = {
 export async function createRxdbStorage(options: {
   name: string;
   storage: RxStorage<unknown, unknown>;
-  /** Only for test connections sharing a name in one process. */
   ignoreDuplicate?: boolean;
 }): Promise<RxdbJournalStorage> {
   const database = await createRxDatabase<

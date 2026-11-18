@@ -1,4 +1,3 @@
-// Shared fixtures for domain tests. Not imported by app code.
 import rawCatalog from "../../catalog/catalog.json";
 import { findProduct, parseCatalog } from "./catalog.ts";
 import type { Product } from "./catalog.ts";
@@ -14,9 +13,9 @@ export function product(sku: string): Product {
   return found;
 }
 
-export const americano = product("52000822146"); // $50.00
-export const latte = product("52000822148"); // $65.00
-export const brownie = product("52000822189"); // $38.00
+export const americano = product("52000822146");
+export const latte = product("52000822148");
+export const brownie = product("52000822189");
 
 export const avena: LineModifier = {
   groupId: "leche",
@@ -42,7 +41,6 @@ export const mostrador: OrderHeader = {
   customer: NO_CUSTOMER,
 };
 
-/** Command metadata at a given time of 15 Nov 2026 (local hour as "HH:MM"). */
 export function meta(
   commandId: string,
   actor: Actor,
@@ -56,7 +54,6 @@ export function meta(
   };
 }
 
-/** One line per [product, quantity?, modifiers?, note?] entry. */
 export function linesOf(
   ...entries: [Product, number?, LineModifier[]?, string?][]
 ): OrderLine[] {
@@ -88,7 +85,6 @@ export function entrega(
   return { type: "entrega", table: null, customer: { name, phone, address } };
 }
 
-/** The rejection reason of a command, or "not rejected". */
 export function rejectionOf(action: () => unknown): string {
   try {
     action();

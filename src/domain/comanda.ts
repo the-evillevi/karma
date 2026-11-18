@@ -1,6 +1,3 @@
-// Comandas (EVL-124 [A]). Sending a comanda snapshots what is new on the
-// account; preparation then advances one step at a time, independently of
-// payment. See docs/domain/order-lifecycle.md.
 import type {
   Comanda,
   CommandBatch,
@@ -26,7 +23,6 @@ export const PREPARATION_LABELS: Record<PreparationStatus, string> = {
   served: "Entregada",
 };
 
-/** Label of the button that moves a comanda out of `status`; null when done. */
 export const NEXT_ACTION_LABELS: Record<PreparationStatus, string | null> = {
   queued: "Empezar",
   preparing: "Marcar lista",
@@ -34,7 +30,6 @@ export const NEXT_ACTION_LABELS: Record<PreparationStatus, string | null> = {
   served: null,
 };
 
-/** The status after `status`, or null when it is already served. */
 export function nextPreparationStatus(
   status: PreparationStatus,
 ): PreparationStatus | null {
@@ -47,7 +42,6 @@ function sentQuantity(order: Order, lineId: string): number {
     : 0;
 }
 
-/** Sends to the kitchen whatever was added to the account since the last send. */
 export function sendComanda(
   state: PosState,
   meta: CommandMeta,
@@ -84,7 +78,6 @@ export function sendComanda(
   };
 }
 
-/** Moves a comanda to `to`, which must be exactly its next status. */
 export function advancePreparation(
   state: PosState,
   meta: CommandMeta,
@@ -115,7 +108,6 @@ export function advancePreparation(
   };
 }
 
-/** Comandas not yet served, oldest first. */
 export function pendingComandas(state: PosState): Comanda[] {
   return Object.values(state.comandas)
     .filter((comanda) => comanda.status !== "served")
@@ -130,7 +122,6 @@ function compare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/** Whether the account has products that were not sent to the kitchen yet. */
 export function hasUnsentLines(state: PosState, orderId: string): boolean {
   const order = Object.hasOwn(state.orders, orderId)
     ? state.orders[orderId]

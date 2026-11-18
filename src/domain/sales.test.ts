@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-130, slice [A]. Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import { closeSale } from "./checkout.ts";
 import { saveOrder } from "./commands.ts";
@@ -52,10 +51,6 @@ function sale(
 
 describe("EVL-130 [A] Ventas de hoy", () => {
   it("[A] La lista muestra las ventas cerradas hoy con sus totales", () => {
-    // Dado tres ventas cerradas hoy: $50.00 en efectivo, $38.00 con tarjeta
-    // con propina de $5.00 y $50.00 por transferencia, cuando abro Ventas de
-    // hoy, entonces veo 3 ventas, $138.00 vendidos, $5.00 de propinas y los
-    // cobros por método: efectivo $50.00, tarjeta $43.00, transferencia $50.00
     let state = emptyState();
     state = sale(state, "o-1", americano, meta("c-1", luis, "09:10"), {
       method: "cash",
@@ -91,8 +86,6 @@ describe("EVL-130 [A] Ventas de hoy", () => {
   });
 
   it("[A] Las ventas de otros días y las cuentas abiertas no aparecen", () => {
-    // Dado una venta cerrada ayer y una cuenta abierta hoy, cuando abro
-    // Ventas de hoy, entonces la lista está vacía y los totales son $0.00
     let state = emptyState();
     state = sale(
       state,

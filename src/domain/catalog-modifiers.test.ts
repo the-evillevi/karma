@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-112, slice [B]. Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import rawCatalog from "../../catalog/catalog.json";
 import { findProduct, modifierGroupsFor, parseCatalog } from "./catalog.ts";
@@ -21,9 +20,6 @@ function option(group: ModifierGroup, name: string) {
 
 describe("EVL-112 [B] Grupos de modificadores", () => {
   it("[B] Un latte pide tipo de leche", () => {
-    // Dado el Latte (SKU 52000822148), entonces "Tipo de leche" es obligatorio
-    // con una sola opción (Entera $0.00 por defecto; las demás +$10.00) y
-    // "Shot de sabor" es opcional a +$10.00 cada uno
     const [leche, shot] = groupsOf("52000822148");
     expect(leche.name).toBe("Tipo de leche");
     expect([leche.min, leche.max]).toEqual([1, 1]);
@@ -55,9 +51,6 @@ describe("EVL-112 [B] Grupos de modificadores", () => {
   });
 
   it("[B] Crepas, emparedados y croissants salados incluyen ensalada o papas", () => {
-    // Dado la Crepa de Pollo (SKU 52000822208), entonces "Acompañamiento" es
-    // obligatorio (Ensalada o Papas, $0.00) y "Aderezo extra" es opcional a
-    // +$10.00 (Ranch, Mostaza Miel o Mayonesa Chipotle)
     for (const sku of ["52000822208", "52000822213", "52000822218"]) {
       const [side, dressing] = groupsOf(sku);
       expect(side.name).toBe("Acompañamiento");
@@ -88,8 +81,6 @@ describe("EVL-112 [B] Grupos de modificadores", () => {
   });
 
   it("[B] La ensalada exige proteína y aderezo", () => {
-    // Dado la Ensalada (SKU 52000822222), entonces "Proteína" y "Aderezo
-    // incluido" son obligatorios y no cambian el precio
     const [protein, dressing] = groupsOf("52000822222");
     expect(protein.name).toBe("Proteína");
     expect(protein.options.map((candidate) => candidate.name)).toEqual([
@@ -107,8 +98,6 @@ describe("EVL-112 [B] Grupos de modificadores", () => {
   });
 
   it("[B] Los extras dulces usan el precio del libro", () => {
-    // Dado la Crepa de Nutella (SKU 52000822193), entonces puedo agregar Bola
-    // de Helado a +$13.00 (SKU …134) y Fresas a +$10.00 (SKU …112)
     const [extras] = groupsOf("52000822193");
     expect(extras.name).toBe("Extras");
     expect(extras.min).toBe(0);
@@ -120,7 +109,6 @@ describe("EVL-112 [B] Grupos de modificadores", () => {
       priceDeltaCents: 1000,
       sku: "52000822112",
     });
-    // Every extra option is a workbook product at the workbook price.
     for (const candidate of extras.options) {
       const product = findProduct(catalog, candidate.sku ?? "");
       expect(product?.priceCents).toBe(candidate.priceDeltaCents);

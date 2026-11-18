@@ -1,5 +1,3 @@
-// The sale flow across screens. Spec: Linear EVL-122, EVL-123, EVL-124,
-// EVL-130 and EVL-118 [B]. Test names are scenario titles where one exists.
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -221,9 +219,6 @@ describe("Review regressions", () => {
 
 describe("EVL-122 Cuentas abiertas en pantalla", () => {
   it("[C] Guardar sin cobrar y reabrir después de recargar", async () => {
-    // Dado una cuenta en la mesa 3 con una Coca Cola de $25, cuando la guardo
-    // sin cobrar, recargo la app y la reabro, entonces tiene las mismas
-    // partidas, la mesa 3 y el mismo total
     const first = await renderApp(<App />, { as: "mesero" });
     await addCokes(1);
     await chooseTable(3);
@@ -260,8 +255,6 @@ describe("EVL-122 Cuentas abiertas en pantalla", () => {
   });
 
   it("[B] Recolección exige nombre y teléfono", async () => {
-    // Dado una orden de tipo Recoger con nombre "Ana" y sin teléfono, cuando
-    // intento guardarla, entonces no se guarda y se indica que falta el teléfono
     const { store } = await renderApp(<App />, { as: "mesero" });
     await addCokes(1);
     await click(panel().getByRole("radio", { name: "Recoger" }));
@@ -302,8 +295,6 @@ describe("EVL-122 Cuentas abiertas en pantalla", () => {
 
 describe("EVL-124 [B] Pantalla de cocina", () => {
   it("[B] Cada comanda tiene una sola acción siguiente", async () => {
-    // Dado una comanda "En cola", cuando toco "Empezar", "Marcar lista" y
-    // "Entregar", entonces cambia a "Preparando", "Lista" y sale de pendientes
     await renderApp(<App />, { as: "mesero" });
     await click(button(/^Latte\s*\$/));
     const dialog = within(screen.getByRole("dialog"));
@@ -326,7 +317,6 @@ describe("EVL-124 [B] Pantalla de cocina", () => {
     expect(card.getByText("Avena")).toBeDefined();
     expect(card.getByText("Nota: extra caliente")).toBeDefined();
     expect(card.getByText("En cola")).toBeDefined();
-    // The kitchen never sees prices.
     expect(screen.getByRole("main").textContent).not.toContain("$");
 
     await click(card.getByRole("button", { name: "Empezar" }));
@@ -338,12 +328,9 @@ describe("EVL-124 [B] Pantalla de cocina", () => {
   });
 
   it("[B] Una comanda nueva aparece sin recargar", async () => {
-    // Dado la pantalla de cocina abierta en otra pestaña, cuando la caja
-    // envía una comanda, entonces aparece en cocina sin recargar
     const caja = await renderApp(<App />, { as: "mesero" });
     await addCokes(1);
     caja.unmount();
-    // Second tab on the same storage, opened before the comanda exists.
     goTo("#/cocina");
     const cocina = await renderApp(<App />, {
       as: "mesero",
@@ -393,7 +380,6 @@ describe("EVL-124 [B] Pantalla de cocina", () => {
     expect(
       panel().getByRole("button", { name: "Eliminar Coca Cola" }),
     ).toHaveProperty("disabled", true);
-    // Nothing new yet: sending again is refused with an explanation.
     await click(button("Enviar comanda"));
     expect(panel().getByRole("alert").textContent).toBe(
       "No hay productos nuevos que enviar a cocina.",
@@ -403,15 +389,11 @@ describe("EVL-124 [B] Pantalla de cocina", () => {
 
 describe("EVL-123 Cobro en pantalla", () => {
   it("[D] El cierre conserva pagos, propina y cambio", async () => {
-    // Dado una orden de $50.00 con propina del 10 % pagada con $100.00 en
-    // efectivo, cuando confirmo el cobro, entonces el ticket y Ventas de hoy
-    // conservan efectivo recibido $100.00, cambio $45.00 y propina $5.00
     await renderApp(<App />, { as: "barra" });
     await addCokes(2);
     await click(button("Cobrar · $50.00"));
     const checkout = within(await screen.findByRole("dialog"));
     expect(checkout.getByTestId("checkout-due").textContent).toBe("$50.00");
-    // [A] Las sugerencias son 5, 10, 15 y 20 %
     for (const label of [
       "5 % $2.50",
       "10 % $5.00",
@@ -422,14 +404,12 @@ describe("EVL-123 Cobro en pantalla", () => {
       expect(checkout.getByRole("radio", { name: label })).toBeDefined();
     }
     await click(checkout.getByRole("radio", { name: "10 % $5.00" }));
-    // [A] La propina no se suma dos veces
     expect(checkout.getByTestId("checkout-subtotal").textContent).toBe(
       "$50.00",
     );
     expect(checkout.getByTestId("checkout-tip").textContent).toBe("$5.00");
     expect(checkout.getByTestId("checkout-due").textContent).toBe("$55.00");
 
-    // [B] No se cierra con saldo pendiente
     const confirm = checkout.getByRole("button", { name: "Registrar pago" });
     expect(confirm).toHaveProperty("disabled", true);
     await userEvent.type(checkout.getByLabelText("Efectivo recibido"), "50");
@@ -438,7 +418,6 @@ describe("EVL-123 Cobro en pantalla", () => {
     );
     expect(confirm).toHaveProperty("disabled", true);
 
-    // [B] El efectivo de más genera cambio
     await userEvent.clear(checkout.getByLabelText("Efectivo recibido"));
     await userEvent.type(checkout.getByLabelText("Efectivo recibido"), "100");
     expect(checkout.getByTestId("checkout-change").textContent).toBe("$45.00");
@@ -479,8 +458,6 @@ describe("EVL-123 Cobro en pantalla", () => {
   });
 
   it("[A] Propina libre muestra su porcentaje sin rechazarla", async () => {
-    // Dado una orden de $50.00, cuando capturo "Otro" con $10.30, entonces la
-    // propina es $10.30, se muestra "20.6 %" y no se redondea
     await renderApp(<App />, { as: "barra" });
     await addCokes(2);
     await click(button("Cobrar · $50.00"));
@@ -493,8 +470,6 @@ describe("EVL-123 Cobro en pantalla", () => {
   });
 
   it("[C] Tarjeta manual sin conexión", async () => {
-    // Dado una orden de $25.00, cuando registro un pago con tarjeta cobrado
-    // en la terminal por separado, entonces se registra como "tarjeta manual"
     const { store } = await renderApp(<App />, { as: "barra" });
     await addCokes(1);
     await click(button("Cobrar · $25.00"));
@@ -514,7 +489,6 @@ describe("EVL-123 Cobro en pantalla", () => {
   });
 
   it("[D] Mesero no cobra", async () => {
-    // EVL-118 [B] La navegación sólo muestra lo permitido
     await renderApp(<App />, { as: "mesero" });
     await addCokes(1);
     expect(screen.queryByRole("button", { name: /^Cobrar/ })).toBeNull();

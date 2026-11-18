@@ -1,21 +1,13 @@
-// The app's single source of state: a journal kept in durable storage plus
-// the state replayed from it. Screens read `getState()` and call `commit()`.
 import type { CommandBatch, PosState } from "../domain/journal.ts";
 import { applyBatch, replay } from "../domain/journal.ts";
 
-/** Where batches are kept. Implementations: memory (tests) and RxDB (browser). */
 export interface JournalStorage {
-  /** Every stored batch, oldest first. */
   load(): Promise<CommandBatch[]>;
-  /** Stores one batch durably. Rejects if the write fails. */
   append(batch: CommandBatch): Promise<void>;
-  /** Calls `listener` for batches appended elsewhere (another tab). */
   subscribe(listener: (batch: CommandBatch) => void): () => void;
-  /** Serializes decisions and writes across connections to the same journal. */
   exclusive<T>(task: () => Promise<T>): Promise<T>;
 }
 
-/** Thrown by `commit` when the batch could not be written. */
 export class StorageWriteError extends Error {
   constructor(cause: unknown) {
     super("The operation could not be saved on this device", { cause });
@@ -73,7 +65,6 @@ export class PosStore {
 
   private constructor(private readonly storage: JournalStorage) {}
 
-  /** Loads the journal and replays it. */
   static async open(storage: JournalStorage): Promise<PosStore> {
     const store = new PosStore(storage);
     const buffer: CommandBatch[] = [];
@@ -104,15 +95,10 @@ export class PosStore {
     return this.problem;
   }
 
-  /** Every committed batch, oldest first. None is synced yet (EVL-126 [D]). */
   pendingBatches(): CommandBatch[] {
     return structuredClone(this.batches);
   }
 
-  /**
-   * Writes the batch to storage and only then applies it to the state.
-   * If the write fails it throws StorageWriteError and the state is unchanged.
-   */
   async commit(batch: CommandBatch): Promise<void> {
     await this.run(() => batch);
   }
@@ -148,7 +134,6 @@ export class PosStore {
     });
   }
 
-  /** Calls `listener` after every state change. Returns the unsubscribe. */
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => {
@@ -156,7 +141,6 @@ export class PosStore {
     };
   }
 
-  /** Stops listening to storage. */
   close(): void {
     this.unsubscribeStorage();
   }

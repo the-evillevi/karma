@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-112, slice [A]. Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import rawCatalog from "../../catalog/catalog.json";
 import { CatalogError, findProduct, parseCatalog } from "./catalog.ts";
@@ -44,8 +43,6 @@ function refusal(raw: unknown): {
 
 describe("EVL-112 [A] Catálogo del libro de Carlos", () => {
   it("[A] Los precios se guardan en centavos", () => {
-    // Dado el Espresso a $30.00 y el café de 1kg a $500.00,
-    // entonces sus precios son 3000 y 50000 centavos
     const catalog = parseCatalog(rawCatalog);
     const espresso = findProduct(catalog, "52000822142");
     expect(espresso?.name).toBe("Espresso");
@@ -67,8 +64,6 @@ describe("EVL-112 [A] Catálogo del libro de Carlos", () => {
   });
 
   it("[A] Todos los productos inician disponibles", () => {
-    // Dado el Croissant de Jamon c/Queso, marcado "Disponible? = N" en el libro,
-    // entonces está disponible para vender, igual que todos los demás
     const catalog = parseCatalog(rawCatalog);
     const croissant = findProduct(catalog, "52000822219");
     expect(croissant?.name).toBe("Croissant de Jamon c/Queso");
@@ -77,8 +72,6 @@ describe("EVL-112 [A] Catálogo del libro de Carlos", () => {
   });
 
   it("[A] Un catálogo inválido no se carga", () => {
-    // Un precio de 29.5 centavos, un SKU repetido o una categoría inexistente
-    // rechazan la carga indicando el producto y el motivo
     const fractional = minimalCatalog();
     fractional.products[0].priceCents = 29.5;
     expect(refusal(fractional)).toEqual({

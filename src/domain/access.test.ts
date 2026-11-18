@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-118, slice [A]. Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import { PERMISSIONS, can, permissionsOf } from "./access.ts";
 import type { Permission } from "./access.ts";
@@ -42,7 +41,6 @@ describe("EVL-118 [A] Matriz de permisos", () => {
   it("[A] Un rol desconocido no tiene permisos", () => {
     expect(can("invitado", "capture-order")).toBe(false);
     expect(permissionsOf("invitado")).toEqual([]);
-    // Prototype-era names must not be accepted by accident.
     expect(can("toString", "capture-order")).toBe(false);
     expect(can("Admin", "charge")).toBe(false);
   });

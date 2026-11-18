@@ -1,4 +1,3 @@
-// Opens the durable store in the browser: RxDB over IndexedDB (ADR-001).
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 import { PosStore } from "../data/pos-store.ts";
 import { createRxdbStorage } from "../data/rxdb-storage.ts";

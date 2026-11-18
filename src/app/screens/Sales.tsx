@@ -21,7 +21,6 @@ function Tile({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Today's closed sales and what was collected per method (EVL-130 [B]). */
 export function Sales({ today = localIso().slice(0, 10) }: { today?: string }) {
   const state = usePosState();
   const [ticket, setTicket] = useState<Order | null>(null);
