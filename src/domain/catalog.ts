@@ -109,6 +109,7 @@ function parseOption(raw: unknown, groupId: string): ModifierOption {
     typeof item.id !== "string" ||
     typeof item.name !== "string" ||
     typeof item.priceDeltaCents !== "number" ||
+    ("active" in item && typeof item.active !== "boolean") ||
     ("sku" in item && typeof item.sku !== "string")
   ) {
     malformed(item);
@@ -120,7 +121,7 @@ function parseOption(raw: unknown, groupId: string): ModifierOption {
     id: item.id,
     name: item.name,
     priceDeltaCents: item.priceDeltaCents,
-    active: true,
+    active: typeof item.active === "boolean" ? item.active : true,
     ...(typeof item.sku === "string" ? { sku: item.sku } : {}),
   };
 }

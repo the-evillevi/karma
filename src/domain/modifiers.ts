@@ -29,7 +29,11 @@ export function defaultSelection(
   return Object.fromEntries(
     modifierGroupsFor(catalog, product).map((group) => [
       group.id,
-      group.defaultOptionId === undefined ? [] : [group.defaultOptionId],
+      group.defaultOptionId === undefined ||
+      group.options.find((option) => option.id === group.defaultOptionId)
+        ?.active === false
+        ? []
+        : [group.defaultOptionId],
     ]),
   );
 }
@@ -50,7 +54,18 @@ export function resolveModifiers(
     const chosen = Object.hasOwn(selection, group.id)
       ? selection[group.id]
       : [];
-    const optionIds = new Set(group.options.map((option) => option.id));
+    const capturedOptions = new Map(
+      captured
+        .filter((modifier) => modifier.groupId === group.id)
+        .map((modifier) => [modifier.optionId, modifier]),
+    );
+    const optionIds = new Set(
+      group.options
+        .filter(
+          (option) => option.active !== false || capturedOptions.has(option.id),
+        )
+        .map((option) => option.id),
+    );
     if (chosen.some((id) => !optionIds.has(id))) {
       throw new ModifierError("unknown-option", group.id, group.name);
     }
@@ -64,11 +79,13 @@ export function resolveModifiers(
     return group.options
       .filter((option) => selected.has(option.id))
       .map((option) => ({
-        groupId: group.id,
-        groupName: group.name,
-        optionId: option.id,
-        name: option.name,
-        priceDeltaCents: option.priceDeltaCents,
+        ...(capturedOptions.get(option.id) ?? {
+          groupId: group.id,
+          groupName: group.name,
+          optionId: option.id,
+          name: option.name,
+          priceDeltaCents: option.priceDeltaCents,
+        }),
       }));
   });
 }
