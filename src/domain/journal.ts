@@ -247,8 +247,22 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
           },
         };
         break;
-      case "product-updated":
-        throw new Error("not implemented");
+      case "product-updated": {
+        const existing = Object.hasOwn(next.menu.products, event.productId)
+          ? next.menu.products[event.productId]
+          : undefined;
+        next.menu = {
+          ...next.menu,
+          products: {
+            ...next.menu.products,
+            [event.productId]: {
+              changes: { ...existing?.changes, ...event.changes },
+              lastEdit: { at: snapshot.at, by: snapshot.actor },
+            },
+          },
+        };
+        break;
+      }
       default: {
         const unhandled: never = event;
         throw new Error(`Unknown event: ${JSON.stringify(unhandled)}`);
