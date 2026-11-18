@@ -4,22 +4,155 @@ import { can } from "./access.ts";
 import { findProduct } from "./catalog.ts";
 import { CommandRejectedError } from "./commands.ts";
 
-export type ProductChanges = Partial<Pick<Product, "priceCents" | "available">>;
+export type ProductChanges = Partial<
+  Pick<Product, "priceCents" | "available" | "name" | "categoryId" | "active">
+>;
 
 export type MenuEdit = { at: string; by: Actor };
 
 export type ProductPatch = { changes: ProductChanges; lastEdit: MenuEdit };
 
-export type MenuState = { products: Record<string, ProductPatch> };
+export type MenuState = {
+  products: Record<string, ProductPatch>;
+  created: Product[];
+};
+
+export const SKU_SERIES = "52000822";
+
+export type NewProductInput = {
+  sku: string;
+  name: string;
+  categoryId: string;
+  priceCents: number;
+};
+
+export type ProductEdit = {
+  productId: string;
+  name?: string;
+  categoryId?: string;
+  active?: boolean;
+};
 
 export function emptyMenu(): MenuState {
-  return { products: {} };
+  return { products: {}, created: [] };
+}
+
+export function suggestedSku(menu: Catalog): string {
+  let highest = Number(`${SKU_SERIES}000`);
+  for (const { sku } of menu.products) {
+    if (sku.startsWith(SKU_SERIES) && /^[0-9]{11}$/.test(sku)) {
+      highest = Math.max(highest, Number(sku));
+    }
+  }
+  return String(highest + 1);
+}
+
+export function forSale(menu: Catalog): Catalog {
+  return {
+    ...menu,
+    products: menu.products.filter((product) => product.active !== false),
+  };
+}
+
+export function createProduct(
+  state: PosState,
+  meta: CommandMeta,
+  input: NewProductInput,
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const current = menuFor(base, state.menu);
+  const { sku, categoryId, priceCents } = input;
+  const name = input.name.trim();
+  if (name === "") {
+    throw new CommandRejectedError("invalid-name");
+  }
+  if (!current.categories.some((category) => category.id === categoryId)) {
+    throw new CommandRejectedError("unknown-category");
+  }
+  if (!Number.isSafeInteger(priceCents) || priceCents <= 0) {
+    throw new CommandRejectedError("invalid-price");
+  }
+  if (!/^[0-9]{1,20}$/.test(sku)) {
+    throw new CommandRejectedError("invalid-sku");
+  }
+  if (
+    current.products.some(
+      (product) => product.id === sku || product.sku === sku,
+    )
+  ) {
+    throw new CommandRejectedError("duplicate-sku");
+  }
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "product-created",
+        product: {
+          id: sku,
+          sku,
+          name,
+          categoryId,
+          priceCents,
+          available: true,
+          active: true,
+          modifierGroupIds: [],
+        },
+      },
+    ],
+  };
+}
+
+export function updateProduct(
+  state: PosState,
+  meta: CommandMeta,
+  input: ProductEdit,
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const current = menuFor(base, state.menu);
+  const { productId, categoryId, active } = input;
+  if (!findProduct(current, productId)) {
+    throw new CommandRejectedError("unknown-product");
+  }
+  const name = input.name?.trim();
+  if (name === "") {
+    throw new CommandRejectedError("invalid-name");
+  }
+  if (
+    categoryId !== undefined &&
+    !current.categories.some((category) => category.id === categoryId)
+  ) {
+    throw new CommandRejectedError("unknown-category");
+  }
+  const changes: ProductChanges = {
+    ...(name !== undefined ? { name } : {}),
+    ...(categoryId !== undefined ? { categoryId } : {}),
+    ...(active !== undefined ? { active } : {}),
+  };
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [{ type: "product-updated", productId, changes }],
+  };
 }
 
 export function menuFor(base: Catalog, menu: MenuState): Catalog {
+  const products = [...base.products];
+  const productIds = new Set(products.map((product) => product.id));
+  for (const product of menu.created) {
+    if (productIds.has(product.id)) continue;
+    products.push(product);
+    productIds.add(product.id);
+  }
   return {
     ...base,
-    products: base.products.map((product) =>
+    products: products.map((product) =>
       Object.hasOwn(menu.products, product.id)
         ? { ...product, ...menu.products[product.id].changes }
         : product,

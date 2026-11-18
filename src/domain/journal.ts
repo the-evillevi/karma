@@ -1,4 +1,5 @@
 import type { Role } from "./access.ts";
+import type { Product } from "./catalog.ts";
 import type { MenuState, ProductChanges } from "./menu.ts";
 import { emptyMenu } from "./menu.ts";
 import type { OrderLine, OrderTotals } from "./order.ts";
@@ -60,7 +61,8 @@ export type PosEvent =
       totals: OrderTotals;
     }
   | { type: "tables-configured"; count: number }
-  | { type: "product-updated"; productId: string; changes: ProductChanges };
+  | { type: "product-updated"; productId: string; changes: ProductChanges }
+  | { type: "product-created"; product: Product };
 
 export type CommandBatch = CommandMeta & { events: PosEvent[] };
 
@@ -257,6 +259,24 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
             ...next.menu.products,
             [event.productId]: {
               changes: { ...existing?.changes, ...event.changes },
+              lastEdit: { at: snapshot.at, by: snapshot.actor },
+            },
+          },
+        };
+        break;
+      }
+      case "product-created": {
+        const { product } = event;
+        const existing = Object.hasOwn(next.menu.products, product.id)
+          ? next.menu.products[product.id]
+          : undefined;
+        next.menu = {
+          ...next.menu,
+          created: [...next.menu.created, product],
+          products: {
+            ...next.menu.products,
+            [product.id]: {
+              changes: existing?.changes ?? {},
               lastEdit: { at: snapshot.at, by: snapshot.actor },
             },
           },

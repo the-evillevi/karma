@@ -23,6 +23,7 @@ import type { CloseSaleInput } from "../../domain/checkout.ts";
 import { sendComanda } from "../../domain/comanda.ts";
 import { saveOrder } from "../../domain/commands.ts";
 import type { Order } from "../../domain/journal.ts";
+import { forSale } from "../../domain/menu.ts";
 import { editLine } from "../../domain/modifiers.ts";
 import { formatMXN } from "../../domain/money.ts";
 import {
@@ -59,6 +60,7 @@ function productOf(menu: Catalog, line: OrderLine): Product {
       categoryId: "",
       priceCents: line.unitPriceCents,
       available: true,
+      active: true,
       modifierGroupIds: [],
     }
   );
@@ -283,7 +285,7 @@ export function Station() {
     <div className="flex min-h-0 flex-1">
       <h1 className="sr-only">Venta</h1>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
-        <ProductGrid catalog={menu} onPick={pick} busy={busy} />
+        <ProductGrid catalog={forSale(menu)} onPick={pick} busy={busy} />
       </div>
 
       <aside className="hidden w-[24rem] shrink-0 flex-col border-l border-border bg-card lg:flex">

@@ -71,7 +71,7 @@ export function addLine(
   product: Product,
   input: LineInput,
 ): OrderLine[] {
-  if (product.available === false) {
+  if (product.available === false || product.active === false) {
     throw new OrderError("product-unavailable");
   }
   const quantity = input.quantity ?? 1;

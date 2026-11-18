@@ -55,6 +55,8 @@ Saves and charges also carry the account `version` the screen last saw (`expecte
 | `configureTables` (`tables.ts`) | `tables-configured` | Admin |
 | `setProductPrice` (`menu.ts`) | `product-updated` | Admin |
 | `setProductAvailability` (`menu.ts`) | `product-updated` | Admin, Barra |
+| `createProduct` (`menu.ts`) | `product-created` | Admin |
+| `updateProduct` (`menu.ts`) | `product-updated` | Admin |
 
 Read-only helpers: `openOrders`, `accountSummary` (`accounts.ts`), `pendingComandas`, `hasUnsentLines` (`comanda.ts`), `closedSales` (`checkout.ts`), `daySummary` (`sales.ts`).
 
@@ -70,7 +72,7 @@ Pure calculation modules, usable without the journal: `money.ts`, `tip.ts`, `pay
 Not in the journal:
 
 - The **draft** order being captured (`src/app/draft.ts`) lives in `localStorage` until it is saved. It is a convenience, not a record.
-- The **base menu** is bundled from `catalog/catalog.json` and validated by `parseCatalog` at start. Edits made in the app (EVL-119) *are* in the journal: `product-updated` events store field patches in `PosState.menu`, and `menuFor(base, state.menu)` (`src/domain/menu.ts`, exposed to screens as `useMenu()`) lays them over the base. A field edited in the app keeps its edited value when a later deploy changes `catalog.json`; untouched fields follow the new base. Patches for products the base no longer has are ignored.
+- The **base menu** is bundled from `catalog/catalog.json` and validated by `parseCatalog` at start. Edits made in the app (EVL-119) *are* in the journal: `product-updated` events store field patches in `PosState.menu`, and `menuFor(base, state.menu)` (`src/domain/menu.ts`, exposed to screens as `useMenu()`) lays them over the base. A field edited in the app keeps its edited value when a later deploy changes `catalog.json`; untouched fields follow the new base. Products created in the app (`product-created`) are appended after the base products; if a later deploy adds the same SKU to the base, the base product wins. Patches for products in neither list are ignored. Hidden products (`active: false`) stay in `menuFor` for the Menú screen; Venta sells from `forSale(menu)`.
 - **Users** for the pilot are constants with PIN digests (`src/app/users.ts`). Managing them is EVL-118 [C].
 
 ## Screens
@@ -83,7 +85,7 @@ The service worker from `vite-plugin-pwa` precaches the app shell, so after one 
 
 ## What the pilot deliberately leaves out
 
-One device, no cloud sync (EVL-126 [C]–[E]), no printing (EVL-124 [D]), one payment per order (EVL-192), no cancellations or discounts (EVL-125, EVL-189), no inventory (EVL-128, EVL-129), menu editing limited to price and Agotado until EVL-119 [B]–[E], no user editing (EVL-118 [C]).
+One device, no cloud sync (EVL-126 [C]–[E]), no printing (EVL-124 [D]), one payment per order (EVL-192), no cancellations or discounts (EVL-125, EVL-189), no inventory (EVL-128, EVL-129), menu editing limited to products (price, Agotado, create, rename, move, hide) until EVL-119 [C]–[E], no user editing (EVL-118 [C]).
 
 ## Known limits to revisit
 
