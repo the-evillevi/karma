@@ -2,6 +2,7 @@ import type { Role } from "./access.ts";
 import type { Category, ModifierOption, Product } from "./catalog.ts";
 import type {
   CategoryChanges,
+  GroupOptionEdits,
   MenuState,
   OptionChanges,
   ProductChanges,
@@ -167,6 +168,12 @@ function fingerprint(batch: CommandBatch): string {
   });
 }
 
+function groupOptionEdits(menu: MenuState, groupId: string): GroupOptionEdits {
+  return Object.hasOwn(menu.modifierOptions, groupId)
+    ? menu.modifierOptions[groupId]
+    : { changes: {}, added: [] };
+}
+
 export function applyBatch(state: PosState, batch: CommandBatch): PosState {
   const identity = fingerprint(batch);
   if (Object.hasOwn(state.applied, batch.commandId)) {
@@ -322,24 +329,29 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
         };
         break;
       }
-      case "modifier-option-updated":
+      case "modifier-option-updated": {
+        const edits = groupOptionEdits(next.menu, event.groupId);
+        const previous = Object.hasOwn(edits.changes, event.optionId)
+          ? edits.changes[event.optionId]
+          : undefined;
+        next.menu.modifierOptions = {
+          ...next.menu.modifierOptions,
+          [event.groupId]: {
+            ...edits,
+            changes: {
+              ...edits.changes,
+              [event.optionId]: { ...previous, ...event.changes },
+            },
+          },
+        };
+        break;
+      }
       case "modifier-option-added": {
-        const groups = next.menu.modifierOptions ?? {};
-        const existing = Object.hasOwn(groups, event.groupId)
-          ? groups[event.groupId]
-          : { changes: {}, added: [] };
-        if (event.type === "modifier-option-updated") {
-          const previous = Object.hasOwn(existing.changes, event.optionId)
-            ? existing.changes[event.optionId]
-            : undefined;
-          existing.changes = {
-            ...existing.changes,
-            [event.optionId]: { ...previous, ...event.changes },
-          };
-        } else {
-          existing.added.push(event.option);
-        }
-        next.menu.modifierOptions = { ...groups, [event.groupId]: existing };
+        const edits = groupOptionEdits(next.menu, event.groupId);
+        next.menu.modifierOptions = {
+          ...next.menu.modifierOptions,
+          [event.groupId]: { ...edits, added: [...edits.added, event.option] },
+        };
         break;
       }
       default: {

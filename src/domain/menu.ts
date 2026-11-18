@@ -24,6 +24,11 @@ export type OptionChanges = Partial<
   Pick<ModifierOption, "name" | "priceDeltaCents" | "active">
 >;
 
+export type GroupOptionEdits = {
+  changes: Record<string, OptionChanges>;
+  added: ModifierOption[];
+};
+
 export type MenuState = {
   products: Record<string, ProductPatch>;
   created: Product[];
@@ -31,10 +36,7 @@ export type MenuState = {
   createdCategories: Category[];
   categoryOrder: string[];
   productOrder: Record<string, string[]>;
-  modifierOptions?: Record<
-    string,
-    { changes: Record<string, OptionChanges>; added: ModifierOption[] }
-  >;
+  modifierOptions: Record<string, GroupOptionEdits>;
 };
 
 export const SKU_SERIES = "52000822";
@@ -61,6 +63,7 @@ export function emptyMenu(): MenuState {
     createdCategories: [],
     categoryOrder: [],
     productOrder: {},
+    modifierOptions: {},
   };
 }
 
@@ -255,10 +258,9 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
   return {
     ...base,
     modifierGroups: base.modifierGroups.map((group) => {
-      const edits =
-        menu.modifierOptions && Object.hasOwn(menu.modifierOptions, group.id)
-          ? menu.modifierOptions[group.id]
-          : undefined;
+      const edits = Object.hasOwn(menu.modifierOptions, group.id)
+        ? menu.modifierOptions[group.id]
+        : undefined;
       if (!edits) return group;
       const baseIds = new Set(group.options.map((option) => option.id));
       return {

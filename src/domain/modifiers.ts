@@ -78,15 +78,16 @@ export function resolveModifiers(
     const selected = new Set(chosen);
     return group.options
       .filter((option) => selected.has(option.id))
-      .map((option) => ({
-        ...(capturedOptions.get(option.id) ?? {
-          groupId: group.id,
-          groupName: group.name,
-          optionId: option.id,
-          name: option.name,
-          priceDeltaCents: option.priceDeltaCents,
-        }),
-      }));
+      .map(
+        (option) =>
+          capturedOptions.get(option.id) ?? {
+            groupId: group.id,
+            groupName: group.name,
+            optionId: option.id,
+            name: option.name,
+            priceDeltaCents: option.priceDeltaCents,
+          },
+      );
   });
 }
 

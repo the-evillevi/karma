@@ -416,4 +416,46 @@ describe("EVL-119 [D] Opciones sobre el menú base", () => {
     expect(options.filter((o) => o.id === "soya")).toHaveLength(1);
     expect(options.find((o) => o.id === "soya")?.name).toBe("Soya orgánica");
   });
+
+  it("keeps Admin's edits when a later deploy adds a base option with the same id", () => {
+    let state = addOption(emptyState(), {
+      groupId: "leche",
+      optionId: "soya",
+      name: "Soya",
+      priceDeltaCents: 0,
+    });
+    state = editOption(state, {
+      groupId: "leche",
+      optionId: "soya",
+      priceDeltaCents: 500,
+    });
+    const later: Catalog = {
+      ...catalog,
+      modifierGroups: catalog.modifierGroups.map((item) =>
+        item.id === "leche"
+          ? {
+              ...item,
+              options: [
+                ...item.options,
+                {
+                  id: "soya",
+                  name: "Soya orgánica",
+                  priceDeltaCents: 800,
+                  active: true,
+                },
+              ],
+            }
+          : item,
+      ),
+    };
+    expect(
+      group(menuFor(later, state.menu), "leche").options.find(
+        (o) => o.id === "soya",
+      ),
+    ).toMatchObject({ name: "Soya orgánica", priceDeltaCents: 500 });
+  });
+
+  it("starts with no option edits in an empty menu", () => {
+    expect(emptyState().menu.modifierOptions).toEqual({});
+  });
 });
