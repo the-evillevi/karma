@@ -12,7 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { modifierGroupsFor } from "../../domain/catalog.ts";
-import type { Catalog, ModifierGroup, Product } from "../../domain/catalog.ts";
+import type {
+  Catalog,
+  ModifierGroup,
+  ModifierOption,
+  Product,
+} from "../../domain/catalog.ts";
 import {
   ModifierError,
   defaultSelection,
@@ -45,7 +50,62 @@ function selectionOf(
   return selection;
 }
 
-function requirement(group: ModifierGroup): string {
+function offeredOptions(
+  group: ModifierGroup,
+  captured: readonly LineModifier[],
+): ModifierOption[] {
+  const listed = group.options.flatMap((option) => {
+    const capture = captured.find(
+      (modifier) =>
+        modifier.groupId === group.id && modifier.optionId === option.id,
+    );
+    if (capture) {
+      return [
+        {
+          ...option,
+          name: capture.name,
+          priceDeltaCents: capture.priceDeltaCents,
+        },
+      ];
+    }
+    return option.active === false ? [] : [option];
+  });
+  const unlisted = captured
+    .filter(
+      (modifier) =>
+        modifier.groupId === group.id &&
+        !group.options.some((option) => option.id === modifier.optionId),
+    )
+    .map((modifier) => ({
+      id: modifier.optionId,
+      name: modifier.name,
+      priceDeltaCents: modifier.priceDeltaCents,
+      active: false,
+    }));
+  return [...listed, ...unlisted];
+}
+
+function offeredSelection(
+  groups: readonly ModifierGroup[],
+  selection: ModifierSelection,
+): ModifierSelection {
+  return Object.fromEntries(
+    groups.map((group) => [
+      group.id,
+      (selection[group.id] ?? []).filter((id) =>
+        group.options.some((option) => option.id === id),
+      ),
+    ]),
+  );
+}
+
+function modifierLabel(modifier: LineModifier): string {
+  return modifier.priceDeltaCents > 0
+    ? `${modifier.name} +${formatMXN(modifier.priceDeltaCents)}`
+    : modifier.name;
+}
+
+export function requirement(group: ModifierGroup): string {
   if (group.min === 0) {
     return group.max === 1 ? "Opcional" : `Opcional · hasta ${group.max}`;
   }
@@ -64,29 +124,40 @@ export function ModifierDialog({
   onCancel,
   onConfirm,
 }: ModifierDialogProps) {
-  const groups = modifierGroupsFor(catalog, product);
+  const captured = line?.modifiers ?? [];
+  const groups = modifierGroupsFor(catalog, product).map((group) => ({
+    ...group,
+    options: offeredOptions(group, captured),
+  }));
   const [selection, setSelection] = useState(() =>
     selectionOf(catalog, product, line),
   );
   const [note, setNote] = useState(line?.note ?? "");
   const [problem, setProblem] = useState<ModifierError | null>(null);
+  const chosenOptions = offeredSelection(groups, selection);
+  const keptFromOtherGroups = captured.filter(
+    (modifier) => !groups.some((group) => group.id === modifier.groupId),
+  );
 
   const unitCents = groups.reduce(
     (total, group) =>
       group.options.reduce(
         (sum, option) =>
-          (selection[group.id] ?? []).includes(option.id)
+          (chosenOptions[group.id] ?? []).includes(option.id)
             ? sum + option.priceDeltaCents
             : sum,
         total,
       ),
-    line?.unitPriceCents ?? product.priceCents,
+    keptFromOtherGroups.reduce(
+      (sum, modifier) => sum + modifier.priceDeltaCents,
+      line?.unitPriceCents ?? product.priceCents,
+    ),
   );
 
   function toggle(group: ModifierGroup, optionId: string) {
     setProblem(null);
     setSelection((current) => {
-      const chosen = current[group.id] ?? [];
+      const chosen = offeredSelection([group], current)[group.id];
       if (group.max === 1) {
         const cleared = chosen.includes(optionId) && group.min === 0;
         return { ...current, [group.id]: cleared ? [] : [optionId] };
@@ -104,7 +175,10 @@ export function ModifierDialog({
 
   function confirm() {
     try {
-      onConfirm(resolveModifiers(catalog, product, selection), note);
+      onConfirm(
+        resolveModifiers(catalog, product, chosenOptions, captured),
+        note,
+      );
     } catch (error) {
       if (!(error instanceof ModifierError)) throw error;
       setProblem(error);
@@ -133,7 +207,7 @@ export function ModifierDialog({
           {groups.map((group) => {
             const single = group.max === 1;
             const invalid = problem?.groupId === group.id;
-            const chosen = selection[group.id] ?? [];
+            const chosen = chosenOptions[group.id] ?? [];
             return (
               <fieldset
                 key={group.id}
@@ -187,6 +261,25 @@ export function ModifierDialog({
               </fieldset>
             );
           })}
+
+          {keptFromOtherGroups.length > 0 && (
+            <section
+              aria-label="También incluye"
+              className="flex flex-col gap-2"
+            >
+              <h3 className="text-sm font-medium">También incluye</h3>
+              <ul className="flex flex-wrap gap-2">
+                {keptFromOtherGroups.map((modifier) => (
+                  <li
+                    key={`${modifier.groupId}-${modifier.optionId}`}
+                    className="inline-flex min-h-11 items-center rounded-[var(--radius-button)] border border-dashed border-border px-3 text-sm tabular-nums"
+                  >
+                    {modifierLabel(modifier)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="line-note">Nota de preparación</Label>

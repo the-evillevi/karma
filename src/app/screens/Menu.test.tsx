@@ -1061,3 +1061,51 @@ describe("EVL-119 [D] Opciones de un grupo", () => {
     app.store.close();
   });
 });
+
+describe("EVL-119 [D] Review regressions", () => {
+  it("an option hidden while the dialog is open drops out of the selection and the price", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    await click(saleButton("Latte"));
+    const sale = within(screen.getByRole("dialog"));
+    await click(sale.getByRole("checkbox", { name: "Amareto +$10.00" }));
+    expect(
+      sale.getByRole("button", { name: "Agregar · $75.00" }),
+    ).toBeDefined();
+    await act(async () => {
+      await app.store.run((state) =>
+        updateModifierOption(
+          state,
+          meta("hide-amareto", admin),
+          { groupId: "shot", optionId: "amareto", active: false },
+          catalog,
+        ),
+      );
+    });
+    await click(sale.getByRole("button", { name: "Agregar · $65.00" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getAllByTestId("order-total")[0].textContent).toBe("$65.00");
+    app.store.close();
+  });
+
+  it("a default hidden while the dialog is open is no longer selected", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    await click(saleButton("Latte"));
+    const sale = within(screen.getByRole("dialog"));
+    await act(async () => {
+      await app.store.run((state) =>
+        updateModifierOption(
+          state,
+          meta("hide-entera", admin),
+          { groupId: "leche", optionId: "entera", active: false },
+          catalog,
+        ),
+      );
+    });
+    expect(
+      sale
+        .getAllByRole("radio")
+        .filter((radio) => radio.getAttribute("aria-checked") === "true"),
+    ).toHaveLength(0);
+    app.store.close();
+  });
+});
