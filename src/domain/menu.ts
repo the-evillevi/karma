@@ -1,7 +1,13 @@
-import type { Catalog, Product } from "./catalog.ts";
-import type { Actor, CommandBatch, CommandMeta, PosState } from "./journal.ts";
+import type { Catalog, Category, Product } from "./catalog.ts";
+import type {
+  Actor,
+  CommandBatch,
+  CommandMeta,
+  PosEvent,
+  PosState,
+} from "./journal.ts";
 import { can } from "./access.ts";
-import { findProduct } from "./catalog.ts";
+import { findProduct, productsInCategory } from "./catalog.ts";
 import { CommandRejectedError } from "./commands.ts";
 
 export type ProductChanges = Partial<
@@ -12,9 +18,15 @@ export type MenuEdit = { at: string; by: Actor };
 
 export type ProductPatch = { changes: ProductChanges; lastEdit: MenuEdit };
 
+export type CategoryChanges = Partial<Pick<Category, "name" | "active">>;
+
 export type MenuState = {
   products: Record<string, ProductPatch>;
   created: Product[];
+  categories: Record<string, CategoryChanges>;
+  createdCategories: Category[];
+  categoryOrder: string[];
+  productOrder: Record<string, string[]>;
 };
 
 export const SKU_SERIES = "52000822";
@@ -34,7 +46,14 @@ export type ProductEdit = {
 };
 
 export function emptyMenu(): MenuState {
-  return { products: {}, created: [] };
+  return {
+    products: {},
+    created: [],
+    categories: {},
+    createdCategories: [],
+    categoryOrder: [],
+    productOrder: {},
+  };
 }
 
 export function suggestedSku(menu: Catalog): string {
@@ -48,9 +67,17 @@ export function suggestedSku(menu: Catalog): string {
 }
 
 export function forSale(menu: Catalog): Catalog {
+  const categories = menu.categories.filter(
+    (category) => category.active !== false,
+  );
+  const categoryIds = new Set(categories.map((category) => category.id));
   return {
     ...menu,
-    products: menu.products.filter((product) => product.active !== false),
+    categories,
+    products: menu.products.filter(
+      (product) =>
+        product.active !== false && categoryIds.has(product.categoryId),
+    ),
   };
 }
 
@@ -117,7 +144,8 @@ export function updateProduct(
   }
   const current = menuFor(base, state.menu);
   const { productId, categoryId, active } = input;
-  if (!findProduct(current, productId)) {
+  const product = findProduct(current, productId);
+  if (!product) {
     throw new CommandRejectedError("unknown-product");
   }
   const name = input.name?.trim();
@@ -130,19 +158,66 @@ export function updateProduct(
   ) {
     throw new CommandRejectedError("unknown-category");
   }
+  const destination =
+    categoryId !== undefined && categoryId !== product.categoryId
+      ? categoryId
+      : undefined;
   const changes: ProductChanges = {
     ...(name !== undefined ? { name } : {}),
-    ...(categoryId !== undefined ? { categoryId } : {}),
+    ...(destination !== undefined ? { categoryId: destination } : {}),
     ...(active !== undefined ? { active } : {}),
   };
   return {
     ...meta,
     actor: structuredClone(meta.actor),
-    events: [{ type: "product-updated", productId, changes }],
+    events: [
+      { type: "product-updated", productId, changes },
+      ...(destination !== undefined
+        ? [lastInCategory(current, destination, productId)]
+        : []),
+    ],
+  };
+}
+
+function lastInCategory(
+  menu: Catalog,
+  categoryId: string,
+  productId: string,
+): PosEvent {
+  return {
+    type: "products-reordered",
+    categoryId,
+    productIds: [
+      ...productsInCategory(menu, categoryId)
+        .map((item) => item.id)
+        .filter((id) => id !== productId),
+      productId,
+    ],
   };
 }
 
 export function menuFor(base: Catalog, menu: MenuState): Catalog {
+  const categories = [...base.categories].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
+  const categoryIds = new Set(categories.map((category) => category.id));
+  for (const category of menu.createdCategories) {
+    if (categoryIds.has(category.id)) continue;
+    categories.push(category);
+    categoryIds.add(category.id);
+  }
+  const categoryRanks = new Map(
+    menu.categoryOrder.map((id, index) => [id, index]),
+  );
+  categories.sort(
+    (a, b) =>
+      (categoryRanks.get(a.id) ?? menu.categoryOrder.length) -
+      (categoryRanks.get(b.id) ?? menu.categoryOrder.length),
+  );
+  const increasingSortOrder = categories.every(
+    (category, index) =>
+      index === 0 || category.sortOrder > categories[index - 1].sortOrder,
+  );
   const products = [...base.products];
   const productIds = new Set(products.map((product) => product.id));
   for (const product of menu.created) {
@@ -150,13 +225,41 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
     products.push(product);
     productIds.add(product.id);
   }
+  const patchedProducts = products.map((product) =>
+    Object.hasOwn(menu.products, product.id)
+      ? { ...product, ...menu.products[product.id].changes }
+      : product,
+  );
+  const orderedProducts = new Map<string, Product[]>();
+  for (const [categoryId, ids] of Object.entries(menu.productOrder)) {
+    const ranks = new Map(ids.map((id, index) => [id, index]));
+    orderedProducts.set(
+      categoryId,
+      patchedProducts
+        .filter((product) => product.categoryId === categoryId)
+        .sort(
+          (a, b) =>
+            (ranks.get(a.id) ?? ids.length) - (ranks.get(b.id) ?? ids.length),
+        ),
+    );
+  }
+  const positions = new Map<string, number>();
   return {
     ...base,
-    products: products.map((product) =>
-      Object.hasOwn(menu.products, product.id)
-        ? { ...product, ...menu.products[product.id].changes }
-        : product,
-    ),
+    categories: categories.map((category, index) => ({
+      ...category,
+      ...(Object.hasOwn(menu.categories, category.id)
+        ? menu.categories[category.id]
+        : {}),
+      ...(!increasingSortOrder ? { sortOrder: index } : {}),
+    })),
+    products: patchedProducts.map((product) => {
+      const ordered = orderedProducts.get(product.categoryId);
+      if (!ordered) return product;
+      const index = positions.get(product.categoryId) ?? 0;
+      positions.set(product.categoryId, index + 1);
+      return ordered[index];
+    }),
   };
 }
 
@@ -237,4 +340,172 @@ export function setProductAvailability(
       },
     ],
   };
+}
+
+export type MoveDirection = "up" | "down";
+
+export type NewCategoryInput = { categoryId: string; name: string };
+
+export type CategoryEdit = {
+  categoryId: string;
+  name?: string;
+  active?: boolean;
+};
+
+export function createCategory(
+  state: PosState,
+  meta: CommandMeta,
+  input: NewCategoryInput,
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const current = menuFor(base, state.menu);
+  const name = categoryName(input.name, current.categories);
+  if (current.categories.some((category) => category.id === input.categoryId)) {
+    throw new CommandRejectedError("duplicate-category");
+  }
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "category-created",
+        category: {
+          id: input.categoryId,
+          name,
+          active: true,
+          sortOrder: (current.categories.at(-1)?.sortOrder ?? -1) + 1,
+        },
+      },
+    ],
+  };
+}
+
+export function updateCategory(
+  state: PosState,
+  meta: CommandMeta,
+  input: CategoryEdit,
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const current = menuFor(base, state.menu);
+  const { categoryId, active } = input;
+  if (!current.categories.some((category) => category.id === categoryId)) {
+    throw new CommandRejectedError("unknown-category");
+  }
+  const name =
+    input.name === undefined
+      ? undefined
+      : categoryName(
+          input.name,
+          current.categories.filter((category) => category.id !== categoryId),
+        );
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "category-updated",
+        categoryId,
+        changes: {
+          ...(name !== undefined ? { name } : {}),
+          ...(active !== undefined ? { active } : {}),
+        },
+      },
+    ],
+  };
+}
+
+export function moveCategory(
+  state: PosState,
+  meta: CommandMeta,
+  input: { categoryId: string; direction: MoveDirection },
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const current = menuFor(base, state.menu);
+  const ids = current.categories.map((category) => category.id);
+  if (!ids.includes(input.categoryId)) {
+    throw new CommandRejectedError("unknown-category");
+  }
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "categories-reordered",
+        categoryIds: swapNeighbour(ids, input.categoryId, input.direction),
+      },
+    ],
+  };
+}
+
+export function moveProduct(
+  state: PosState,
+  meta: CommandMeta,
+  input: { productId: string; direction: MoveDirection },
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const current = menuFor(base, state.menu);
+  const product = findProduct(current, input.productId);
+  if (!product) {
+    throw new CommandRejectedError("unknown-product");
+  }
+  const ids = productsInCategory(current, product.categoryId).map(
+    (item) => item.id,
+  );
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "products-reordered",
+        categoryId: product.categoryId,
+        productIds: swapNeighbour(ids, input.productId, input.direction),
+      },
+    ],
+  };
+}
+
+function normalizedName(name: string): string {
+  return name.trim().normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+function categoryName(value: string, others: Category[]): string {
+  const name = value.trim();
+  if (name === "") {
+    throw new CommandRejectedError("invalid-category-name");
+  }
+  if (
+    others.some(
+      (category) => normalizedName(category.name) === normalizedName(name),
+    )
+  ) {
+    throw new CommandRejectedError("duplicate-category");
+  }
+  return name;
+}
+
+function swapNeighbour(
+  ids: string[],
+  id: string,
+  direction: MoveDirection,
+): string[] {
+  const index = ids.indexOf(id);
+  const neighbour = index + (direction === "up" ? -1 : 1);
+  if (neighbour < 0 || neighbour >= ids.length) {
+    throw new CommandRejectedError("invalid-move");
+  }
+  const next = [...ids];
+  [next[index], next[neighbour]] = [next[neighbour], next[index]];
+  return next;
 }

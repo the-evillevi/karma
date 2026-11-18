@@ -11,6 +11,7 @@ import {
   replay,
 } from "./journal.ts";
 import type { Actor, CommandBatch } from "./journal.ts";
+import { emptyMenu } from "./menu.ts";
 import { orderTotals } from "./order.ts";
 import {
   americano,
@@ -89,7 +90,7 @@ describe("EVL-126 [A] Diario de operaciones", () => {
       comandas: {},
       tableCount: DEFAULT_TABLE_COUNT,
       lastFolioNumber: 0,
-      menu: { products: {}, created: [] },
+      menu: emptyMenu(),
       applied: {},
     });
     expect(DEFAULT_TABLE_COUNT).toBe(8);

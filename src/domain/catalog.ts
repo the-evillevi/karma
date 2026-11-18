@@ -1,4 +1,9 @@
-export type Category = { id: string; name: string; sortOrder: number };
+export type Category = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+};
 
 export type ModifierOption = {
   id: string;
@@ -84,11 +89,17 @@ function parseCategory(raw: unknown): Category {
   if (
     typeof item.id !== "string" ||
     typeof item.name !== "string" ||
-    typeof item.sortOrder !== "number"
+    typeof item.sortOrder !== "number" ||
+    ("active" in item && typeof item.active !== "boolean")
   ) {
     malformed(item);
   }
-  return { id: item.id, name: item.name, sortOrder: item.sortOrder };
+  return {
+    id: item.id,
+    name: item.name,
+    sortOrder: item.sortOrder,
+    active: typeof item.active === "boolean" ? item.active : true,
+  };
 }
 
 function parseOption(raw: unknown, groupId: string): ModifierOption {

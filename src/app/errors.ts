@@ -30,6 +30,9 @@ const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
   "unknown-category": "Elige una categoría.",
   "invalid-sku": "El SKU solo lleva números.",
   "duplicate-sku": "Ya existe un producto con ese SKU.",
+  "invalid-category-name": "Escribe el nombre de la categoría.",
+  "duplicate-category": "Ya existe una categoría con ese nombre.",
+  "invalid-move": "No se puede mover más.",
 };
 
 export function errorMessage(error: unknown): string {
@@ -43,7 +46,7 @@ export function errorMessage(error: unknown): string {
     return REJECTIONS[error.reason];
   }
   if (error instanceof OrderError && error.reason === "product-unavailable") {
-    return "Este producto está agotado.";
+    return "Este producto ya no está a la venta.";
   }
   if (error instanceof PaymentRejectedError) {
     return error.reason === "only-cash-gives-change"

@@ -5,8 +5,10 @@ import { createMemoryStorage } from "../../data/pos-store.ts";
 import type { JournalStorage } from "../../data/pos-store.ts";
 import { emptyState } from "../../domain/journal.ts";
 import {
+  createCategory,
   setProductAvailability,
   setProductPrice,
+  updateCategory,
   updateProduct,
 } from "../../domain/menu.ts";
 import { admin, catalog, latte, luis, meta } from "../../domain/testing.ts";
@@ -209,7 +211,7 @@ describe("EVL-119 [A] Review regressions", () => {
       ).getAllByText("Sin productos").length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getAllByText("Este producto está agotado.").length,
+      screen.getAllByText("Este producto ya no está a la venta.").length,
     ).toBeGreaterThan(0);
     app.store.close();
   });
@@ -526,6 +528,320 @@ describe("EVL-119 [B] Review regressions", () => {
         ),
       ),
     );
+    app.store.close();
+  });
+});
+
+function categoryHeadings(): string[] {
+  return screen
+    .getAllByRole("heading", { level: 2 })
+    .map((heading) => heading.textContent ?? "");
+}
+
+function saleChips(): string[] {
+  return within(screen.getByRole("group", { name: "Categorías" }))
+    .getAllByRole("button")
+    .map((chip) => chip.textContent ?? "")
+    .filter((name) => name !== "Todos");
+}
+
+function section(name: string) {
+  return within(screen.getByRole("region", { name }));
+}
+
+describe("EVL-119 [C] Categorías", () => {
+  it("[C] Admin crea una categoría", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(screen.getByRole("button", { name: "Nueva categoría" }));
+    expect(
+      screen.getByRole("dialog", { name: "Nueva categoría" }),
+    ).toBeDefined();
+    await click(dialog().getByRole("button", { name: "Guardar categoría" }));
+    expect(dialog().getByRole("alert").textContent).toBe(
+      "Escribe el nombre de la categoría.",
+    );
+    await userEvent.type(dialog().getByLabelText("Nombre"), "cafe");
+    await click(dialog().getByRole("button", { name: "Guardar categoría" }));
+    expect(dialog().getByRole("alert").textContent).toBe(
+      "Ya existe una categoría con ese nombre.",
+    );
+    await userEvent.clear(dialog().getByLabelText("Nombre"));
+    await userEvent.type(dialog().getByLabelText("Nombre"), "  Bebidas Frías ");
+    await click(dialog().getByRole("button", { name: "Guardar categoría" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(categoryHeadings().at(-1)).toBe("Bebidas Frías");
+    expect(section("Bebidas Frías").getByText("Sin productos")).toBeDefined();
+    await click(screen.getByRole("button", { name: "Nuevo producto" }));
+    expect(
+      dialog().getByRole("option", { name: "Bebidas Frías" }),
+    ).toBeDefined();
+    await click(dialog().getByRole("button", { name: "Cancelar" }));
+
+    goTo("#/");
+    expect(saleChips().at(-1)).toBe("Bebidas Frías");
+    app.store.close();
+  });
+
+  it("[C] Admin renombra una categoría", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(
+      screen.getByRole("button", { name: "Renombrar categoría Extras" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Renombrar categoría" }),
+    ).toBeDefined();
+    expect((dialog().getByLabelText("Nombre") as HTMLInputElement).value).toBe(
+      "Extras",
+    );
+    await userEvent.clear(dialog().getByLabelText("Nombre"));
+    await userEvent.type(
+      dialog().getByLabelText("Nombre"),
+      "Extras y Toppings",
+    );
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    expect(categoryHeadings()).toEqual([
+      "Bebidas",
+      "Salado",
+      "Postres",
+      "Extras y Toppings",
+      "Café",
+    ]);
+    expect(
+      section("Extras y Toppings").getByRole("listitem", {
+        name: "Fresas (Extra)",
+      }),
+    ).toBeDefined();
+    goTo("#/");
+    expect(saleChips()[3]).toBe("Extras y Toppings");
+    app.store.close();
+  });
+
+  it("[C] Admin sube y baja una categoría", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    expect(
+      screen
+        .getByRole("button", { name: "Subir categoría Bebidas" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    await click(screen.getByRole("button", { name: "Subir categoría Café" }));
+    expect(categoryHeadings()).toEqual([
+      "Bebidas",
+      "Salado",
+      "Postres",
+      "Café",
+      "Extras",
+    ]);
+    expect(
+      screen
+        .getByRole("button", { name: "Bajar categoría Extras" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    goTo("#/");
+    expect(saleChips()).toEqual([
+      "Bebidas",
+      "Salado",
+      "Postres",
+      "Café",
+      "Extras",
+    ]);
+    app.store.close();
+  });
+
+  it("[C] Admin ordena los productos dentro de su categoría", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    const postres = () =>
+      section("Postres")
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("aria-label"))
+        .slice(0, 4);
+    expect(
+      section("Postres")
+        .getByRole("button", { name: "Subir Affogato" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    await click(
+      section("Postres").getByRole("button", { name: "Subir Brownie" }),
+    );
+    expect(postres()).toEqual([
+      "Affogato",
+      "Helado",
+      "Brownie",
+      "Croissant Dulce",
+    ]);
+
+    goTo("#/");
+    const sale = within(screen.getByRole("region", { name: "Menú" }));
+    await click(sale.getByRole("button", { name: "Postres" }));
+    expect(
+      sale
+        .getAllByRole("listitem")
+        .map((item) => item.querySelector("span")?.textContent)
+        .slice(0, 4),
+    ).toEqual(["Affogato", "Helado", "Brownie", "Croissant Dulce"]);
+    app.store.close();
+  });
+
+  it("[C] Una categoría oculta oculta sus productos en Venta", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(
+      screen.getByRole("button", { name: "Ocultar categoría Extras" }),
+    );
+    expect(section("Extras").getByText("Oculta")).toBeDefined();
+    expect(
+      section("Extras").getByRole("listitem", { name: "Fresas (Extra)" }),
+    ).toBeDefined();
+
+    goTo("#/");
+    expect(saleChips()).not.toContain("Extras");
+    const sale = within(screen.getByRole("region", { name: "Menú" }));
+    await userEvent.type(sale.getByLabelText("Buscar producto"), "fresas");
+    expect(
+      sale.queryByRole("button", { name: /^Fresas \(Extra\)/ }),
+    ).toBeNull();
+
+    goTo("#/menu");
+    await click(
+      screen.getByRole("button", { name: "Mostrar categoría Extras" }),
+    );
+    expect(section("Extras").queryByText("Oculta")).toBeNull();
+    goTo("#/");
+    expect(saleChips()).toContain("Extras");
+    app.store.close();
+  });
+
+  it("[C] Solo Admin crea, renombra, ordena u oculta categorías", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    goTo("#/menu");
+    for (const name of [
+      "Nueva categoría",
+      "Renombrar categoría Extras",
+      "Subir categoría Café",
+      "Ocultar categoría Extras",
+      "Subir Brownie",
+    ]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+    app.store.close();
+  });
+});
+
+describe("EVL-119 [C] Review regressions", () => {
+  it("an open modifier dialog does not add a product whose category was hidden", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    await click(saleButton("Latte"));
+    await act(async () => {
+      await app.store.run((state) =>
+        updateCategory(
+          state,
+          meta("hide-bebidas", admin),
+          { categoryId: "bebidas", active: false },
+          catalog,
+        ),
+      );
+    });
+    await click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: /^Agregar/,
+      }),
+    );
+    expect(
+      screen.getAllByText("Este producto ya no está a la venta.").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(
+        screen.getAllByRole("region", { name: "Orden actual" })[0],
+      ).getAllByText("Sin productos").length,
+    ).toBeGreaterThan(0);
+    app.store.close();
+  });
+
+  it("Venta falls back to Todos when the selected category is hidden", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    const sale = within(screen.getByRole("region", { name: "Menú" }));
+    await click(sale.getByRole("button", { name: "Bebidas" }));
+    await act(async () => {
+      await app.store.run((state) =>
+        updateCategory(
+          state,
+          meta("hide-bebidas", admin),
+          { categoryId: "bebidas", active: false },
+          catalog,
+        ),
+      );
+    });
+    expect(
+      sale.getByRole("button", { name: "Todos" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(saleButton("Brownie")).toBeDefined();
+    app.store.close();
+  });
+
+  it("an empty category in Venta says Sin productos", async () => {
+    const storage = createMemoryStorage([
+      createCategory(
+        emptyState(),
+        meta("panes", admin),
+        { categoryId: "panes", name: "Panes" },
+        catalog,
+      ),
+    ]);
+    const app = await renderApp(<App />, { as: "barra", storage });
+    const sale = within(screen.getByRole("region", { name: "Menú" }));
+    await click(sale.getByRole("button", { name: "Panes" }));
+    expect(sale.getByText("Sin productos")).toBeDefined();
+    expect(sale.queryByText(/Ningún producto coincide/)).toBeNull();
+    app.store.close();
+  });
+
+  it("keeps focus on the move button after a section or row moves", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(screen.getByRole("button", { name: "Bajar categoría Salado" }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Bajar categoría Salado" }),
+      ),
+    );
+    await click(
+      section("Postres").getByRole("button", { name: "Subir Helado" }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        section("Postres").getByRole("button", { name: "Bajar Helado" }),
+      ),
+    );
+    app.store.close();
+  });
+
+  it("marks hidden categories in the product dialog's category list", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(
+      screen.getByRole("button", { name: "Ocultar categoría Extras" }),
+    );
+    await click(screen.getByRole("button", { name: "Nuevo producto" }));
+    expect(
+      dialog().getByRole("option", { name: "Extras (oculta)" }),
+    ).toBeDefined();
+    app.store.close();
+  });
+
+  it("saving the rename dialog without changes records nothing", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    const before = app.store.pendingBatches().length;
+    await click(
+      screen.getByRole("button", { name: "Renombrar categoría Extras" }),
+    );
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(app.store.pendingBatches()).toHaveLength(before);
     app.store.close();
   });
 });

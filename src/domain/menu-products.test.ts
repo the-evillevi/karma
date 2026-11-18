@@ -197,6 +197,14 @@ describe("EVL-119 [B] Crear y editar productos", () => {
         productId: "52000822188",
         changes: { name: "Croissant de Mermelada", categoryId: "salado" },
       },
+      {
+        type: "products-reordered",
+        categoryId: "salado",
+        productIds: [
+          ...productsInCategory(catalog, "salado").map((item) => item.id),
+          "52000822188",
+        ],
+      },
     ]);
     const state = applyBatch(opened, batch);
     const sale = forSale(menuOf(state));

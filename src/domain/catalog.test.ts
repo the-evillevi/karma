@@ -128,4 +128,18 @@ describe("EVL-112 [A] Catálogo del libro de Carlos", () => {
       refusal({ ...raw, products: [{ ...raw.products[0], active: "no" }] }),
     ).toEqual({ problem: "malformed", subjectId: "52000822142" });
   });
+
+  it("reads a category's active flag and defaults it to true", () => {
+    const raw = minimalCatalog();
+    expect(parseCatalog(raw).categories[0].active).toBe(true);
+    expect(
+      parseCatalog({
+        ...raw,
+        categories: [{ ...raw.categories[0], active: false }],
+      }).categories[0].active,
+    ).toBe(false);
+    expect(
+      refusal({ ...raw, categories: [{ ...raw.categories[0], active: 1 }] }),
+    ).toEqual({ problem: "malformed", subjectId: "bebidas" });
+  });
 });
