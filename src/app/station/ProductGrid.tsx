@@ -22,8 +22,13 @@ export function ProductGrid({
   onPick,
   busy = false,
 }: ProductGridProps) {
-  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [chosenCategoryId, setCategoryId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const categoryId = catalog.categories.some(
+    (category) => category.id === chosenCategoryId,
+  )
+    ? chosenCategoryId
+    : null;
 
   const products = useMemo(() => {
     const needle = normalize(query.trim());
@@ -87,7 +92,9 @@ export function ProductGrid({
       </div>
       {products.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          Ningún producto coincide con «{query.trim()}».
+          {query.trim() === ""
+            ? "Sin productos"
+            : `Ningún producto coincide con «${query.trim()}».`}
         </p>
       ) : (
         <ul className="grid min-h-0 flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] content-start gap-2 overflow-y-auto pb-24 lg:pb-4">

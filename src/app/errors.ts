@@ -46,7 +46,7 @@ export function errorMessage(error: unknown): string {
     return REJECTIONS[error.reason];
   }
   if (error instanceof OrderError && error.reason === "product-unavailable") {
-    return "Este producto está agotado.";
+    return "Este producto ya no está a la venta.";
   }
   if (error instanceof PaymentRejectedError) {
     return error.reason === "only-cash-gives-change"

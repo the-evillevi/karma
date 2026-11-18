@@ -40,7 +40,7 @@ export function focusTarget(trigger: HTMLElement): HTMLElement | null {
   return trigger.isConnected ? trigger : document.getElementById(trigger.id);
 }
 
-function useGuardedSave(onClose: () => void) {
+export function useGuardedSave(onClose: () => void) {
   const run = useCommand();
   const notify = useToast();
   const [failure, setFailure] = useState("");
@@ -90,14 +90,16 @@ function CategorySelect({
       <option value="">Elige una categoría</option>
       {categories.map((category) => (
         <option key={category.id} value={category.id}>
-          {category.name}
+          {category.active === false
+            ? `${category.name} (oculta)`
+            : category.name}
         </option>
       ))}
     </select>
   );
 }
 
-function Field({
+export function Field({
   id,
   label,
   children,
@@ -114,7 +116,7 @@ function Field({
   );
 }
 
-function ProductDialog({
+export function ProductDialog({
   title,
   description,
   busy,

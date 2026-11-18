@@ -67,7 +67,9 @@ function productOf(menu: Catalog, line: OrderLine): Product {
 }
 
 function liveProduct(menu: Catalog, product: Product): Product {
-  return findProduct(menu, product.id) ?? product;
+  return (
+    findProduct(forSale(menu), product.id) ?? { ...product, active: false }
+  );
 }
 
 export function Station() {
