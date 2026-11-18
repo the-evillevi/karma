@@ -9,8 +9,12 @@ import {
   setProductAvailability,
   setProductPrice,
   updateCategory,
+  updateModifierOption,
   updateProduct,
 } from "../../domain/menu.ts";
+import { saveOrder } from "../../domain/commands.ts";
+import { resolveModifiers } from "../../domain/modifiers.ts";
+import { addLine } from "../../domain/order.ts";
 import { admin, catalog, latte, luis, meta } from "../../domain/testing.ts";
 import { App } from "../App.tsx";
 import { renderApp } from "../testing.tsx";
@@ -842,6 +846,218 @@ describe("EVL-119 [C] Review regressions", () => {
     await click(dialog().getByRole("button", { name: "Guardar cambios" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(app.store.pendingBatches()).toHaveLength(before);
+    app.store.close();
+  });
+});
+
+function groupSection(name: string) {
+  return within(screen.getByRole("region", { name }));
+}
+
+async function openModifiers() {
+  goTo("#/menu");
+  await click(screen.getByRole("tab", { name: "Modificadores" }));
+}
+
+async function latteDialog() {
+  goTo("#/");
+  await click(saleButton("Latte"));
+  return within(screen.getByRole("dialog"));
+}
+
+describe("EVL-119 [D] Opciones de un grupo", () => {
+  it("[D] Admin cambia el precio de una opción", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    await openModifiers();
+    expect(
+      groupSection("Tipo de leche").getByRole("listitem", { name: "Avena" })
+        .textContent,
+    ).toContain("$10.00");
+    await click(
+      groupSection("Tipo de leche").getByRole("button", {
+        name: "Editar Avena",
+      }),
+    );
+    expect(screen.getByRole("dialog", { name: "Editar opción" })).toBeDefined();
+    expect((dialog().getByLabelText("Precio") as HTMLInputElement).value).toBe(
+      "10.00",
+    );
+    await userEvent.clear(dialog().getByLabelText("Precio"));
+    await userEvent.type(dialog().getByLabelText("Precio"), "-1");
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    expect(dialog().getByRole("alert").textContent).toBe(
+      "Escribe un precio de $0.00 o más.",
+    );
+    await userEvent.clear(dialog().getByLabelText("Precio"));
+    await userEvent.type(dialog().getByLabelText("Precio"), "0");
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    expect(
+      groupSection("Tipo de leche").getByRole("listitem", { name: "Avena" })
+        .textContent,
+    ).toContain("$0.00");
+
+    const sale = await latteDialog();
+    await click(sale.getByRole("radio", { name: "Avena" }));
+    expect(
+      sale.getByRole("button", { name: "Agregar · $65.00" }),
+    ).toBeDefined();
+    app.store.close();
+  });
+
+  it("[D] El cambio de opciones no toca cuentas ya capturadas", async () => {
+    const line = addLine([], latte, {
+      lineId: "l1",
+      modifiers: resolveModifiers(catalog, latte, { leche: ["avena"] }),
+    });
+    const saved = saveOrder(emptyState(), meta("save", luis), {
+      orderId: "o-1",
+      header: {
+        type: "mostrador",
+        table: null,
+        customer: { name: "", phone: "", address: "" },
+      },
+      lines: line,
+    });
+    const priced = updateModifierOption(
+      emptyState(),
+      meta("avena-0", admin),
+      { groupId: "leche", optionId: "avena", priceDeltaCents: 0 },
+      catalog,
+    );
+    const app = await renderApp(<App />, {
+      as: "barra",
+      storage: createMemoryStorage([saved, priced]),
+    });
+    goTo("#/cuentas");
+    await click(screen.getByRole("button", { name: "Abrir" }));
+    await click(screen.getAllByRole("button", { name: "Editar Latte" })[0]);
+    const edit = within(screen.getByRole("dialog"));
+    expect(
+      edit
+        .getByRole("radio", { name: "Avena +$10.00" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    await userEvent.type(
+      edit.getByLabelText("Nota de preparación"),
+      "sin espuma",
+    );
+    await click(edit.getByRole("button", { name: "Guardar cambios · $75.00" }));
+    expect(screen.getAllByTestId("order-total")[0].textContent).toBe("$75.00");
+    app.store.close();
+  });
+
+  it("[D] Admin renombra una opción", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    await openModifiers();
+    await click(
+      groupSection("Shot de sabor").getByRole("button", {
+        name: "Editar Amareto",
+      }),
+    );
+    await userEvent.clear(dialog().getByLabelText("Nombre"));
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    expect(dialog().getByRole("alert").textContent).toBe(
+      "Escribe el nombre de la opción.",
+    );
+    await userEvent.type(dialog().getByLabelText("Nombre"), "AVELLANA");
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    expect(dialog().getByRole("alert").textContent).toBe(
+      "Ya existe una opción con ese nombre en el grupo.",
+    );
+    await userEvent.clear(dialog().getByLabelText("Nombre"));
+    await userEvent.type(dialog().getByLabelText("Nombre"), " Amaretto ");
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    expect(
+      groupSection("Shot de sabor").getByRole("listitem", { name: "Amaretto" }),
+    ).toBeDefined();
+
+    const sale = await latteDialog();
+    expect(
+      sale.getByRole("checkbox", { name: "Amaretto +$10.00" }),
+    ).toBeDefined();
+    app.store.close();
+  });
+
+  it("[D] Admin agrega una opción", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    await openModifiers();
+    await click(
+      screen.getByRole("button", { name: "Agregar opción a Tipo de leche" }),
+    );
+    expect(screen.getByRole("dialog", { name: "Nueva opción" })).toBeDefined();
+    await userEvent.type(dialog().getByLabelText("Nombre"), "Soya");
+    await userEvent.type(dialog().getByLabelText("Precio"), "0");
+    await click(dialog().getByRole("button", { name: "Guardar opción" }));
+    expect(
+      groupSection("Tipo de leche")
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("aria-label")),
+    ).toEqual(["Entera", "Deslactosada", "Coco", "Almendras", "Avena", "Soya"]);
+
+    const sale = await latteDialog();
+    await click(sale.getByRole("radio", { name: "Soya" }));
+    expect(
+      sale.getByRole("button", { name: "Agregar · $65.00" }),
+    ).toBeDefined();
+    app.store.close();
+  });
+
+  it("[D] Admin oculta una opción", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    await openModifiers();
+    await click(
+      groupSection("Tipo de leche").getByRole("button", {
+        name: "Ocultar Coco",
+      }),
+    );
+    expect(
+      within(
+        groupSection("Tipo de leche").getByRole("listitem", { name: "Coco" }),
+      ).getByText("Oculta"),
+    ).toBeDefined();
+    await click(
+      groupSection("Tipo de leche").getByRole("button", {
+        name: "Ocultar Entera",
+      }),
+    );
+    await click(
+      groupSection("Acompañamiento").getByRole("button", {
+        name: "Ocultar Ensalada",
+      }),
+    );
+    await click(
+      groupSection("Acompañamiento").getByRole("button", {
+        name: "Ocultar Papas",
+      }),
+    );
+    expect(
+      (
+        await screen.findAllByText(
+          "Un grupo obligatorio necesita al menos una opción visible.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(
+        groupSection("Acompañamiento").getByRole("listitem", { name: "Papas" }),
+      ).queryByText("Oculta"),
+    ).toBeNull();
+
+    const sale = await latteDialog();
+    expect(sale.queryByRole("radio", { name: /^Coco/ })).toBeNull();
+    expect(
+      sale
+        .getAllByRole("radio")
+        .filter((radio) => radio.getAttribute("aria-checked") === "true"),
+    ).toHaveLength(0);
+    app.store.close();
+  });
+
+  it("[D] Solo Admin cambia las opciones", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    goTo("#/menu");
+    expect(screen.queryByRole("tab", { name: "Modificadores" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Editar Avena" })).toBeNull();
     app.store.close();
   });
 });
