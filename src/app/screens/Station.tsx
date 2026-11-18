@@ -59,6 +59,7 @@ function productOf(menu: Catalog, line: OrderLine): Product {
       categoryId: "",
       priceCents: line.unitPriceCents,
       available: true,
+      active: true,
       modifierGroupIds: [],
     }
   );

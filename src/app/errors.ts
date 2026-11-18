@@ -26,6 +26,10 @@ const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
   "invalid-tip": "La propina no es válida.",
   "invalid-price": "Escribe un precio mayor a $0.00.",
   "unknown-product": "No se encontró el producto.",
+  "invalid-name": "Escribe el nombre del producto.",
+  "unknown-category": "Elige una categoría.",
+  "invalid-sku": "El SKU solo lleva números.",
+  "duplicate-sku": "Ya existe un producto con ese SKU.",
 };
 
 export function errorMessage(error: unknown): string {

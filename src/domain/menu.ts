@@ -4,16 +4,63 @@ import { can } from "./access.ts";
 import { findProduct } from "./catalog.ts";
 import { CommandRejectedError } from "./commands.ts";
 
-export type ProductChanges = Partial<Pick<Product, "priceCents" | "available">>;
+export type ProductChanges = Partial<
+  Pick<Product, "priceCents" | "available" | "name" | "categoryId" | "active">
+>;
 
 export type MenuEdit = { at: string; by: Actor };
 
 export type ProductPatch = { changes: ProductChanges; lastEdit: MenuEdit };
 
-export type MenuState = { products: Record<string, ProductPatch> };
+export type MenuState = {
+  products: Record<string, ProductPatch>;
+  created: Product[];
+};
+
+export const SKU_SERIES = "52000822";
+
+export type NewProductInput = {
+  sku: string;
+  name: string;
+  categoryId: string;
+  priceCents: number;
+};
+
+export type ProductEdit = {
+  productId: string;
+  name?: string;
+  categoryId?: string;
+  active?: boolean;
+};
 
 export function emptyMenu(): MenuState {
-  return { products: {} };
+  return { products: {}, created: [] };
+}
+
+export function suggestedSku(menu: Catalog): string {
+  throw new Error("not implemented");
+}
+
+export function forSale(menu: Catalog): Catalog {
+  throw new Error("not implemented");
+}
+
+export function createProduct(
+  state: PosState,
+  meta: CommandMeta,
+  input: NewProductInput,
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}
+
+export function updateProduct(
+  state: PosState,
+  meta: CommandMeta,
+  input: ProductEdit,
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
 }
 
 export function menuFor(base: Catalog, menu: MenuState): Catalog {

@@ -23,6 +23,7 @@ export type Product = {
   categoryId: string;
   priceCents: number;
   available: boolean;
+  active: boolean;
   modifierGroupIds: string[];
 };
 
@@ -214,6 +215,7 @@ export function parseCatalog(raw: unknown): Catalog {
       categoryId: product.categoryId,
       priceCents: product.priceCents,
       available: product.available,
+      active: true,
       modifierGroupIds: [...product.modifierGroupIds],
     };
   });

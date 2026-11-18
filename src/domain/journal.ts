@@ -1,4 +1,5 @@
 import type { Role } from "./access.ts";
+import type { Product } from "./catalog.ts";
 import type { MenuState, ProductChanges } from "./menu.ts";
 import { emptyMenu } from "./menu.ts";
 import type { OrderLine, OrderTotals } from "./order.ts";
@@ -60,7 +61,8 @@ export type PosEvent =
       totals: OrderTotals;
     }
   | { type: "tables-configured"; count: number }
-  | { type: "product-updated"; productId: string; changes: ProductChanges };
+  | { type: "product-updated"; productId: string; changes: ProductChanges }
+  | { type: "product-created"; product: Product };
 
 export type CommandBatch = CommandMeta & { events: PosEvent[] };
 
@@ -263,6 +265,8 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
         };
         break;
       }
+      case "product-created":
+        throw new Error("not implemented");
       default: {
         const unhandled: never = event;
         throw new Error(`Unknown event: ${JSON.stringify(unhandled)}`);
