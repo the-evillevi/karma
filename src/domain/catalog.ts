@@ -9,6 +9,7 @@ export type ModifierOption = {
   id: string;
   name: string;
   priceDeltaCents: number;
+  active: boolean;
   sku?: string;
 };
 
@@ -119,6 +120,7 @@ function parseOption(raw: unknown, groupId: string): ModifierOption {
     id: item.id,
     name: item.name,
     priceDeltaCents: item.priceDeltaCents,
+    active: true,
     ...(typeof item.sku === "string" ? { sku: item.sku } : {}),
   };
 }

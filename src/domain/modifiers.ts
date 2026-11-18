@@ -38,6 +38,7 @@ export function resolveModifiers(
   catalog: Catalog,
   product: Product,
   selection: ModifierSelection,
+  captured: readonly LineModifier[] = [],
 ): LineModifier[] {
   const groupIds = new Set(product.modifierGroupIds);
   for (const [groupId, chosen] of Object.entries(selection)) {

@@ -35,7 +35,13 @@ export type CommandRejection =
   | "duplicate-sku"
   | "invalid-category-name"
   | "duplicate-category"
-  | "invalid-move";
+  | "invalid-move"
+  | "unknown-modifier-group"
+  | "unknown-option"
+  | "invalid-option-name"
+  | "duplicate-option"
+  | "invalid-option-price"
+  | "group-needs-option";
 
 export class CommandRejectedError extends Error {
   readonly reason: CommandRejection;

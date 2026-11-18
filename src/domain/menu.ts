@@ -509,3 +509,36 @@ function swapNeighbour(
   [next[index], next[neighbour]] = [next[neighbour], next[index]];
   return next;
 }
+
+export type OptionEdit = {
+  groupId: string;
+  optionId: string;
+  name?: string;
+  priceDeltaCents?: number;
+  active?: boolean;
+};
+
+export type NewOptionInput = {
+  groupId: string;
+  optionId: string;
+  name: string;
+  priceDeltaCents: number;
+};
+
+export function updateModifierOption(
+  state: PosState,
+  meta: CommandMeta,
+  input: OptionEdit,
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}
+
+export function addModifierOption(
+  state: PosState,
+  meta: CommandMeta,
+  input: NewOptionInput,
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}
