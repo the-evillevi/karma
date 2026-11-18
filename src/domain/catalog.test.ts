@@ -142,4 +142,20 @@ describe("EVL-112 [A] Catálogo del libro de Carlos", () => {
       refusal({ ...raw, categories: [{ ...raw.categories[0], active: 1 }] }),
     ).toEqual({ problem: "malformed", subjectId: "bebidas" });
   });
+
+  it("reads a modifier option's active flag and defaults it to true", () => {
+    const parsed = parseCatalog(rawCatalog);
+    expect(
+      parsed.modifierGroups.every((group) =>
+        group.options.every((option) => option.active),
+      ),
+    ).toBe(true);
+    const raw = structuredClone(rawCatalog) as {
+      modifierGroups: { options: Record<string, unknown>[] }[];
+    };
+    raw.modifierGroups[0].options[1].active = false;
+    expect(parseCatalog(raw).modifierGroups[0].options[1].active).toBe(false);
+    raw.modifierGroups[0].options[1].active = "no";
+    expect(() => parseCatalog(raw)).toThrow(CatalogError);
+  });
 });

@@ -29,7 +29,11 @@ export function defaultSelection(
   return Object.fromEntries(
     modifierGroupsFor(catalog, product).map((group) => [
       group.id,
-      group.defaultOptionId === undefined ? [] : [group.defaultOptionId],
+      group.defaultOptionId === undefined ||
+      group.options.find((option) => option.id === group.defaultOptionId)
+        ?.active === false
+        ? []
+        : [group.defaultOptionId],
     ]),
   );
 }
@@ -38,6 +42,7 @@ export function resolveModifiers(
   catalog: Catalog,
   product: Product,
   selection: ModifierSelection,
+  captured: readonly LineModifier[] = [],
 ): LineModifier[] {
   const groupIds = new Set(product.modifierGroupIds);
   for (const [groupId, chosen] of Object.entries(selection)) {
@@ -45,11 +50,24 @@ export function resolveModifiers(
       throw new ModifierError("unknown-group", groupId, "");
     }
   }
-  return modifierGroupsFor(catalog, product).flatMap((group) => {
+  const groups = modifierGroupsFor(catalog, product);
+  const currentGroupIds = new Set(groups.map((group) => group.id));
+  const resolved = groups.flatMap((group) => {
     const chosen = Object.hasOwn(selection, group.id)
       ? selection[group.id]
       : [];
-    const optionIds = new Set(group.options.map((option) => option.id));
+    const capturedOptions = new Map(
+      captured
+        .filter((modifier) => modifier.groupId === group.id)
+        .map((modifier) => [modifier.optionId, modifier]),
+    );
+    const listed = new Set(group.options.map((option) => option.id));
+    const optionIds = new Set([
+      ...group.options
+        .filter((option) => option.active !== false)
+        .map((option) => option.id),
+      ...capturedOptions.keys(),
+    ]);
     if (chosen.some((id) => !optionIds.has(id))) {
       throw new ModifierError("unknown-option", group.id, group.name);
     }
@@ -60,16 +78,30 @@ export function resolveModifiers(
       throw new ModifierError("missing-required", group.id, group.name);
     }
     const selected = new Set(chosen);
-    return group.options
-      .filter((option) => selected.has(option.id))
-      .map((option) => ({
-        groupId: group.id,
-        groupName: group.name,
-        optionId: option.id,
-        name: option.name,
-        priceDeltaCents: option.priceDeltaCents,
-      }));
+    const unlistedCaptures = [...capturedOptions.values()].filter(
+      (modifier) =>
+        selected.has(modifier.optionId) && !listed.has(modifier.optionId),
+    );
+    return [
+      ...group.options
+        .filter((option) => selected.has(option.id))
+        .map(
+          (option) =>
+            capturedOptions.get(option.id) ?? {
+              groupId: group.id,
+              groupName: group.name,
+              optionId: option.id,
+              name: option.name,
+              priceDeltaCents: option.priceDeltaCents,
+            },
+        ),
+      ...unlistedCaptures,
+    ];
   });
+  return [
+    ...resolved,
+    ...captured.filter((modifier) => !currentGroupIds.has(modifier.groupId)),
+  ];
 }
 
 export function editLine(

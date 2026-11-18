@@ -1,4 +1,4 @@
-import type { Catalog, Category, Product } from "./catalog.ts";
+import type { Catalog, Category, ModifierOption, Product } from "./catalog.ts";
 import type {
   Actor,
   CommandBatch,
@@ -20,6 +20,15 @@ export type ProductPatch = { changes: ProductChanges; lastEdit: MenuEdit };
 
 export type CategoryChanges = Partial<Pick<Category, "name" | "active">>;
 
+export type OptionChanges = Partial<
+  Pick<ModifierOption, "name" | "priceDeltaCents" | "active">
+>;
+
+export type GroupOptionEdits = {
+  changes: Record<string, OptionChanges>;
+  added: ModifierOption[];
+};
+
 export type MenuState = {
   products: Record<string, ProductPatch>;
   created: Product[];
@@ -27,6 +36,7 @@ export type MenuState = {
   createdCategories: Category[];
   categoryOrder: string[];
   productOrder: Record<string, string[]>;
+  modifierOptions: Record<string, GroupOptionEdits>;
 };
 
 export const SKU_SERIES = "52000822";
@@ -53,6 +63,7 @@ export function emptyMenu(): MenuState {
     createdCategories: [],
     categoryOrder: [],
     productOrder: {},
+    modifierOptions: {},
   };
 }
 
@@ -246,6 +257,24 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
   const positions = new Map<string, number>();
   return {
     ...base,
+    modifierGroups: base.modifierGroups.map((group) => {
+      const edits = Object.hasOwn(menu.modifierOptions, group.id)
+        ? menu.modifierOptions[group.id]
+        : undefined;
+      if (!edits) return group;
+      const baseIds = new Set(group.options.map((option) => option.id));
+      return {
+        ...group,
+        options: [
+          ...group.options,
+          ...edits.added.filter((option) => !baseIds.has(option.id)),
+        ].map((option) =>
+          Object.hasOwn(edits.changes, option.id)
+            ? { ...option, ...edits.changes[option.id] }
+            : option,
+        ),
+      };
+    }),
     categories: categories.map((category, index) => ({
       ...category,
       ...(Object.hasOwn(menu.categories, category.id)
@@ -508,4 +537,128 @@ function swapNeighbour(
   const next = [...ids];
   [next[index], next[neighbour]] = [next[neighbour], next[index]];
   return next;
+}
+
+export type OptionEdit = {
+  groupId: string;
+  optionId: string;
+  name?: string;
+  priceDeltaCents?: number;
+  active?: boolean;
+};
+
+export type NewOptionInput = {
+  groupId: string;
+  optionId: string;
+  name: string;
+  priceDeltaCents: number;
+};
+
+export function updateModifierOption(
+  state: PosState,
+  meta: CommandMeta,
+  input: OptionEdit,
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const { groupId, optionId, priceDeltaCents, active } = input;
+  const group = menuFor(base, state.menu).modifierGroups.find(
+    (group) => group.id === groupId,
+  );
+  if (!group) {
+    throw new CommandRejectedError("unknown-modifier-group");
+  }
+  if (!group.options.some((option) => option.id === optionId)) {
+    throw new CommandRejectedError("unknown-option");
+  }
+  const name =
+    input.name === undefined
+      ? undefined
+      : optionName(
+          input.name,
+          group.options.filter((option) => option.id !== optionId),
+        );
+  if (
+    priceDeltaCents !== undefined &&
+    (!Number.isSafeInteger(priceDeltaCents) || priceDeltaCents < 0)
+  ) {
+    throw new CommandRejectedError("invalid-option-price");
+  }
+  if (
+    active === false &&
+    group.options.filter(
+      (option) => option.id !== optionId && option.active !== false,
+    ).length < group.min
+  ) {
+    throw new CommandRejectedError("group-needs-option");
+  }
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "modifier-option-updated",
+        groupId,
+        optionId,
+        changes: {
+          ...(name !== undefined ? { name } : {}),
+          ...(priceDeltaCents !== undefined ? { priceDeltaCents } : {}),
+          ...(active !== undefined ? { active } : {}),
+        },
+      },
+    ],
+  };
+}
+
+export function addModifierOption(
+  state: PosState,
+  meta: CommandMeta,
+  input: NewOptionInput,
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const { groupId, optionId, priceDeltaCents } = input;
+  const group = menuFor(base, state.menu).modifierGroups.find(
+    (group) => group.id === groupId,
+  );
+  if (!group) {
+    throw new CommandRejectedError("unknown-modifier-group");
+  }
+  const name = optionName(input.name, group.options);
+  if (group.options.some((option) => option.id === optionId)) {
+    throw new CommandRejectedError("duplicate-option");
+  }
+  if (!Number.isSafeInteger(priceDeltaCents) || priceDeltaCents < 0) {
+    throw new CommandRejectedError("invalid-option-price");
+  }
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "modifier-option-added",
+        groupId,
+        option: { id: optionId, name, priceDeltaCents, active: true },
+      },
+    ],
+  };
+}
+
+function optionName(value: string, others: ModifierOption[]): string {
+  const name = value.trim();
+  if (name === "") {
+    throw new CommandRejectedError("invalid-option-name");
+  }
+  if (
+    others.some(
+      (option) => normalizedName(option.name) === normalizedName(name),
+    )
+  ) {
+    throw new CommandRejectedError("duplicate-option");
+  }
+  return name;
 }

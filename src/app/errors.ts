@@ -33,6 +33,13 @@ const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
   "invalid-category-name": "Escribe el nombre de la categoría.",
   "duplicate-category": "Ya existe una categoría con ese nombre.",
   "invalid-move": "No se puede mover más.",
+  "unknown-modifier-group": "No se encontró el grupo.",
+  "unknown-option": "No se encontró la opción.",
+  "invalid-option-name": "Escribe el nombre de la opción.",
+  "duplicate-option": "Ya existe una opción con ese nombre en el grupo.",
+  "invalid-option-price": "Escribe un precio de $0.00 o más.",
+  "group-needs-option":
+    "Un grupo obligatorio necesita al menos una opción visible.",
 };
 
 export function errorMessage(error: unknown): string {

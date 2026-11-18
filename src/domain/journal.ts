@@ -1,6 +1,12 @@
 import type { Role } from "./access.ts";
-import type { Category, Product } from "./catalog.ts";
-import type { CategoryChanges, MenuState, ProductChanges } from "./menu.ts";
+import type { Category, ModifierOption, Product } from "./catalog.ts";
+import type {
+  CategoryChanges,
+  GroupOptionEdits,
+  MenuState,
+  OptionChanges,
+  ProductChanges,
+} from "./menu.ts";
 import { emptyMenu } from "./menu.ts";
 import type { OrderLine, OrderTotals } from "./order.ts";
 import type { Settlement } from "./payment.ts";
@@ -66,7 +72,14 @@ export type PosEvent =
   | { type: "category-created"; category: Category }
   | { type: "category-updated"; categoryId: string; changes: CategoryChanges }
   | { type: "categories-reordered"; categoryIds: string[] }
-  | { type: "products-reordered"; categoryId: string; productIds: string[] };
+  | { type: "products-reordered"; categoryId: string; productIds: string[] }
+  | {
+      type: "modifier-option-updated";
+      groupId: string;
+      optionId: string;
+      changes: OptionChanges;
+    }
+  | { type: "modifier-option-added"; groupId: string; option: ModifierOption };
 
 export type CommandBatch = CommandMeta & { events: PosEvent[] };
 
@@ -153,6 +166,12 @@ function fingerprint(batch: CommandBatch): string {
     }
     return value;
   });
+}
+
+function groupOptionEdits(menu: MenuState, groupId: string): GroupOptionEdits {
+  return Object.hasOwn(menu.modifierOptions, groupId)
+    ? menu.modifierOptions[groupId]
+    : { changes: {}, added: [] };
 }
 
 export function applyBatch(state: PosState, batch: CommandBatch): PosState {
@@ -307,6 +326,31 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
         next.menu.productOrder = {
           ...next.menu.productOrder,
           [event.categoryId]: event.productIds,
+        };
+        break;
+      }
+      case "modifier-option-updated": {
+        const edits = groupOptionEdits(next.menu, event.groupId);
+        const previous = Object.hasOwn(edits.changes, event.optionId)
+          ? edits.changes[event.optionId]
+          : undefined;
+        next.menu.modifierOptions = {
+          ...next.menu.modifierOptions,
+          [event.groupId]: {
+            ...edits,
+            changes: {
+              ...edits.changes,
+              [event.optionId]: { ...previous, ...event.changes },
+            },
+          },
+        };
+        break;
+      }
+      case "modifier-option-added": {
+        const edits = groupOptionEdits(next.menu, event.groupId);
+        next.menu.modifierOptions = {
+          ...next.menu.modifierOptions,
+          [event.groupId]: { ...edits, added: [...edits.added, event.option] },
         };
         break;
       }
