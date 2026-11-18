@@ -300,6 +300,21 @@ describe("EVL-119 [A] Menú sobre el menú base", () => {
     expect(menuFor(catalog, emptyState().menu)).toEqual(catalog);
   });
 
+  it("adds a product at its new price as a separate line after a price change", () => {
+    const captured = linesOf([latte]);
+    const state = priceOf(emptyState(), latte, 7000);
+    const next = addLine(captured, inMenu(state, latte), { lineId: "l2" });
+    expect(next.map((line) => [line.unitPriceCents, line.quantity])).toEqual([
+      [6500, 1],
+      [7000, 1],
+    ]);
+    expect(
+      addLine(next, inMenu(state, latte), { lineId: "l3" }).map(
+        (line) => line.quantity,
+      ),
+    ).toEqual([1, 2]);
+  });
+
   it("does not duplicate an edit when the same command is applied twice", () => {
     const batch = setProductPrice(
       emptyState(),

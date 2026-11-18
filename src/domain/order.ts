@@ -84,6 +84,7 @@ export function addLine(
   const index = lines.findIndex(
     (line) =>
       line.productId === product.id &&
+      line.unitPriceCents === product.priceCents &&
       line.note.trim() === note &&
       modifierKey(line.modifiers) === key,
   );
