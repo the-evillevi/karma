@@ -53,6 +53,8 @@ Saves and charges also carry the account `version` the screen last saw (`expecte
 | `advancePreparation` (`comanda.ts`) | `preparation-advanced` | all roles |
 | `closeSale` (`checkout.ts`) | `sale-closed` | Admin, Barra |
 | `configureTables` (`tables.ts`) | `tables-configured` | Admin |
+| `setProductPrice` (`menu.ts`) | `product-updated` | Admin |
+| `setProductAvailability` (`menu.ts`) | `product-updated` | Admin, Barra |
 
 Read-only helpers: `openOrders`, `accountSummary` (`accounts.ts`), `pendingComandas`, `hasUnsentLines` (`comanda.ts`), `closedSales` (`checkout.ts`), `daySummary` (`sales.ts`).
 
@@ -68,12 +70,12 @@ Pure calculation modules, usable without the journal: `money.ts`, `tip.ts`, `pay
 Not in the journal:
 
 - The **draft** order being captured (`src/app/draft.ts`) lives in `localStorage` until it is saved. It is a convenience, not a record.
-- The **catalog** is bundled from `catalog/catalog.json` and validated by `parseCatalog` at start. Editing the menu in the app is EVL-119.
+- The **base menu** is bundled from `catalog/catalog.json` and validated by `parseCatalog` at start. Edits made in the app (EVL-119) *are* in the journal: `product-updated` events store field patches in `PosState.menu`, and `menuFor(base, state.menu)` (`src/domain/menu.ts`, exposed to screens as `useMenu()`) lays them over the base. A field edited in the app keeps its edited value when a later deploy changes `catalog.json`; untouched fields follow the new base. Patches for products the base no longer has are ignored.
 - **Users** for the pilot are constants with PIN digests (`src/app/users.ts`). Managing them is EVL-118 [C].
 
 ## Screens
 
-Hash routes in `src/app/router.ts`: `#/` Venta, `#/cuentas` Cuentas abiertas, `#/cocina` Cocina, `#/ventas` Ventas de hoy. The kitchen is the same app in another tab of the same browser.
+Hash routes in `src/app/router.ts`: `#/` Venta, `#/cuentas` Cuentas abiertas, `#/cocina` Cocina, `#/ventas` Ventas de hoy, `#/menu` Menú (Admin edits prices; Admin and Barra mark products Agotado; Mesero doesn't see it). The kitchen is the same app in another tab of the same browser.
 
 `src/app/main.tsx` opens the store before rendering and refuses to run if local storage cannot be opened. `App.tsx` shows the PIN screen until someone signs in. Screens hide what a role cannot do, and the commands refuse it regardless.
 
@@ -81,7 +83,7 @@ The service worker from `vite-plugin-pwa` precaches the app shell, so after one 
 
 ## What the pilot deliberately leaves out
 
-One device, no cloud sync (EVL-126 [C]–[E]), no printing (EVL-124 [D]), one payment per order (EVL-192), no cancellations or discounts (EVL-125, EVL-189), no inventory (EVL-128, EVL-129), no menu or user editing (EVL-119, EVL-118 [C]).
+One device, no cloud sync (EVL-126 [C]–[E]), no printing (EVL-124 [D]), one payment per order (EVL-192), no cancellations or discounts (EVL-125, EVL-189), no inventory (EVL-128, EVL-129), menu editing limited to price and Agotado until EVL-119 [B]–[E], no user editing (EVL-118 [C]).
 
 ## Known limits to revisit
 
