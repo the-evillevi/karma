@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   "cancel",
   "discount",
   "edit-menu",
+  "set-availability",
   "adjust-inventory",
   "view-reports",
   "manage-users",
@@ -31,7 +32,7 @@ export function permissionsOf(role: string): Permission[] {
     case "admin":
       return [...PERMISSIONS];
     case "barra":
-      return ["capture-order", "send-comanda", "charge"];
+      return ["capture-order", "send-comanda", "charge", "set-availability"];
     case "mesero":
       return ["capture-order", "send-comanda"];
     default:

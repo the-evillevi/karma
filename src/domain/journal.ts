@@ -1,4 +1,6 @@
 import type { Role } from "./access.ts";
+import type { MenuState, ProductChanges } from "./menu.ts";
+import { emptyMenu } from "./menu.ts";
 import type { OrderLine, OrderTotals } from "./order.ts";
 import type { Settlement } from "./payment.ts";
 
@@ -57,7 +59,8 @@ export type PosEvent =
       settlement: Settlement;
       totals: OrderTotals;
     }
-  | { type: "tables-configured"; count: number };
+  | { type: "tables-configured"; count: number }
+  | { type: "product-updated"; productId: string; changes: ProductChanges };
 
 export type CommandBatch = CommandMeta & { events: PosEvent[] };
 
@@ -101,6 +104,7 @@ export type PosState = {
   comandas: Record<string, Comanda>;
   tableCount: number;
   lastFolioNumber: number;
+  menu: MenuState;
   applied: Record<string, string>;
 };
 
@@ -122,6 +126,7 @@ export function emptyState(): PosState {
     comandas: {},
     tableCount: DEFAULT_TABLE_COUNT,
     lastFolioNumber: 0,
+    menu: emptyMenu(),
     applied: {},
   };
 }
@@ -242,6 +247,22 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
           },
         };
         break;
+      case "product-updated": {
+        const existing = Object.hasOwn(next.menu.products, event.productId)
+          ? next.menu.products[event.productId]
+          : undefined;
+        next.menu = {
+          ...next.menu,
+          products: {
+            ...next.menu.products,
+            [event.productId]: {
+              changes: { ...existing?.changes, ...event.changes },
+              lastEdit: { at: snapshot.at, by: snapshot.actor },
+            },
+          },
+        };
+        break;
+      }
       default: {
         const unhandled: never = event;
         throw new Error(`Unknown event: ${JSON.stringify(unhandled)}`);

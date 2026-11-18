@@ -37,7 +37,7 @@ describe("EVL-116 [A] Base de la app", () => {
     const nav = screen.getByRole("navigation", { name: "Secciones" });
     expect(
       Array.from(nav.querySelectorAll("a")).map((link) => link.textContent),
-    ).toEqual(["Venta", "Cuentas abiertas", "Cocina", "Ventas de hoy"]);
+    ).toEqual(["Venta", "Cuentas abiertas", "Cocina", "Ventas de hoy", "Menú"]);
 
     goTo("#/cocina");
     expect(screen.getByRole("heading", { name: "Cocina" })).toBeDefined();

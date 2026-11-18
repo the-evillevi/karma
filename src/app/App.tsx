@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS } from "../domain/access.ts";
 import { useSession, useStoreProblem } from "./context.tsx";
-import { ROUTES, hrefFor, useRoute } from "./router.ts";
+import { hrefFor, mayOpenMenu, routesFor, useRoute } from "./router.ts";
 import { Accounts } from "./screens/Accounts.tsx";
 import { Login } from "./screens/Login.tsx";
 import { Kitchen } from "./screens/Kitchen.tsx";
+import { Menu } from "./screens/Menu.tsx";
 import { Sales } from "./screens/Sales.tsx";
 import { Station } from "./screens/Station.tsx";
 
@@ -32,6 +33,8 @@ export function App() {
 
   if (!user) return <Login />;
 
+  const shown = route === "/menu" && !mayOpenMenu(user.role) ? "/" : route;
+
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
       <header className="sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-border bg-card px-3 sm:gap-4 sm:px-4">
@@ -45,14 +48,14 @@ export function App() {
           aria-label="Secciones"
           className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
         >
-          {ROUTES.map((candidate) => (
+          {routesFor(user.role).map((candidate) => (
             <a
               key={candidate.path}
               href={hrefFor(candidate.path)}
-              aria-current={candidate.path === route ? "page" : undefined}
+              aria-current={candidate.path === shown ? "page" : undefined}
               className={cn(
                 "inline-flex min-h-11 items-center rounded-[var(--radius-button)] px-3 text-sm whitespace-nowrap text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
-                candidate.path === route &&
+                candidate.path === shown &&
                   "bg-accent font-medium text-accent-foreground underline decoration-primary decoration-2 underline-offset-8",
               )}
             >
@@ -74,10 +77,11 @@ export function App() {
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col">
-        {route === "/" && <Station />}
-        {route === "/cuentas" && <Accounts />}
-        {route === "/cocina" && <Kitchen />}
-        {route === "/ventas" && <Sales />}
+        {shown === "/" && <Station />}
+        {shown === "/cuentas" && <Accounts />}
+        {shown === "/cocina" && <Kitchen />}
+        {shown === "/ventas" && <Sales />}
+        {shown === "/menu" && <Menu />}
       </main>
     </div>
   );

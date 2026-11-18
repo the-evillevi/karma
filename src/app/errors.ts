@@ -2,6 +2,7 @@ import { StorageWriteError } from "../data/pos-store.ts";
 import { CommandRejectedError } from "../domain/commands.ts";
 import { CUSTOMER_FIELD_LABELS } from "../domain/order-header.ts";
 import type { CustomerField } from "../domain/order-header.ts";
+import { OrderError } from "../domain/order.ts";
 import { PaymentRejectedError } from "../domain/payment.ts";
 
 const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
@@ -23,6 +24,8 @@ const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
   "invalid-preparation-step": "La comanda cambió; revisa su estado.",
   "pending-balance": "El pago no cubre el total a liquidar.",
   "invalid-tip": "La propina no es válida.",
+  "invalid-price": "Escribe un precio mayor a $0.00.",
+  "unknown-product": "No se encontró el producto.",
 };
 
 export function errorMessage(error: unknown): string {
@@ -34,6 +37,9 @@ export function errorMessage(error: unknown): string {
       return `Falta ${fields.join(", ")} del cliente.`;
     }
     return REJECTIONS[error.reason];
+  }
+  if (error instanceof OrderError && error.reason === "product-unavailable") {
+    return "Este producto está agotado.";
   }
   if (error instanceof PaymentRejectedError) {
     return error.reason === "only-cash-gives-change"

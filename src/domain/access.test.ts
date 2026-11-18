@@ -24,7 +24,11 @@ describe("EVL-118 [A] Matriz de permisos", () => {
   });
 
   it("[A] Barra cobra pero no corrige ni administra", () => {
-    expect(permissionsOf("barra")).toEqual([...EVERYONE, "charge"]);
+    expect(permissionsOf("barra")).toEqual([
+      ...EVERYONE,
+      "charge",
+      "set-availability",
+    ]);
     for (const permission of ADMIN_ONLY) {
       expect(can("barra", permission)).toBe(false);
     }
@@ -33,6 +37,7 @@ describe("EVL-118 [A] Matriz de permisos", () => {
   it("[A] Mesero captura pero no cobra", () => {
     expect(permissionsOf("mesero")).toEqual(EVERYONE);
     expect(can("mesero", "charge")).toBe(false);
+    expect(can("mesero", "set-availability")).toBe(false);
     for (const permission of ADMIN_ONLY) {
       expect(can("mesero", permission)).toBe(false);
     }

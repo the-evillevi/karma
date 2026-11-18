@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { can } from "../../domain/access.ts";
 import { findProduct, modifierGroupsFor } from "../../domain/catalog.ts";
-import type { Product } from "../../domain/catalog.ts";
+import type { Catalog, Product } from "../../domain/catalog.ts";
 import { closeSale } from "../../domain/checkout.ts";
 import type { CloseSaleInput } from "../../domain/checkout.ts";
 import { sendComanda } from "../../domain/comanda.ts";
@@ -33,10 +33,9 @@ import {
 } from "../../domain/order.ts";
 import type { LineModifier, OrderLine } from "../../domain/order.ts";
 import { tableNumbers } from "../../domain/tables.ts";
-import { catalog } from "../catalog.ts";
 import { CheckoutDialog } from "../checkout/CheckoutDialog.tsx";
 import { Ticket } from "../checkout/Ticket.tsx";
-import { useCommand, usePosState, useSession } from "../context.tsx";
+import { useCommand, useMenu, usePosState, useSession } from "../context.tsx";
 import { EMPTY_DRAFT, loadDraft, useDraft } from "../draft.ts";
 import type { Draft } from "../draft.ts";
 import { errorMessage } from "../errors.ts";
@@ -51,9 +50,9 @@ type Editing =
   | { kind: "add"; product: Product }
   | { kind: "edit"; product: Product; line: OrderLine };
 
-function productOf(line: OrderLine): Product {
+function productOf(menu: Catalog, line: OrderLine): Product {
   return (
-    findProduct(catalog, line.productId) ?? {
+    findProduct(menu, line.productId) ?? {
       id: line.productId,
       sku: line.productId,
       name: line.name,
@@ -65,8 +64,13 @@ function productOf(line: OrderLine): Product {
   );
 }
 
+function liveProduct(menu: Catalog, product: Product): Product {
+  return findProduct(menu, product.id) ?? product;
+}
+
 export function Station() {
   const state = usePosState();
+  const menu = useMenu();
   const run = useCommand();
   const notify = useToast();
   const { user } = useSession();
@@ -81,7 +85,7 @@ export function Station() {
   const chargingOrder = charging ? state.orders[charging] : undefined;
 
   const { lines } = draft;
-  const totals = orderTotals(lines, catalog.taxRateBps);
+  const totals = orderTotals(lines, menu.taxRateBps);
   const account = draft.orderId ? state.orders[draft.orderId] : undefined;
   const sentQuantities = account?.sentQuantities ?? {};
   const mayCharge = user ? can(user.role, "charge") : false;
@@ -94,7 +98,7 @@ export function Station() {
 
   function pick(product: Product) {
     if (busyRef.current) return;
-    if (modifierGroupsFor(catalog, product).length > 0) {
+    if (modifierGroupsFor(menu, product).length > 0) {
       setEditing({ kind: "add", product });
       return;
     }
@@ -103,11 +107,19 @@ export function Station() {
 
   function confirmLine(modifiers: LineModifier[], note: string) {
     if (!editing || busyRef.current) return;
-    setLines(
-      editing.kind === "add"
-        ? addLine(lines, editing.product, { lineId: newId(), modifiers, note })
-        : editLine(lines, editing.line.lineId, { modifiers, note }),
-    );
+    try {
+      setLines(
+        editing.kind === "add"
+          ? addLine(lines, liveProduct(menu, editing.product), {
+              lineId: newId(),
+              modifiers,
+              note,
+            })
+          : editLine(lines, editing.line.lineId, { modifiers, note }),
+      );
+    } catch (error) {
+      setFailure(errorMessage(error));
+    }
     setEditing(null);
   }
 
@@ -183,7 +195,7 @@ export function Station() {
   async function confirmCharge(input: CloseSaleInput) {
     const captured = loadDraft();
     const after = await run((current, meta) =>
-      closeSale(current, meta, input, catalog.taxRateBps),
+      closeSale(current, meta, input, menu.taxRateBps),
     );
     setCharging(null);
     clearSavedDraft(captured);
@@ -240,7 +252,7 @@ export function Station() {
       title={account ? `Cuenta ${account.folio}` : "Orden actual"}
       lines={lines}
       busy={busy}
-      taxRateBps={catalog.taxRateBps}
+      taxRateBps={menu.taxRateBps}
       sentQuantities={sentQuantities}
       header={
         <HeaderEditor
@@ -262,7 +274,7 @@ export function Station() {
       }}
       onEdit={(line) => {
         if (!busyRef.current)
-          setEditing({ kind: "edit", product: productOf(line), line });
+          setEditing({ kind: "edit", product: productOf(menu, line), line });
       }}
     />
   );
@@ -271,7 +283,7 @@ export function Station() {
     <div className="flex min-h-0 flex-1">
       <h1 className="sr-only">Venta</h1>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
-        <ProductGrid catalog={catalog} onPick={pick} busy={busy} />
+        <ProductGrid catalog={menu} onPick={pick} busy={busy} />
       </div>
 
       <aside className="hidden w-[24rem] shrink-0 flex-col border-l border-border bg-card lg:flex">
@@ -308,8 +320,12 @@ export function Station() {
           key={
             editing.kind === "edit" ? editing.line.lineId : editing.product.id
           }
-          catalog={catalog}
-          product={editing.product}
+          catalog={menu}
+          product={
+            editing.kind === "add"
+              ? liveProduct(menu, editing.product)
+              : editing.product
+          }
           line={editing.kind === "edit" ? editing.line : undefined}
           onCancel={() => setEditing(null)}
           onConfirm={confirmLine}
@@ -319,7 +335,7 @@ export function Station() {
       {chargingOrder && (
         <CheckoutDialog
           order={chargingOrder}
-          taxRateBps={catalog.taxRateBps}
+          taxRateBps={menu.taxRateBps}
           onCancel={() => setCharging(null)}
           onConfirm={confirmCharge}
           errorText={errorMessage}
