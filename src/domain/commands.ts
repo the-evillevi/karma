@@ -26,7 +26,9 @@ export type CommandRejection =
   | "comanda-finished"
   | "invalid-preparation-step"
   | "pending-balance"
-  | "invalid-tip";
+  | "invalid-tip"
+  | "invalid-price"
+  | "unknown-product";
 
 export class CommandRejectedError extends Error {
   readonly reason: CommandRejection;

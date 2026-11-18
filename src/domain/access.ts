@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   "cancel",
   "discount",
   "edit-menu",
+  "set-availability",
   "adjust-inventory",
   "view-reports",
   "manage-users",

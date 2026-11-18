@@ -23,6 +23,8 @@ const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
   "invalid-preparation-step": "La comanda cambió; revisa su estado.",
   "pending-balance": "El pago no cubre el total a liquidar.",
   "invalid-tip": "La propina no es válida.",
+  "invalid-price": "Escribe un precio mayor a $0.00.",
+  "unknown-product": "No se encontró el producto.",
 };
 
 export function errorMessage(error: unknown): string {

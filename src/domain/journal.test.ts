@@ -89,6 +89,7 @@ describe("EVL-126 [A] Diario de operaciones", () => {
       comandas: {},
       tableCount: DEFAULT_TABLE_COUNT,
       lastFolioNumber: 0,
+      menu: { products: {} },
       applied: {},
     });
     expect(DEFAULT_TABLE_COUNT).toBe(8);
