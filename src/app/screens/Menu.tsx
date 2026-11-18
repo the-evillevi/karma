@@ -15,18 +15,37 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { can } from "../../domain/access.ts";
 import type { Product } from "../../domain/catalog.ts";
+import type {
+  CommandBatch,
+  CommandMeta,
+  PosState,
+} from "../../domain/journal.ts";
 import {
   editLabel,
   lastEdit,
   setProductAvailability,
   setProductPrice,
+  updateProduct,
 } from "../../domain/menu.ts";
 import { formatMXN, parsePesos } from "../../domain/money.ts";
 import { catalog } from "../catalog.ts";
 import { useCommand, useMenu, usePosState, useSession } from "../context.tsx";
 import { errorMessage } from "../errors.ts";
+import {
+  EditProductDialog,
+  NewProductDialog,
+  editButtonId,
+  focusTarget,
+} from "../menu/ProductDialogs.tsx";
 import { normalize } from "../station/ProductGrid.tsx";
 import { useToast } from "../toast.tsx";
+
+type OpenDialog =
+  | { kind: "price"; product: Product; trigger: HTMLElement }
+  | { kind: "new"; trigger: HTMLElement }
+  | { kind: "edit"; productId: string; trigger: HTMLElement };
+
+type RowCommand = (state: PosState, meta: CommandMeta) => CommandBatch;
 
 function pesosText(cents: number): string {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
@@ -127,10 +146,7 @@ export function Menu() {
   const notify = useToast();
   const { user } = useSession();
   const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<{
-    product: Product;
-    trigger: HTMLElement;
-  } | null>(null);
+  const [open, setOpen] = useState<OpenDialog | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const role = user?.role ?? "";
   const mayEditPrice = can(role, "edit-menu");
@@ -149,18 +165,11 @@ export function Menu() {
     }))
     .filter((section) => section.products.length > 0);
 
-  async function toggle(product: Product, available: boolean) {
+  async function runRow(productId: string, command: RowCommand) {
     if (pending !== null) return;
-    setPending(product.id);
+    setPending(productId);
     try {
-      await run((current, meta) =>
-        setProductAvailability(
-          current,
-          meta,
-          { productId: product.id, available },
-          catalog,
-        ),
-      );
+      await run(command);
     } catch (error) {
       notify(errorMessage(error));
     } finally {
@@ -168,18 +177,57 @@ export function Menu() {
     }
   }
 
+  function toggle(product: Product, available: boolean) {
+    return runRow(product.id, (current, meta) =>
+      setProductAvailability(
+        current,
+        meta,
+        { productId: product.id, available },
+        catalog,
+      ),
+    );
+  }
+
+  function toggleVisibility(product: Product) {
+    return runRow(product.id, (current, meta) =>
+      updateProduct(
+        current,
+        meta,
+        { productId: product.id, active: !product.active },
+        catalog,
+      ),
+    );
+  }
+
+  function close() {
+    if (open) focusTarget(open.trigger)?.focus();
+    setOpen(null);
+  }
+
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 overflow-y-auto p-4">
       <h1 className="text-xl font-medium">Menú</h1>
-      <Input
-        type="search"
-        inputMode="search"
-        aria-label="Buscar producto"
-        placeholder="Buscar producto"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        className="bg-card"
-      />
+      <div className="flex items-center gap-2">
+        <Input
+          type="search"
+          inputMode="search"
+          aria-label="Buscar producto"
+          placeholder="Buscar producto"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="bg-card"
+        />
+        {mayEditPrice && (
+          <Button
+            className="min-h-11 shrink-0"
+            onClick={(event) =>
+              setOpen({ kind: "new", trigger: event.currentTarget })
+            }
+          >
+            Nuevo producto
+          </Button>
+        )}
+      </div>
 
       {sections.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
@@ -212,6 +260,12 @@ export function Menu() {
                           {!product.available && (
                             <Badge variant="secondary">Agotado</Badge>
                           )}
+                          {!product.active && (
+                            <Badge variant="outline">Oculto</Badge>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground tabular-nums">
+                          {`SKU ${product.sku}`}
                         </p>
                         {edit && (
                           <p className="text-xs text-muted-foreground">
@@ -219,7 +273,7 @@ export function Menu() {
                           </p>
                         )}
                       </div>
-                      <div className="ml-auto flex items-center gap-3">
+                      <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
                         <p className="text-right text-sm font-medium tabular-nums">
                           {formatMXN(product.priceCents)}
                         </p>
@@ -230,13 +284,44 @@ export function Menu() {
                             className="min-h-11"
                             aria-label={`Cambiar precio de ${product.name}`}
                             onClick={(event) =>
-                              setEditing({
+                              setOpen({
+                                kind: "price",
                                 product,
                                 trigger: event.currentTarget,
                               })
                             }
                           >
                             Cambiar precio
+                          </Button>
+                        )}
+                        {mayEditPrice && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="min-h-11"
+                            id={editButtonId(product.id)}
+                            aria-label={`Editar ${product.name}`}
+                            onClick={(event) =>
+                              setOpen({
+                                kind: "edit",
+                                productId: product.id,
+                                trigger: event.currentTarget,
+                              })
+                            }
+                          >
+                            Editar
+                          </Button>
+                        )}
+                        {mayEditPrice && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="min-h-11"
+                            aria-label={`${product.active ? "Ocultar" : "Mostrar"} ${product.name}`}
+                            disabled={pending !== null}
+                            onClick={() => toggleVisibility(product)}
+                          >
+                            {product.active ? "Ocultar" : "Mostrar"}
                           </Button>
                         )}
                         {mayToggle && (
@@ -259,15 +344,23 @@ export function Menu() {
         })
       )}
 
-      {editing && (
+      {open?.kind === "price" && (
         <PriceDialog
-          key={editing.product.id}
-          product={editing.product}
-          returnFocus={editing.trigger}
-          onClose={() => {
-            editing.trigger.focus();
-            setEditing(null);
-          }}
+          key={open.product.id}
+          product={open.product}
+          returnFocus={open.trigger}
+          onClose={close}
+        />
+      )}
+      {open?.kind === "new" && (
+        <NewProductDialog returnFocus={open.trigger} onClose={close} />
+      )}
+      {open?.kind === "edit" && (
+        <EditProductDialog
+          key={open.productId}
+          productId={open.productId}
+          returnFocus={open.trigger}
+          onClose={close}
         />
       )}
     </section>

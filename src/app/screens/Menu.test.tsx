@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMemoryStorage } from "../../data/pos-store.ts";
 import type { JournalStorage } from "../../data/pos-store.ts";
 import { emptyState } from "../../domain/journal.ts";
-import { setProductAvailability, setProductPrice } from "../../domain/menu.ts";
+import {
+  setProductAvailability,
+  setProductPrice,
+  updateProduct,
+} from "../../domain/menu.ts";
 import { admin, catalog, latte, luis, meta } from "../../domain/testing.ts";
 import { App } from "../App.tsx";
 import { renderApp } from "../testing.tsx";
@@ -462,6 +466,66 @@ describe("EVL-119 [B] Crear y editar productos", () => {
     expect(
       row("Latte").getByRole("switch", { name: "Disponible" }),
     ).toBeDefined();
+    app.store.close();
+  });
+});
+
+describe("EVL-119 [B] Review regressions", () => {
+  it("an open edit dialog does not undo a change made elsewhere to a field it did not touch", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(
+      row("Croissant Dulce").getByRole("button", {
+        name: "Editar Croissant Dulce",
+      }),
+    );
+    await act(async () => {
+      await app.store.run((state) =>
+        updateProduct(
+          state,
+          meta("other-tab", admin),
+          { productId: "52000822188", categoryId: "salado" },
+          catalog,
+        ),
+      );
+    });
+    expect(
+      (dialog().getByLabelText("Categoría") as HTMLSelectElement).value,
+    ).toBe("salado");
+    await userEvent.clear(dialog().getByLabelText("Nombre"));
+    await userEvent.type(
+      dialog().getByLabelText("Nombre"),
+      "Croissant de Mermelada",
+    );
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    expect(app.store.getState().menu.products["52000822188"].changes).toEqual({
+      categoryId: "salado",
+      name: "Croissant de Mermelada",
+    });
+    app.store.close();
+  });
+
+  it("focus returns to the Editar button after the product moves to another category", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await click(
+      row("Croissant Dulce").getByRole("button", {
+        name: "Editar Croissant Dulce",
+      }),
+    );
+    await userEvent.selectOptions(
+      dialog().getByLabelText("Categoría"),
+      "Salado",
+    );
+    await click(dialog().getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(screen.getByRole("region", { name: "Salado" })).getByRole(
+          "button",
+          { name: "Editar Croissant Dulce" },
+        ),
+      ),
+    );
     app.store.close();
   });
 });
