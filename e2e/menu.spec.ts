@@ -19,7 +19,7 @@ test("[A] Los cambios del menú sobreviven a una recarga sin red", async ({
   await page.getByRole("link", { name: "Menú" }).click();
   const latte = page.getByRole("listitem", { name: "Latte", exact: true });
   await latte.getByRole("button", { name: "Cambiar precio de Latte" }).click();
-  await page.getByLabel("Precio de Latte").fill("70");
+  await page.getByLabel("Precio de Latte", { exact: true }).fill("70");
   await page.getByRole("button", { name: "Guardar precio" }).click();
   await expect(latte.getByText("$70.00")).toBeVisible();
   const croissant = page.getByRole("listitem", { name: "Croissant Dulce" });
@@ -29,6 +29,7 @@ test("[A] Los cambios del menú sobreviven a una recarga sin red", async ({
   await context.setOffline(true);
   await page.reload();
   await signIn(page, PIN.barra);
+  await page.getByRole("link", { name: "Venta", exact: true }).click();
   await expect(
     menu(page).getByRole("button", { name: /^Latte\s*\$/ }),
   ).toContainText("$70.00");
