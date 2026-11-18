@@ -238,3 +238,49 @@ export function setProductAvailability(
     ],
   };
 }
+
+export type MoveDirection = "up" | "down";
+
+export type NewCategoryInput = { categoryId: string; name: string };
+
+export type CategoryEdit = {
+  categoryId: string;
+  name?: string;
+  active?: boolean;
+};
+
+export function createCategory(
+  state: PosState,
+  meta: CommandMeta,
+  input: NewCategoryInput,
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}
+
+export function updateCategory(
+  state: PosState,
+  meta: CommandMeta,
+  input: CategoryEdit,
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}
+
+export function moveCategory(
+  state: PosState,
+  meta: CommandMeta,
+  input: { categoryId: string; direction: MoveDirection },
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}
+
+export function moveProduct(
+  state: PosState,
+  meta: CommandMeta,
+  input: { productId: string; direction: MoveDirection },
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}

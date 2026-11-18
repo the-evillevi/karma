@@ -1,4 +1,9 @@
-export type Category = { id: string; name: string; sortOrder: number };
+export type Category = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+};
 
 export type ModifierOption = {
   id: string;
@@ -88,7 +93,12 @@ function parseCategory(raw: unknown): Category {
   ) {
     malformed(item);
   }
-  return { id: item.id, name: item.name, sortOrder: item.sortOrder };
+  return {
+    id: item.id,
+    name: item.name,
+    sortOrder: item.sortOrder,
+    active: true,
+  };
 }
 
 function parseOption(raw: unknown, groupId: string): ModifierOption {

@@ -32,7 +32,10 @@ export type CommandRejection =
   | "invalid-name"
   | "unknown-category"
   | "invalid-sku"
-  | "duplicate-sku";
+  | "duplicate-sku"
+  | "invalid-category-name"
+  | "duplicate-category"
+  | "invalid-move";
 
 export class CommandRejectedError extends Error {
   readonly reason: CommandRejection;
