@@ -15,7 +15,6 @@ import { errorMessage } from "../errors.ts";
 import { navigate } from "../router.ts";
 import { itemCountLabel } from "../station/OrderPanel.tsx";
 
-/** Saved accounts waiting to be continued or charged (EVL-122 [C]). */
 export function Accounts() {
   const state = usePosState();
   const run = useCommand();

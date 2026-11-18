@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-126, slice [A]. Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import { CommandRejectedError, saveOrder } from "./commands.ts";
 import type { CommandRejection } from "./commands.ts";
@@ -35,16 +34,12 @@ function rejection(action: () => unknown): CommandRejection | "not rejected" {
   return "not rejected";
 }
 
-/** What storage does to a batch: it comes back as plain JSON. */
 function stored(batches: CommandBatch[]): CommandBatch[] {
   return JSON.parse(JSON.stringify(batches)) as CommandBatch[];
 }
 
 describe("EVL-126 [A] Diario de operaciones", () => {
   it("[A] Una cuenta abierta sobrevive a recargar", () => {
-    // Dado una cuenta guardada en la mesa 3 con un Americano de $50, cuando
-    // cierro y vuelvo a abrir la app, entonces la cuenta sigue ahí con la
-    // misma partida, total y folio
     const batch = saveOrder(emptyState(), meta("op-1", luis, "10:05"), {
       orderId: "o-1",
       header: mesa(3),
@@ -67,9 +62,6 @@ describe("EVL-126 [A] Diario de operaciones", () => {
   });
 
   it("[A] Las operaciones pendientes conservan actor y hora", () => {
-    // Dado Barra "Luis" registra una operación a las 10:05 sin conexión,
-    // cuando recargo la app, entonces la operación conserva su identificador,
-    // a "Luis" y las 10:05
     const batch = saveOrder(emptyState(), meta("op-123", luis, "10:05"), {
       orderId: "o-1",
       header: mostrador,
@@ -190,7 +182,6 @@ describe("EVL-126 [A] Diario de operaciones", () => {
     const next = applyBatch(state, batch);
     expect(state).toEqual(emptyState());
     expect(batch).toEqual(frozenBatch);
-    // The order must not alias the batch: editing one leaves the other intact.
     next.orders["o-1"].lines[0].quantity = 99;
     expect(batch).toEqual(frozenBatch);
   });
@@ -216,7 +207,6 @@ describe("EVL-126 [A] Diario de operaciones", () => {
         saveOrder(state, meta("op-1", luis), { ...input, lines: [] }),
       ),
     ).toBe("empty-order");
-    // All three roles may capture and save.
     expect(rejection(() => saveOrder(state, meta("op-1", sofi), input))).toBe(
       "not rejected",
     );

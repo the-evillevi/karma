@@ -26,10 +26,8 @@ const chipClass =
 const activeChip =
   "border-primary bg-primary font-medium text-primary-foreground";
 
-/** Order type, table and customer data of the order in capture. */
 export function HeaderEditor({ header, tables, onChange }: HeaderEditorProps) {
   const fields = requiredCustomerFields(header.type);
-  // An account keeps its table even if it is no longer in the configured range.
   const tableChoices =
     header.table !== null && !tables.includes(header.table)
       ? [...tables, header.table]

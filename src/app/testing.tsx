@@ -1,4 +1,3 @@
-// Helpers for screen tests. Not imported by app code.
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { PosStore, createMemoryStorage } from "../data/pos-store.ts";
@@ -16,13 +15,11 @@ export function pilotUser(role: Role): User {
 }
 
 type RenderAppOptions = {
-  /** Signed-in role; omit to start at the PIN screen. */
   as?: Role;
   storage?: JournalStorage;
   users?: readonly User[];
 };
 
-/** Renders `ui` inside the app providers over an in-memory journal. */
 export async function renderApp(ui: ReactNode, options: RenderAppOptions = {}) {
   resetDraftCache();
   const storage = options.storage ?? createMemoryStorage();

@@ -1,7 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// End-to-end tests run the production build in a real browser, so they cover
-// what unit tests cannot: IndexedDB persistence, reloads and real layout.
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: true,

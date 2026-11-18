@@ -14,7 +14,6 @@ import { timeOfDay } from "../clock.ts";
 import { useCommand, usePosState } from "../context.tsx";
 import { errorMessage } from "../errors.ts";
 
-/** Pending comandas for the kitchen and bar (EVL-124 [B]). No prices here. */
 export function Kitchen() {
   const state = usePosState();
   const run = useCommand();

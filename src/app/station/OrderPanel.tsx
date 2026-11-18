@@ -9,20 +9,15 @@ type OrderPanelProps = {
   lines: OrderLine[];
   taxRateBps: number;
   busy?: boolean;
-  /** "Cuenta A-0001" when editing a saved account. */
   title?: string;
-  /** Quantity of each line already sent to the kitchen, by lineId. */
   sentQuantities?: Record<string, number>;
-  /** Order type, table and customer editor. */
   header?: ReactNode;
-  /** Save, send and charge actions. */
   actions?: ReactNode;
   onChangeQuantity: (lineId: string, delta: number) => void;
   onRemove: (lineId: string) => void;
   onEdit: (line: OrderLine) => void;
 };
 
-/** "2 productos" / "1 producto". */
 export function itemCountLabel(count: number): string {
   return count === 1 ? "1 producto" : `${count} productos`;
 }

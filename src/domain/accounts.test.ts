@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-122 slice [C] and EVL-188. Test names are scenario titles.
 import { describe, expect, it } from "vitest";
 import { accountSummary, openOrders } from "./accounts.ts";
 import { saveOrder } from "./commands.ts";
@@ -97,9 +96,6 @@ describe("EVL-122 [C] Cuentas abiertas", () => {
   });
 
   it("[C] Guardar sin cobrar y reabrir después de recargar", () => {
-    // Dado una cuenta en la mesa 3 con un Americano de $50, cuando la guardo
-    // sin cobrar, recargo la app y la reabro, entonces la cuenta tiene las
-    // mismas partidas, la mesa 3 y un total de $50
     const { batches } = run([
       (state) =>
         saveOrder(state, meta("op-1", luis, "10:05"), {
@@ -118,10 +114,6 @@ describe("EVL-122 [C] Cuentas abiertas", () => {
   });
 
   it("[C] La lista muestra mesa, responsable, hora, tipo y total", () => {
-    // Dado dos cuentas guardadas: mesa 3 por Barra "Luis" a las 10:05 por $50,
-    // y Recoger "Ana" por Mesero "Sofi" a las 10:12 por $85, cuando abro
-    // Cuentas abiertas, entonces veo ambas con su mesa o cliente,
-    // responsable, hora, tipo y total
     const { state } = run([
       (current) =>
         saveOrder(current, meta("op-2", sofi, "10:12"), {
@@ -136,7 +128,6 @@ describe("EVL-122 [C] Cuentas abiertas", () => {
           lines: linesOf([americano]),
         }),
     ]);
-    // $75 + $50 = $125 for Ana in this fixture; the listed total is computed.
     expect(
       openOrders(state).map((order) => accountSummary(order, IVA)),
     ).toEqual([
@@ -164,8 +155,6 @@ describe("EVL-122 [C] Cuentas abiertas", () => {
   });
 
   it("[C] Cambiar el tipo de orden conserva partidas y precios", () => {
-    // Dado una cuenta de Mostrador con un Americano de $50, cuando cambio el
-    // tipo a Mesa 2, entonces la partida y su precio de $50 no cambian
     const { state } = run([
       (current) =>
         saveOrder(current, meta("op-1", luis), {
@@ -191,9 +180,6 @@ describe("EVL-122 [C] Cuentas abiertas", () => {
 
 describe("EVL-188 Conservar precios capturados al reabrir cuentas", () => {
   it("Reabrir una cuenta conserva los precios capturados", () => {
-    // Dado una cuenta con un Americano capturado a $50.00, cuando el menú
-    // cambia el Americano a $55.00 y reabro la cuenta para agregar un
-    // Brownie, entonces el Americano sigue en $50.00 y el total es $88.00
     const { state } = run([
       (current) =>
         saveOrder(current, meta("op-1", luis), {

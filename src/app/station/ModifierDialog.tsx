@@ -25,7 +25,6 @@ import type { LineModifier, OrderLine } from "../../domain/order.ts";
 type ModifierDialogProps = {
   catalog: Catalog;
   product: Product;
-  /** The line being re-edited, or undefined when adding a new one. */
   line?: OrderLine;
   onCancel: () => void;
   onConfirm: (modifiers: LineModifier[], note: string) => void;
@@ -89,7 +88,6 @@ export function ModifierDialog({
     setSelection((current) => {
       const chosen = current[group.id] ?? [];
       if (group.max === 1) {
-        // A required single choice cannot be cleared, only replaced.
         const cleared = chosen.includes(optionId) && group.min === 0;
         return { ...current, [group.id]: cleared ? [] : [optionId] };
       }

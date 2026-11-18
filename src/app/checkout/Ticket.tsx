@@ -15,13 +15,11 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** "15/11/2026" from a local ISO timestamp. */
 function dateOf(iso: string): string {
   const [year, month, day] = iso.slice(0, 10).split("-");
   return `${day}/${month}/${year}`;
 }
 
-/** The customer ticket of a closed sale, as it will later be printed. */
 export function Ticket({ order }: { order: Order }) {
   const sale = order.sale;
   if (!sale) return null;

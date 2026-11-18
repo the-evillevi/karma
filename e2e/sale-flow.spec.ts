@@ -1,11 +1,7 @@
-// Spec: Linear EVL-116, slice [B]. Test names are the scenario titles.
 import { expect, test } from "@playwright/test";
 import { PIN, addProduct, order, signIn } from "./helpers.ts";
 
 test("[B] Venta rápida en efectivo de principio a fin", async ({ page }) => {
-  // Dado la app recién abierta, cuando entro como Barra (2222), agrego un
-  // Americano ($50.00) y cobro con $100.00 en efectivo, entonces veo cambio
-  // de $50.00 y la venta aparece en "Ventas de hoy"
   await page.goto("/");
   await signIn(page, PIN.barra);
   await addProduct(page, "Americano");
@@ -30,7 +26,6 @@ test("[B] Venta rápida en efectivo de principio a fin", async ({ page }) => {
   await expect(sale).toContainText("Efectivo");
   await expect(sale).toContainText("$50.00");
 
-  // A closed sale is still there after the app is reopened.
   await page.reload();
   await signIn(page, PIN.admin);
   await page.getByRole("link", { name: "Ventas de hoy" }).click();
@@ -48,10 +43,6 @@ test("[B] Venta rápida en efectivo de principio a fin", async ({ page }) => {
 test("[B] Cuenta de mesa guardada, enviada a cocina y cobrada", async ({
   page,
 }) => {
-  // Dado una sesión de Mesero (3333), cuando guardo un Latte con Avena en la
-  // mesa 3, envío la comanda, recargo la app y Barra (2222) reabre y cobra la
-  // cuenta, entonces cocina muestra la comanda, la cuenta conserva partidas y
-  // total de $75.00, y la venta queda cerrada
   await page.goto("/");
   await signIn(page, PIN.mesero);
   await addProduct(page, "Latte");
@@ -90,7 +81,6 @@ test("[B] Cuenta de mesa guardada, enviada a cocina y cobrada", async ({
 
   await page.getByRole("link", { name: "Cuentas abiertas" }).click();
   await expect(page.getByText("No hay cuentas abiertas")).toBeVisible();
-  // Paying does not remove the pending comanda (EVL-185).
   await page.getByRole("link", { name: "Cocina" }).click();
   await expect(
     page.getByRole("listitem", { name: "Comanda A-0001" }),
@@ -98,8 +88,6 @@ test("[B] Cuenta de mesa guardada, enviada a cocina y cobrada", async ({
 });
 
 test("[B] Mesero no puede cobrar", async ({ page }) => {
-  // Dado una sesión de Mesero (3333) con una orden de $25.00, cuando busca
-  // la acción de cobrar, entonces no está disponible
   await page.goto("/");
   await signIn(page, PIN.mesero);
   await addProduct(page, "Coca Cola");
@@ -114,7 +102,6 @@ test("[B] Mesero no puede cobrar", async ({ page }) => {
 test("la cocina en otra pestaña recibe la comanda sin recargar", async ({
   context,
 }) => {
-  // EVL-124 [B] Una comanda nueva aparece sin recargar
   const caja = await context.newPage();
   const cocina = await context.newPage();
   await cocina.goto("/#/cocina");

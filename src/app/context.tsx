@@ -1,5 +1,3 @@
-// What every screen needs: the store (journal + state), who is signed in, and
-// a way to run a command with the right metadata.
 import {
   createContext,
   useCallback,
@@ -27,7 +25,6 @@ type AppContextValue = {
   users: readonly User[];
   user: User | null;
   problem: Error | null;
-  /** Resolves to false when the PIN matches no active user. */
   signIn: (pin: string) => Promise<boolean>;
   signOut: () => void;
 };
@@ -42,7 +39,6 @@ function useApp(): AppContextValue {
 
 const DEVICE_KEY = "karma.device.v1";
 
-/** A stable ID for this browser profile, created on first use. */
 export function deviceId(): string {
   try {
     const stored = window.localStorage.getItem(DEVICE_KEY);
@@ -58,7 +54,6 @@ export function deviceId(): string {
 type AppProviderProps = {
   store: PosStore;
   users: readonly User[];
-  /** Tests may start already signed in. */
   initialUser?: User;
   children: ReactNode;
 };
@@ -90,7 +85,6 @@ export function AppProvider({
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
-/** The current state, re-rendering on every committed change. */
 export function usePosState(): PosState {
   const { store } = useApp();
   return useSyncExternalStore(
@@ -108,18 +102,12 @@ export function useStoreProblem(): Error | null {
   return useApp().problem;
 }
 
-/** The signed-in user as the actor of a command. Throws when signed out. */
 export function useActor(): Actor {
   const { user } = useApp();
   if (!user) throw new Error("No user is signed in");
   return { userId: user.userId, name: user.name, role: user.role };
 }
 
-/**
- * Returns `run(decide)`: builds the command metadata (new ID, local time,
- * actor, device), lets `decide` check the rules against the latest state and
- * commits the resulting batch. Rejections and storage errors are thrown.
- */
 export function useCommand() {
   const { store, user } = useApp();
   return useCallback(

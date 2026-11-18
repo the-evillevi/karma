@@ -1,6 +1,3 @@
-// Pilot users (EVL-118 [B]). Test accounts until Carlos defines the real
-// names and PINs; managing users from the app is EVL-118 [C].
-// The PINs are listed in Linear EVL-118, never here: only their digests.
 import type { User } from "../domain/access.ts";
 
 export const PILOT_USERS: readonly User[] = [

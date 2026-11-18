@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,7 +30,6 @@ type CheckoutDialogProps = {
   order: Order;
   taxRateBps: number;
   onCancel: () => void;
-  /** Resolves when the sale is closed; rejects with the error to show. */
   onConfirm: (input: CloseSaleInput) => Promise<void>;
   errorText: (error: unknown) => string;
 };
@@ -60,13 +59,11 @@ export function CheckoutDialog({
   const [busy, setBusy] = useState(false);
   const [openedVersion] = useState(order.version);
   const [receivedVersion, setReceivedVersion] = useState(order.version);
-  useEffect(() => {
-    if (receivedVersion !== order.version) {
-      setReceived("");
-      setFailure("");
-      setReceivedVersion(order.version);
-    }
-  }, [order.version, receivedVersion]);
+  if (receivedVersion !== order.version) {
+    setReceivedVersion(order.version);
+    setReceived("");
+    setFailure("");
+  }
   const versionChanged = order.version !== openedVersion;
 
   const options = tipOptions(totals.totalCents);
@@ -82,7 +79,6 @@ export function CheckoutDialog({
       ? null
       : amountDue(totals.totalCents, tipCents).totalDueCents;
 
-  // Card and transfer are charged for the exact amount; only cash is typed.
   const receivedCents = method === "cash" ? parsePesos(received) : due;
   let settlement: Settlement | null = null;
   let problem = "";
@@ -104,10 +100,7 @@ export function CheckoutDialog({
       problem = errorText(error);
     }
   }
-  const canConfirm =
-    settlement?.canConfirm === true &&
-    !busy &&
-    receivedVersion === order.version;
+  const canConfirm = settlement?.canConfirm === true && !busy;
 
   async function confirm() {
     if (!canConfirm || tipCents === null || receivedCents === null) {

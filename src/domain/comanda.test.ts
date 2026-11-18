@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-124, slice [A]. Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import {
   advancePreparation,
@@ -60,10 +59,6 @@ const latteAvena = () => linesOf([latte, 1, [avena], "extra caliente"]);
 
 describe("EVL-124 [A] Comandas", () => {
   it("[A] La comanda copia las partidas sin precios", () => {
-    // Dado la cuenta A-0001 en la mesa 3 con 1 Latte con Avena y la nota
-    // "extra caliente", cuando envío la comanda, entonces muestra folio
-    // A-0001, Mesa 3, 1 Latte, "Avena" y "extra caliente", queda "En cola"
-    // y no incluye precios
     const state = sent(saved(emptyState(), latteAvena()), "c-1");
     expect(state.comandas["c-1"]).toEqual({
       comandaId: "c-1",
@@ -90,9 +85,6 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] Enviar de nuevo sólo manda lo nuevo", () => {
-    // Dado la cuenta A-0001 con 1 Latte ya enviado, cuando agrego 1 Brownie,
-    // subo el Latte a 2 y envío la comanda, entonces se crea una segunda
-    // comanda con 1 Brownie y 1 Latte, y la primera no cambia
     let state = sent(saved(emptyState(), latteAvena()), "c-1");
     const first = state.comandas["c-1"];
     const grown: OrderLine[] = [
@@ -114,8 +106,6 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] Sin productos nuevos no hay comanda", () => {
-    // Dado la cuenta con todo ya enviado, cuando intento enviar la comanda,
-    // entonces se rechaza indicando que no hay productos nuevos
     const state = sent(saved(emptyState(), latteAvena()), "c-1");
     expect(
       rejectionOf(() =>
@@ -136,9 +126,6 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] Lo enviado a cocina no se quita desde la estación", () => {
-    // Dado la cuenta con 2 Lattes ya enviados, cuando intento bajar la
-    // cantidad a 1 o eliminar la partida, entonces se rechaza porque quitar
-    // lo enviado es una cancelación con motivo
     const two: OrderLine[] = [{ ...latteAvena()[0], quantity: 2 }];
     const state = sent(saved(emptyState(), two), "c-1");
     const resave = (lines: OrderLine[]) =>
@@ -153,17 +140,12 @@ describe("EVL-124 [A] Comandas", () => {
     expect(resave([{ ...linesOf([brownie])[0], lineId: "l9" }])).toBe(
       "sent-to-kitchen",
     );
-    // Changing what the kitchen was already told to make is also refused.
     expect(resave([{ ...two[0], note: "frío" }])).toBe("sent-to-kitchen");
     expect(resave([{ ...two[0], modifiers: [] }])).toBe("sent-to-kitchen");
-    // Adding more is fine.
     expect(resave([{ ...two[0], quantity: 3 }])).toBe("not rejected");
   });
 
   it("[A] La preparación avanza un paso a la vez", () => {
-    // Dado una comanda "En cola", cuando cocina la marca como empezada, lista
-    // y entregada, entonces pasa por "Preparando", "Lista" y "Entregada", y
-    // no puede saltar de "En cola" a "Lista"
     let state = sent(saved(emptyState(), latteAvena()), "c-1");
     expect(
       rejectionOf(() =>
@@ -213,8 +195,6 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] Reintentar el envío no duplica la comanda", () => {
-    // Dado una comanda enviada con el identificador op-200, cuando el mismo
-    // envío op-200 se repite, entonces sigue habiendo una sola comanda
     const before = saved(emptyState(), latteAvena());
     const batch: CommandBatch = sendComanda(before, meta("op-200", sofi), {
       orderId: "o-1",

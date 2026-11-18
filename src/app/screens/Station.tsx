@@ -51,7 +51,6 @@ type Editing =
   | { kind: "add"; product: Product }
   | { kind: "edit"; product: Product; line: OrderLine };
 
-/** A product as it was captured, for re-editing a line whose product left the menu. */
 function productOf(line: OrderLine): Product {
   return (
     findProduct(catalog, line.productId) ?? {
@@ -112,7 +111,6 @@ export function Station() {
     setEditing(null);
   }
 
-  /** Saves the draft as an account and returns it with the new state. */
   async function save(): Promise<{
     order: Order;
     orderId: string;
@@ -128,7 +126,6 @@ export function Station() {
         lines: captured.lines,
       }),
     );
-    // Keep the draft attached to the account in case the next step fails.
     const order = after.orders[orderId];
     const savedDraft =
       loadDraft() === captured

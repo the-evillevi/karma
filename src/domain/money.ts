@@ -1,13 +1,8 @@
-// Money helpers. Amounts are integer centavos; formatting is display-only.
-
 export type TaxBreakdown = {
-  /** Amount before IVA. */
   netCents: number;
-  /** IVA contained in the total. */
   taxCents: number;
 };
 
-/** "$1,234.50" for 123450. Negative amounts render as "-$5.00". */
 export function formatMXN(cents: number): string {
   if (!Number.isSafeInteger(cents)) {
     throw new RangeError("Centavos must be a safe integer");
@@ -21,10 +16,6 @@ export function formatMXN(cents: number): string {
   return `${cents < 0 ? "-" : ""}$${groups.join(",")}.${String(amount % 100).padStart(2, "0")}`;
 }
 
-/**
- * Splits a tax-inclusive total into net and IVA.
- * net = total / (1 + rate), rounded to the centavo (half up); tax = total - net.
- */
 export function taxBreakdown(
   totalCents: number,
   taxRateBps: number,
@@ -46,11 +37,6 @@ export function taxBreakdown(
   return { netCents, taxCents: totalCents - netCents };
 }
 
-/**
- * Centavos from what a cashier types: "150", "150.5", "150.50", "$1,250.00".
- * Returns null when the text is not a non-negative peso amount with at most
- * two decimals. Uses no floating point.
- */
 export function parsePesos(text: string): number | null {
   const cleaned = text.trim().replace(/^\$/, "").replace(/,/g, "");
   const match = /^(\d{1,9})(?:\.(\d{1,2}))?$/.exec(cleaned);

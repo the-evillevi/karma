@@ -1,4 +1,3 @@
-// Spec: Linear EVL-116, slice [B]. Test names are the scenario titles.
 import { expect, test } from "@playwright/test";
 import { PIN, addProduct, order, signIn } from "./helpers.ts";
 

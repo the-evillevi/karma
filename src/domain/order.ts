@@ -1,5 +1,3 @@
-// Order lines and totals (EVL-121 [A]). Pure functions over immutable arrays.
-// A line is a snapshot: later catalog changes never alter a captured line.
 import type { Product } from "./catalog.ts";
 import { taxBreakdown } from "./money.ts";
 
@@ -12,15 +10,11 @@ export type LineModifier = {
 };
 
 export type OrderLine = {
-  /** Stable ID supplied by the caller; never reused. */
   lineId: string;
   productId: string;
-  /** Product name captured when the line was added. */
   name: string;
-  /** Product price captured when the line was added, without modifiers. */
   unitPriceCents: number;
   modifiers: LineModifier[];
-  /** Preparation note, trimmed. Empty string means no note. */
   note: string;
   quantity: number;
 };
@@ -33,9 +27,7 @@ export type LineInput = {
 };
 
 export type OrderTotals = {
-  /** Sum of quantities across lines. */
   itemCount: number;
-  /** What the customer pays for the products, IVA included. */
   totalCents: number;
   netCents: number;
   taxCents: number;
@@ -54,7 +46,6 @@ export class OrderError extends Error {
   }
 }
 
-/** Unit price of a line including its modifiers. */
 export function lineUnitCents(line: OrderLine): number {
   return line.modifiers.reduce(
     (total, modifier) => total + modifier.priceDeltaCents,
@@ -75,10 +66,6 @@ function modifierKey(modifiers: readonly LineModifier[]): string {
   return JSON.stringify([...pairs].sort());
 }
 
-/**
- * Adds a product. If a line with the same product, modifiers and note exists,
- * its quantity grows and its lineId is kept; otherwise a new line is appended.
- */
 export function addLine(
   lines: readonly OrderLine[],
   product: Product,
@@ -121,7 +108,6 @@ export function addLine(
   ];
 }
 
-/** Adds `delta` to a line's quantity; reaching zero or less removes the line. */
 export function changeQuantity(
   lines: readonly OrderLine[],
   lineId: string,

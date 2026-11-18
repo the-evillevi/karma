@@ -1,5 +1,3 @@
-// The behaviour every JournalStorage must have. Each implementation runs this
-// same suite from its own test file. Not imported by app code.
 import { describe, expect, it, vi } from "vitest";
 import { saveOrder } from "../domain/commands.ts";
 import { emptyState } from "../domain/journal.ts";
@@ -18,9 +16,7 @@ import type { JournalStorage } from "./pos-store.ts";
 
 export type StorageUnderTest = {
   storage: JournalStorage;
-  /** Simulates closing the app and opening it again on the same device. */
   reopen: () => Promise<JournalStorage>;
-  /** A second connection to the same data, like another browser tab. */
   secondTab: () => Promise<JournalStorage>;
   cleanup: () => Promise<void>;
 };
@@ -33,7 +29,6 @@ function batchOf(commandId: string, time: string): CommandBatch {
   });
 }
 
-/** Waits until `check` stops throwing, for storages that notify asynchronously. */
 async function eventually(check: () => void): Promise<void> {
   await vi.waitFor(check, { timeout: 2000, interval: 10 });
 }
@@ -86,8 +81,6 @@ export function describeJournalStorage(
 
     it("returns batches exactly as stored, oldest first", async () => {
       const subject = await make();
-      // Appended in this order even though the clock went backwards: the
-      // journal order is the append order, not the timestamp order.
       const batches = [
         batchOf("op-c", "10:30"),
         batchOf("op-a", "10:05"),

@@ -1,7 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-/** Pilot PINs (Linear EVL-118). */
 export const PIN = { admin: "1111", barra: "2222", mesero: "3333" } as const;
 
 export async function signIn(page: Page, pin: string): Promise<void> {

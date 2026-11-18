@@ -1,5 +1,3 @@
-// Brief feedback after an action ("Cuenta A-0001 guardada"). Never the only
-// record of a payment: sales stay visible in "Ventas de hoy".
 import {
   createContext,
   useCallback,

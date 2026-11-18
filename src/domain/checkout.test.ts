@@ -1,6 +1,4 @@
 // @vitest-environment node
-// Spec: Linear EVL-123 slices [C] and [D], and EVL-185.
-// Test names are the scenario titles.
 import { describe, expect, it } from "vitest";
 import { PAYMENT_METHOD_LABELS, closeSale, closedSales } from "./checkout.ts";
 import { pendingComandas, sendComanda } from "./comanda.ts";
@@ -26,7 +24,6 @@ import {
 
 const IVA = catalog.taxRateBps;
 
-/** An open $50.00 counter order, plus the batches that built it. */
 function fifty(orderId = "o-1"): { state: PosState; batches: CommandBatch[] } {
   const batch = saveOrder(emptyState(), meta("save-1", sofi, "10:00"), {
     orderId,
@@ -38,11 +35,7 @@ function fifty(orderId = "o-1"): { state: PosState; batches: CommandBatch[] } {
 
 describe("EVL-123 [C] Tarjeta manual y transferencia sin conexión", () => {
   it("[C] Tarjeta manual sin conexión", () => {
-    // Dado el dispositivo sin internet y una orden de $50.00, cuando registro
-    // un pago con tarjeta cobrado en la terminal por separado, entonces el
-    // pago se registra como "tarjeta manual" y el cobro se puede confirmar
     const { state } = fifty();
-    // closeSale is a pure function: it cannot wait for the network.
     const batch = closeSale(
       state,
       meta("op-1", luis),
@@ -59,9 +52,6 @@ describe("EVL-123 [C] Tarjeta manual y transferencia sin conexión", () => {
   });
 
   it("[C] Transferencia sin conexión", () => {
-    // Dado el dispositivo sin internet y una orden de $50.00, cuando registro
-    // una transferencia de $50.00, entonces el cobro se confirma sin esperar
-    // la red
     const { state } = fifty();
     const next = applyBatch(
       state,
@@ -114,9 +104,6 @@ describe("EVL-123 [D] Cierre de la venta", () => {
   });
 
   it("[D] El cierre conserva pagos, propina y cambio", () => {
-    // Dado una orden de $50.00 pagada con $100.00 en efectivo, cuando
-    // confirmo el cobro y recargo la app, entonces la venta cerrada conserva
-    // efectivo recibido $100.00, cambio $50.00 y pago neto $50.00
     const { state, batches } = fifty();
     const close = closeSale(
       state,
@@ -152,8 +139,6 @@ describe("EVL-123 [D] Cierre de la venta", () => {
   });
 
   it("charges the order plus tip and keeps the tip apart", () => {
-    // $75.00 + $38.00 = $113.00, propina $11.30, total a liquidar $124.30,
-    // efectivo $150.00, cambio $25.70 (the EVL-124 [C] ticket example)
     let state = applyBatch(
       emptyState(),
       saveOrder(emptyState(), meta("save-1", sofi), {
@@ -188,8 +173,6 @@ describe("EVL-123 [D] Cierre de la venta", () => {
   });
 
   it("[D] Una venta cerrada no se puede volver a cobrar", () => {
-    // Dado una venta cerrada, cuando intento cobrarla otra vez, entonces la
-    // operación se rechaza y el total cobrado no cambia
     const { state } = fifty();
     const input = {
       orderId: "o-1",
@@ -203,7 +186,6 @@ describe("EVL-123 [D] Cierre de la venta", () => {
     expect(
       rejectionOf(() => closeSale(closed, meta("op-3", luis), input, IVA)),
     ).toBe("order-closed");
-    // Nor edited.
     expect(
       rejectionOf(() =>
         saveOrder(closed, meta("op-4", luis), {
@@ -218,8 +200,6 @@ describe("EVL-123 [D] Cierre de la venta", () => {
   });
 
   it("[D] Mesero no cobra", () => {
-    // Dado un usuario Mesero con una orden, cuando intenta confirmar el
-    // cobro, entonces la operación se rechaza
     const { state } = fifty();
     const input = {
       orderId: "o-1",
@@ -268,7 +248,6 @@ describe("EVL-123 [D] Cierre de la venta", () => {
         ),
       ),
     ).toBe("unknown-order");
-    // Payment rules keep their own error (only cash gives change).
     expect(() =>
       closeSale(
         state,
@@ -286,8 +265,6 @@ describe("EVL-123 [D] Cierre de la venta", () => {
 
 describe("EVL-185 Conservar comandas pendientes después del cobro", () => {
   it("Cobrar no elimina la comanda pendiente", () => {
-    // Dado una cuenta con una comanda "En cola", cuando cobro la cuenta,
-    // entonces la venta queda pagada y la comanda sigue "En cola" en cocina
     let { state } = fifty();
     state = applyBatch(
       state,

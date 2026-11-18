@@ -1,5 +1,3 @@
-// Minimal hash router. The kitchen view is the same app at `#/cocina`, so it
-// can live in a second tab of the same browser and share local data.
 import { useSyncExternalStore } from "react";
 
 export const ROUTES = [
@@ -15,7 +13,6 @@ function isRoutePath(value: string): value is RoutePath {
   return ROUTES.some((route) => route.path === value);
 }
 
-/** The current route. Unknown hashes fall back to the sale station. */
 export function currentRoute(hash: string = window.location.hash): RoutePath {
   const path = hash.replace(/^#/, "") || "/";
   return isRoutePath(path) ? path : "/";
