@@ -458,4 +458,34 @@ describe("EVL-119 [D] Opciones sobre el menú base", () => {
   it("starts with no option edits in an empty menu", () => {
     expect(emptyState().menu.modifierOptions).toEqual({});
   });
+
+  it("keeps captured modifiers whose group or option the menu no longer has", () => {
+    const captured = resolveModifiers(catalog, latte, {
+      leche: ["avena"],
+      shot: ["amareto"],
+    });
+    const withoutShot = { ...latte, modifierGroupIds: ["leche"] };
+    expect(
+      resolveModifiers(catalog, withoutShot, { leche: ["avena"] }, captured),
+    ).toEqual(captured);
+    const withoutAvena: Catalog = {
+      ...catalog,
+      modifierGroups: catalog.modifierGroups.map((item) =>
+        item.id === "leche"
+          ? { ...item, options: item.options.filter((o) => o.id !== "avena") }
+          : item,
+      ),
+    };
+    expect(
+      resolveModifiers(
+        withoutAvena,
+        latte,
+        { leche: ["avena"], shot: ["amareto"] },
+        captured,
+      ),
+    ).toEqual(captured);
+    expect(() =>
+      resolveModifiers(withoutAvena, latte, { leche: ["avena"] }),
+    ).toThrow(ModifierError);
+  });
 });

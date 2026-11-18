@@ -50,7 +50,9 @@ export function resolveModifiers(
       throw new ModifierError("unknown-group", groupId, "");
     }
   }
-  return modifierGroupsFor(catalog, product).flatMap((group) => {
+  const groups = modifierGroupsFor(catalog, product);
+  const currentGroupIds = new Set(groups.map((group) => group.id));
+  const resolved = groups.flatMap((group) => {
     const chosen = Object.hasOwn(selection, group.id)
       ? selection[group.id]
       : [];
@@ -59,13 +61,13 @@ export function resolveModifiers(
         .filter((modifier) => modifier.groupId === group.id)
         .map((modifier) => [modifier.optionId, modifier]),
     );
-    const optionIds = new Set(
-      group.options
-        .filter(
-          (option) => option.active !== false || capturedOptions.has(option.id),
-        )
+    const listed = new Set(group.options.map((option) => option.id));
+    const optionIds = new Set([
+      ...group.options
+        .filter((option) => option.active !== false)
         .map((option) => option.id),
-    );
+      ...capturedOptions.keys(),
+    ]);
     if (chosen.some((id) => !optionIds.has(id))) {
       throw new ModifierError("unknown-option", group.id, group.name);
     }
@@ -76,19 +78,30 @@ export function resolveModifiers(
       throw new ModifierError("missing-required", group.id, group.name);
     }
     const selected = new Set(chosen);
-    return group.options
-      .filter((option) => selected.has(option.id))
-      .map(
-        (option) =>
-          capturedOptions.get(option.id) ?? {
-            groupId: group.id,
-            groupName: group.name,
-            optionId: option.id,
-            name: option.name,
-            priceDeltaCents: option.priceDeltaCents,
-          },
-      );
+    const unlistedCaptures = [...capturedOptions.values()].filter(
+      (modifier) =>
+        selected.has(modifier.optionId) && !listed.has(modifier.optionId),
+    );
+    return [
+      ...group.options
+        .filter((option) => selected.has(option.id))
+        .map(
+          (option) =>
+            capturedOptions.get(option.id) ?? {
+              groupId: group.id,
+              groupName: group.name,
+              optionId: option.id,
+              name: option.name,
+              priceDeltaCents: option.priceDeltaCents,
+            },
+        ),
+      ...unlistedCaptures,
+    ];
   });
+  return [
+    ...resolved,
+    ...captured.filter((modifier) => !currentGroupIds.has(modifier.groupId)),
+  ];
 }
 
 export function editLine(
