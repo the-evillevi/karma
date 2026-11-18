@@ -506,3 +506,64 @@ describe("EVL-119 [C] Orden del menú", () => {
     );
   });
 });
+
+describe("EVL-119 [C] Review regressions", () => {
+  it("puts products missing from a saved order last, such as one a later deploy adds", () => {
+    const state = moveProd(emptyState(), brownie.id, "up");
+    const later: Catalog = {
+      ...catalog,
+      products: [
+        ...catalog.products,
+        {
+          ...brownie,
+          id: "52000822300",
+          sku: "52000822300",
+          name: "Pay de Limón",
+        },
+      ],
+    };
+    const postres = namesIn(menuFor(later, state.menu), "postres");
+    expect(postres.slice(0, 4)).toEqual([
+      "Affogato",
+      "Helado",
+      "Brownie",
+      "Croissant Dulce",
+    ]);
+    expect(postres.at(-1)).toBe("Pay de Limón");
+  });
+
+  it("does not reorder products when replaying edits saved before categories could be ordered", () => {
+    const savedInSliceB: CommandBatch = {
+      ...at(),
+      events: [
+        {
+          type: "product-updated",
+          productId: croissant.id,
+          changes: { name: "Croissant Dulce", categoryId: "postres" },
+        },
+      ],
+    };
+    const state = replay([savedInSliceB]);
+    expect(namesIn(menuOf(state), "postres")).toEqual(
+      namesIn(catalog, "postres"),
+    );
+  });
+
+  it("orders base categories by their sortOrder, not by their place in the file", () => {
+    const shuffled: Catalog = {
+      ...catalog,
+      categories: [...catalog.categories].reverse(),
+    };
+    expect(
+      menuFor(shuffled, emptyState().menu).categories.map((c) => c.id),
+    ).toEqual(["bebidas", "salado", "postres", "extras", "cafe"]);
+    const moved = moveCat(emptyState(), "cafe", "up");
+    expect(menuFor(shuffled, moved.menu).categories.map((c) => c.id)).toEqual([
+      "bebidas",
+      "salado",
+      "postres",
+      "cafe",
+      "extras",
+    ]);
+  });
+});

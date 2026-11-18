@@ -155,21 +155,6 @@ function fingerprint(batch: CommandBatch): string {
   });
 }
 
-function appendProduct(
-  menu: MenuState,
-  productId: string,
-  categoryId: string,
-): void {
-  const orders = Object.fromEntries(
-    Object.entries(menu.productOrder).map(([id, products]) => [
-      id,
-      products.filter((id) => id !== productId),
-    ]),
-  );
-  const current = Object.hasOwn(orders, categoryId) ? orders[categoryId] : [];
-  menu.productOrder = { ...orders, [categoryId]: [...current, productId] };
-}
-
 export function applyBatch(state: PosState, batch: CommandBatch): PosState {
   const identity = fingerprint(batch);
   if (Object.hasOwn(state.applied, batch.commandId)) {
@@ -282,9 +267,6 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
             },
           },
         };
-        if (event.changes.categoryId !== undefined) {
-          appendProduct(next.menu, event.productId, event.changes.categoryId);
-        }
         break;
       }
       case "product-created": {
@@ -303,7 +285,6 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
             },
           },
         };
-        appendProduct(next.menu, product.id, product.categoryId);
         break;
       }
       case "category-created":

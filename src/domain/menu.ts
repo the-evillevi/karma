@@ -1,5 +1,11 @@
 import type { Catalog, Category, Product } from "./catalog.ts";
-import type { Actor, CommandBatch, CommandMeta, PosState } from "./journal.ts";
+import type {
+  Actor,
+  CommandBatch,
+  CommandMeta,
+  PosEvent,
+  PosState,
+} from "./journal.ts";
 import { can } from "./access.ts";
 import { findProduct, productsInCategory } from "./catalog.ts";
 import { CommandRejectedError } from "./commands.ts";
@@ -152,22 +158,48 @@ export function updateProduct(
   ) {
     throw new CommandRejectedError("unknown-category");
   }
+  const destination =
+    categoryId !== undefined && categoryId !== product.categoryId
+      ? categoryId
+      : undefined;
   const changes: ProductChanges = {
     ...(name !== undefined ? { name } : {}),
-    ...(categoryId !== undefined && categoryId !== product.categoryId
-      ? { categoryId }
-      : {}),
+    ...(destination !== undefined ? { categoryId: destination } : {}),
     ...(active !== undefined ? { active } : {}),
   };
   return {
     ...meta,
     actor: structuredClone(meta.actor),
-    events: [{ type: "product-updated", productId, changes }],
+    events: [
+      { type: "product-updated", productId, changes },
+      ...(destination !== undefined
+        ? [lastInCategory(current, destination, productId)]
+        : []),
+    ],
+  };
+}
+
+function lastInCategory(
+  menu: Catalog,
+  categoryId: string,
+  productId: string,
+): PosEvent {
+  return {
+    type: "products-reordered",
+    categoryId,
+    productIds: [
+      ...productsInCategory(menu, categoryId)
+        .map((item) => item.id)
+        .filter((id) => id !== productId),
+      productId,
+    ],
   };
 }
 
 export function menuFor(base: Catalog, menu: MenuState): Catalog {
-  const categories = [...base.categories];
+  const categories = [...base.categories].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
   const categoryIds = new Set(categories.map((category) => category.id));
   for (const category of menu.createdCategories) {
     if (categoryIds.has(category.id)) continue;
@@ -205,7 +237,10 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
       categoryId,
       patchedProducts
         .filter((product) => product.categoryId === categoryId)
-        .sort((a, b) => (ranks.get(a.id) ?? -1) - (ranks.get(b.id) ?? -1)),
+        .sort(
+          (a, b) =>
+            (ranks.get(a.id) ?? ids.length) - (ranks.get(b.id) ?? ids.length),
+        ),
     );
   }
   const positions = new Map<string, number>();
