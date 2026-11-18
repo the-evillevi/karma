@@ -1,6 +1,6 @@
 import type { Role } from "./access.ts";
-import type { Product } from "./catalog.ts";
-import type { MenuState, ProductChanges } from "./menu.ts";
+import type { Category, Product } from "./catalog.ts";
+import type { CategoryChanges, MenuState, ProductChanges } from "./menu.ts";
 import { emptyMenu } from "./menu.ts";
 import type { OrderLine, OrderTotals } from "./order.ts";
 import type { Settlement } from "./payment.ts";
@@ -62,7 +62,11 @@ export type PosEvent =
     }
   | { type: "tables-configured"; count: number }
   | { type: "product-updated"; productId: string; changes: ProductChanges }
-  | { type: "product-created"; product: Product };
+  | { type: "product-created"; product: Product }
+  | { type: "category-created"; category: Category }
+  | { type: "category-updated"; categoryId: string; changes: CategoryChanges }
+  | { type: "categories-reordered"; categoryIds: string[] }
+  | { type: "products-reordered"; categoryId: string; productIds: string[] };
 
 export type CommandBatch = CommandMeta & { events: PosEvent[] };
 
@@ -149,6 +153,21 @@ function fingerprint(batch: CommandBatch): string {
     }
     return value;
   });
+}
+
+function appendProduct(
+  menu: MenuState,
+  productId: string,
+  categoryId: string,
+): void {
+  const orders = Object.fromEntries(
+    Object.entries(menu.productOrder).map(([id, products]) => [
+      id,
+      products.filter((id) => id !== productId),
+    ]),
+  );
+  const current = Object.hasOwn(orders, categoryId) ? orders[categoryId] : [];
+  menu.productOrder = { ...orders, [categoryId]: [...current, productId] };
 }
 
 export function applyBatch(state: PosState, batch: CommandBatch): PosState {
@@ -263,6 +282,9 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
             },
           },
         };
+        if (event.changes.categoryId !== undefined) {
+          appendProduct(next.menu, event.productId, event.changes.categoryId);
+        }
         break;
       }
       case "product-created": {
@@ -280,6 +302,30 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
               lastEdit: { at: snapshot.at, by: snapshot.actor },
             },
           },
+        };
+        appendProduct(next.menu, product.id, product.categoryId);
+        break;
+      }
+      case "category-created":
+        next.menu.createdCategories.push(event.category);
+        break;
+      case "category-updated": {
+        const existing = Object.hasOwn(next.menu.categories, event.categoryId)
+          ? next.menu.categories[event.categoryId]
+          : undefined;
+        next.menu.categories = {
+          ...next.menu.categories,
+          [event.categoryId]: { ...existing, ...event.changes },
+        };
+        break;
+      }
+      case "categories-reordered":
+        next.menu.categoryOrder = event.categoryIds;
+        break;
+      case "products-reordered": {
+        next.menu.productOrder = {
+          ...next.menu.productOrder,
+          [event.categoryId]: event.productIds,
         };
         break;
       }

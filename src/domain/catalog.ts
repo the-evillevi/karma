@@ -89,7 +89,8 @@ function parseCategory(raw: unknown): Category {
   if (
     typeof item.id !== "string" ||
     typeof item.name !== "string" ||
-    typeof item.sortOrder !== "number"
+    typeof item.sortOrder !== "number" ||
+    ("active" in item && typeof item.active !== "boolean")
   ) {
     malformed(item);
   }
@@ -97,7 +98,7 @@ function parseCategory(raw: unknown): Category {
     id: item.id,
     name: item.name,
     sortOrder: item.sortOrder,
-    active: true,
+    active: typeof item.active === "boolean" ? item.active : true,
   };
 }
 
