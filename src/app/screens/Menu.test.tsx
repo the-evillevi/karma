@@ -1,10 +1,11 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMemoryStorage } from "../../data/pos-store.ts";
+import type { JournalStorage } from "../../data/pos-store.ts";
 import { emptyState } from "../../domain/journal.ts";
-import { setProductPrice } from "../../domain/menu.ts";
-import { admin, catalog, latte } from "../../domain/testing.ts";
+import { setProductAvailability, setProductPrice } from "../../domain/menu.ts";
+import { admin, catalog, latte, luis, meta } from "../../domain/testing.ts";
 import { App } from "../App.tsx";
 import { renderApp } from "../testing.tsx";
 
@@ -178,6 +179,86 @@ describe("EVL-119 [A] Pantalla Menú", () => {
     ).toBeDefined();
     expect(row("Latte").getByText("$70.00")).toBeDefined();
     expect(row("Americano").queryByText(/^Editado por/)).toBeNull();
+    app.store.close();
+  });
+});
+
+describe("EVL-119 [A] Review regressions", () => {
+  it("an open modifier dialog does not add a product that became Agotado", async () => {
+    const app = await renderApp(<App />, { as: "barra" });
+    await click(saleButton("Latte"));
+    const dialog = within(screen.getByRole("dialog"));
+    await act(async () => {
+      await app.store.run((state) =>
+        setProductAvailability(
+          state,
+          meta("sold-out", luis),
+          { productId: latte.id, available: false },
+          catalog,
+        ),
+      );
+    });
+    await click(dialog.getByRole("button", { name: /^Agregar/ }));
+    expect(
+      within(
+        screen.getAllByRole("region", { name: "Orden actual" })[0],
+      ).getAllByText("Sin productos").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Este producto está agotado.").length,
+    ).toBeGreaterThan(0);
+    app.store.close();
+  });
+
+  it("a second tap on a pending switch is ignored", async () => {
+    const backing = createMemoryStorage();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let writes = 0;
+    const storage: JournalStorage = {
+      ...backing,
+      append: async (batch) => {
+        writes++;
+        await gate;
+        await backing.append(batch);
+      },
+    };
+    const app = await renderApp(<App />, { as: "barra", storage });
+    goTo("#/menu");
+    const toggle = () =>
+      row("Croissant Dulce").getByRole("switch", { name: "Disponible" });
+    await click(toggle());
+    await waitFor(() => expect(writes).toBe(1));
+    await click(toggle());
+    await act(async () => {
+      release();
+    });
+    await waitFor(() =>
+      expect(toggle().getAttribute("aria-checked")).toBe("false"),
+    );
+    expect(writes).toBe(1);
+    app.store.close();
+  });
+
+  it("Mesero sent to #/menu sees Venta marked as the current section", async () => {
+    const app = await renderApp(<App />, { as: "mesero" });
+    goTo("#/menu");
+    expect(
+      screen.getByRole("link", { name: "Venta" }).getAttribute("aria-current"),
+    ).toBe("page");
+    app.store.close();
+  });
+
+  it("closing the price dialog returns focus to its button", async () => {
+    const app = await renderApp(<App />, { as: "admin" });
+    goTo("#/menu");
+    await openPriceEditor("Latte");
+    await click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(document.activeElement).toBe(
+      row("Latte").getByRole("button", { name: "Cambiar precio de Latte" }),
+    );
     app.store.close();
   });
 });

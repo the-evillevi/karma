@@ -2,6 +2,7 @@ import { StorageWriteError } from "../data/pos-store.ts";
 import { CommandRejectedError } from "../domain/commands.ts";
 import { CUSTOMER_FIELD_LABELS } from "../domain/order-header.ts";
 import type { CustomerField } from "../domain/order-header.ts";
+import { OrderError } from "../domain/order.ts";
 import { PaymentRejectedError } from "../domain/payment.ts";
 
 const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
@@ -36,6 +37,9 @@ export function errorMessage(error: unknown): string {
       return `Falta ${fields.join(", ")} del cliente.`;
     }
     return REJECTIONS[error.reason];
+  }
+  if (error instanceof OrderError && error.reason === "product-unavailable") {
+    return "Este producto está agotado.";
   }
   if (error instanceof PaymentRejectedError) {
     return error.reason === "only-cash-gives-change"

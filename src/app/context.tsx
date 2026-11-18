@@ -11,12 +11,15 @@ import { pinDigest } from "../data/pin.ts";
 import type { PosStore } from "../data/pos-store.ts";
 import { findUserByPinDigest } from "../domain/access.ts";
 import type { User } from "../domain/access.ts";
+import type { Catalog } from "../domain/catalog.ts";
 import type {
   Actor,
   CommandBatch,
   CommandMeta,
   PosState,
 } from "../domain/journal.ts";
+import { menuFor } from "../domain/menu.ts";
+import { catalog } from "./catalog.ts";
 import { localIso } from "./clock.ts";
 import { newId } from "./ids.ts";
 
@@ -91,6 +94,11 @@ export function usePosState(): PosState {
     (onChange) => store.subscribe(onChange),
     () => store.getState(),
   );
+}
+
+export function useMenu(): Catalog {
+  const { menu } = usePosState();
+  return useMemo(() => menuFor(catalog, menu), [menu]);
 }
 
 export function useSession() {

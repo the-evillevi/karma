@@ -1,11 +1,23 @@
 import { useSyncExternalStore } from "react";
+import { can } from "../domain/access.ts";
 
 export const ROUTES = [
   { path: "/", label: "Venta" },
   { path: "/cuentas", label: "Cuentas abiertas" },
   { path: "/cocina", label: "Cocina" },
   { path: "/ventas", label: "Ventas de hoy" },
+  { path: "/menu", label: "Menú" },
 ] as const;
+
+export function mayOpenMenu(role: string): boolean {
+  return can(role, "edit-menu") || can(role, "set-availability");
+}
+
+export function routesFor(role: string): readonly (typeof ROUTES)[number][] {
+  return mayOpenMenu(role)
+    ? ROUTES
+    : ROUTES.filter((route) => route.path !== "/menu");
+}
 
 export type RoutePath = (typeof ROUTES)[number]["path"];
 

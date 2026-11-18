@@ -10,7 +10,7 @@ type ProductGridProps = {
   busy?: boolean;
 };
 
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
