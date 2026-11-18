@@ -190,6 +190,7 @@ export function parseCatalog(raw: unknown): Catalog {
       typeof product.categoryId !== "string" ||
       typeof product.priceCents !== "number" ||
       typeof product.available !== "boolean" ||
+      ("active" in product && typeof product.active !== "boolean") ||
       !isStringArray(product.modifierGroupIds)
     ) {
       malformed(product);
@@ -215,7 +216,7 @@ export function parseCatalog(raw: unknown): Catalog {
       categoryId: product.categoryId,
       priceCents: product.priceCents,
       available: product.available,
-      active: true,
+      active: typeof product.active === "boolean" ? product.active : true,
       modifierGroupIds: [...product.modifierGroupIds],
     };
   });
