@@ -662,3 +662,30 @@ function optionName(value: string, others: ModifierOption[]): string {
   }
   return name;
 }
+
+export type NewGroupInput = {
+  groupId: string;
+  name: string;
+  min: number;
+  max: number;
+  defaultOptionId?: string;
+  options: { optionId: string; name: string; priceDeltaCents: number }[];
+};
+
+export function createModifierGroup(
+  state: PosState,
+  meta: CommandMeta,
+  input: NewGroupInput,
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}
+
+export function setProductGroups(
+  state: PosState,
+  meta: CommandMeta,
+  input: { productId: string; groupIds: string[] },
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}
