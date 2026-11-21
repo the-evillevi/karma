@@ -1,5 +1,10 @@
 import type { Role } from "./access.ts";
-import type { Category, ModifierOption, Product } from "./catalog.ts";
+import type {
+  Category,
+  ModifierGroup,
+  ModifierOption,
+  Product,
+} from "./catalog.ts";
 import type {
   CategoryChanges,
   GroupOptionEdits,
@@ -79,7 +84,9 @@ export type PosEvent =
       optionId: string;
       changes: OptionChanges;
     }
-  | { type: "modifier-option-added"; groupId: string; option: ModifierOption };
+  | { type: "modifier-option-added"; groupId: string; option: ModifierOption }
+  | { type: "modifier-group-created"; group: ModifierGroup }
+  | { type: "product-groups-set"; productId: string; groupIds: string[] };
 
 export type CommandBatch = CommandMeta & { events: PosEvent[] };
 
@@ -354,6 +361,15 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
         };
         break;
       }
+      case "modifier-group-created":
+        next.menu.createdGroups.push(event.group);
+        break;
+      case "product-groups-set":
+        next.menu.productGroups = {
+          ...next.menu.productGroups,
+          [event.productId]: event.groupIds,
+        };
+        break;
       default: {
         const unhandled: never = event;
         throw new Error(`Unknown event: ${JSON.stringify(unhandled)}`);
