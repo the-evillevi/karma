@@ -15,6 +15,7 @@ import type {
 import { can } from "./access.ts";
 import { findProduct, productsInCategory } from "./catalog.ts";
 import { CommandRejectedError } from "./commands.ts";
+import { applyBatch } from "./journal.ts";
 
 export type ProductChanges = Partial<
   Pick<Product, "priceCents" | "available" | "name" | "categoryId" | "active">
@@ -816,5 +817,32 @@ export function updateProductAndGroups(
   },
   base: Catalog,
 ): CommandBatch {
-  throw new Error("not implemented");
+  const { productId, name, categoryId, groupIds } = input;
+  const first =
+    name !== undefined || categoryId !== undefined || groupIds === undefined
+      ? updateProduct(
+          state,
+          meta,
+          {
+            productId,
+            ...(name !== undefined ? { name } : {}),
+            ...(categoryId !== undefined ? { categoryId } : {}),
+          },
+          base,
+        )
+      : undefined;
+  const second =
+    groupIds !== undefined
+      ? setProductGroups(
+          first ? applyBatch(state, first) : state,
+          meta,
+          { productId, groupIds },
+          base,
+        )
+      : undefined;
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [...(first?.events ?? []), ...(second?.events ?? [])],
+  };
 }

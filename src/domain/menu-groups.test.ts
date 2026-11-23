@@ -428,7 +428,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
     const batch = updateProductAndGroups(
       emptyState(),
       at(),
-      { productId: latte.id, categoryId: "postres" },
+      { productId: latte.id, name: "Latte Grande" },
       catalog,
     );
     expect(batch.events.map((event) => event.type)).toEqual([
