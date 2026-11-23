@@ -804,3 +804,17 @@ export function setProductGroups(
     ],
   };
 }
+
+export function updateProductAndGroups(
+  state: PosState,
+  meta: CommandMeta,
+  input: {
+    productId: string;
+    name?: string;
+    categoryId?: string;
+    groupIds?: string[];
+  },
+  base: Catalog,
+): CommandBatch {
+  throw new Error("not implemented");
+}

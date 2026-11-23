@@ -11,6 +11,7 @@ import {
   menuFor,
   setProductGroups,
   updateModifierOption,
+  updateProductAndGroups,
 } from "./menu.ts";
 import type { NewGroupInput } from "./menu.ts";
 import {
@@ -379,5 +380,99 @@ describe("EVL-119 [E] Grupos sobre el menú base", () => {
     expect(modifierGroupsFor(catalog, item).map((g) => g.id)).toEqual([
       "fruta-acompanamiento",
     ]);
+  });
+});
+
+describe("EVL-119 [E] Saving a product edit in one batch", () => {
+  it("records the rename and the new group list as one batch", () => {
+    const state = withSabor();
+    const batch = updateProductAndGroups(
+      state,
+      at(),
+      {
+        productId: croissant.id,
+        name: " Croissant de Mermelada ",
+        groupIds: ["sabor", "fruta-acompanamiento", "extras-dulces"],
+      },
+      catalog,
+    );
+    expect(batch.events.map((event) => event.type)).toEqual([
+      "product-updated",
+      "product-groups-set",
+    ]);
+    const item = inMenu(applyBatch(state, batch), croissant);
+    expect(item.name).toBe("Croissant de Mermelada");
+    expect(item.modifierGroupIds).toEqual([
+      "sabor",
+      "fruta-acompanamiento",
+      "extras-dulces",
+    ]);
+  });
+
+  it("records only the group list when only the groups changed", () => {
+    const batch = updateProductAndGroups(
+      emptyState(),
+      at(),
+      { productId: latte.id, groupIds: ["leche"] },
+      catalog,
+    );
+    expect(batch.events.map((event) => event.type)).toEqual([
+      "product-groups-set",
+    ]);
+    expect(
+      inMenu(applyBatch(emptyState(), batch), latte).modifierGroupIds,
+    ).toEqual(["leche"]);
+  });
+
+  it("records only the rename when the groups did not change", () => {
+    const batch = updateProductAndGroups(
+      emptyState(),
+      at(),
+      { productId: latte.id, categoryId: "postres" },
+      catalog,
+    );
+    expect(batch.events.map((event) => event.type)).toEqual([
+      "product-updated",
+    ]);
+  });
+
+  it("saves nothing when the group list is rejected", () => {
+    expect(
+      rejectionOf(() =>
+        updateProductAndGroups(
+          emptyState(),
+          at(),
+          {
+            productId: latte.id,
+            name: "Latte Grande",
+            groupIds: ["leche", "leche"],
+          },
+          catalog,
+        ),
+      ),
+    ).toBe("repeated-group");
+    expect(
+      rejectionOf(() =>
+        updateProductAndGroups(
+          emptyState(),
+          at(),
+          { productId: latte.id, name: "", groupIds: ["leche"] },
+          catalog,
+        ),
+      ),
+    ).toBe("invalid-name");
+  });
+
+  it("only Admin saves product edits and groups", () => {
+    expect(
+      rejectionOf(() =>
+        updateProductAndGroups(
+          emptyState(),
+          at(sofi),
+          { productId: latte.id, groupIds: [] },
+          catalog,
+        ),
+      ),
+    ).toBe("not-allowed");
   });
 });
