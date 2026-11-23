@@ -31,7 +31,7 @@ async function addProduct(name: RegExp) {
 describe("EVL-121 [B] Estación de venta", () => {
   it("[B] El menú muestra categorías y búsqueda", async () => {
     await renderApp(<Station />, { as: "barra" });
-    expect(productNames()).toHaveLength(112);
+    expect(productNames()).toHaveLength(111);
 
     await userEvent.click(menu().getByRole("button", { name: "Postres" }));
     expect(productNames()).toHaveLength(20);
@@ -51,7 +51,7 @@ describe("EVL-121 [B] Estación de venta", () => {
     expect(found).toContain("Crepa de Nutella");
     await userEvent.clear(menu().getByLabelText("Buscar producto"));
     await userEvent.type(menu().getByLabelText("Buscar producto"), "cafe");
-    expect(productNames()).toContain("Frappe de Café");
+    expect(productNames()).toContain("Frappé de Café");
   });
 
   it("[B] Tocar un producto sin modificadores lo agrega de inmediato", async () => {
@@ -181,7 +181,13 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     await userEvent.click(
       dialog.getByRole("button", { name: "Agregar · $60.00" }),
     );
-    expect(order().getByText("Papas")).toBeDefined();
+    expect(dialog.getByRole("alert").textContent).toContain("Aderezo incluido");
+    expect(total()).toBe("$0.00");
+    await userEvent.click(dialog.getByRole("radio", { name: "Ranch" }));
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Agregar · $60.00" }),
+    );
+    expect(order().getByText("Papas · Ranch")).toBeDefined();
     expect(total()).toBe("$60.00");
   });
 

@@ -66,7 +66,7 @@ describe("EVL-112 [A] Catálogo del libro de Carlos", () => {
   it("[A] Todos los productos inician disponibles", () => {
     const catalog = parseCatalog(rawCatalog);
     const croissant = findProduct(catalog, "52000822219");
-    expect(croissant?.name).toBe("Croissant de Jamon c/Queso");
+    expect(croissant?.name).toBe("Croissant de Jamón c/Queso");
     expect(croissant?.available).toBe(true);
     expect(catalog.products.every((product) => product.available)).toBe(true);
   });

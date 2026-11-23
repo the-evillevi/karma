@@ -502,3 +502,59 @@ describe("EVL-119 [E] Review regressions", () => {
     expect(applyBatch(once, again)).toBe(once);
   });
 });
+
+describe("EVL-112 [D] Un grupo creado en la app y el menú base", () => {
+  const carlosSabor: NewGroupInput = { ...sabor, groupId: "sabor-de-carlos" };
+
+  const createdByCarlos = () =>
+    run(
+      run(emptyState(), (current) =>
+        createModifierGroup(current, at(), carlosSabor, menuBeforeSabor),
+      ),
+      (current) =>
+        addModifierOption(
+          current,
+          at(),
+          {
+            groupId: "sabor-de-carlos",
+            optionId: "nutella",
+            name: "Nutella",
+            priceDeltaCents: 1000,
+          },
+          menuBeforeSabor,
+        ),
+    );
+
+  const croissantGroupIds = (state: PosState) => {
+    const menu = menuFor(catalog, state.menu);
+    const item = findProduct(menu, croissant.id);
+    if (!item) throw new Error("No Croissant Dulce");
+    return modifierGroupsFor(menu, item).map((group) => group.id);
+  };
+
+  it("[D] Un Sabor creado en la app no se duplica", () => {
+    const assigned = assign(createdByCarlos(), croissant, [
+      "sabor-de-carlos",
+      "fruta-acompanamiento",
+      "extras-dulces",
+    ]);
+    const sabores = menuFor(catalog, assigned.menu).modifierGroups.filter(
+      (group) => group.name.toLowerCase() === "sabor",
+    );
+    expect(sabores.map((group) => group.id)).toEqual(["sabor-de-carlos"]);
+    expect(sabores[0].options.map((option) => option.name)).toContain(
+      "Nutella",
+    );
+    expect(croissantGroupIds(assigned)).toEqual([
+      "sabor-de-carlos",
+      "fruta-acompanamiento",
+      "extras-dulces",
+    ]);
+
+    expect(croissantGroupIds(createdByCarlos())).toEqual([
+      "sabor-de-carlos",
+      "fruta-acompanamiento",
+      "extras-dulces",
+    ]);
+  });
+});

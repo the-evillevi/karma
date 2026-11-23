@@ -10,15 +10,19 @@ import {
 import { saveOrder } from "./commands.ts";
 import { applyBatch, emptyState } from "./journal.ts";
 import type { CommandBatch, OrderHeader, PosState } from "./journal.ts";
+import { resolveModifiers } from "./modifiers.ts";
+import { addLine, lineUnitCents } from "./order.ts";
 import type { OrderLine } from "./order.ts";
 import {
   amareto,
   brownie,
+  catalog,
   latte,
   linesOf,
   luis,
   mesa,
   meta,
+  product,
   recoger,
   rejectionOf,
   sofi,
@@ -232,5 +236,24 @@ describe("EVL-124 [A] Comandas", () => {
     expect(pendingComandas(state).map((comanda) => comanda.folio)).toEqual([
       "A-0002",
     ]);
+  });
+});
+
+describe("EVL-112 [D] Respuestas de Carlos en la comanda", () => {
+  it("[D] El aderezo de cortesía aparece en la comanda", () => {
+    const crepa = product("52000822208");
+    const lines = addLine([], crepa, {
+      lineId: "l1",
+      modifiers: resolveModifiers(catalog, crepa, {
+        acompanamiento: ["papas"],
+        "aderezo-incluido": ["ranch"],
+      }),
+    });
+    const state = sent(saved(emptyState(), lines), "c-1");
+    expect(state.comandas["c-1"].lines[0]).toMatchObject({
+      name: "Crepa de Pollo",
+      modifiers: ["Papas", "Ranch"],
+    });
+    expect(lineUnitCents(state.orders["o-1"].lines[0])).toBe(6000);
   });
 });
