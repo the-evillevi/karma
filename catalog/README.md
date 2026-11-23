@@ -7,7 +7,7 @@
 - Duplicate workbook rows were removed (SKUs …169, …171, …204) and obvious typos fixed (Latte Honey, Crepa Hawaiana, Maple). Other naming questions are listed for Carlos in the Linear document "Estado del piloto".
 - Prices are integer centavos and include 16 % IVA.
 - The workbook's `Disponible?` column is ignored: every product starts available.
-- Modifier groups (milk, flavour shots, sides, dressings, sweet extras) come from the menu photos. Paid extras reuse the SKU and price of the matching product. Which products get which group, and the price assumptions for products the menu groups together, are recorded in EVL-112 until Carlos confirms them.
+- Modifier groups (milk, flavour shots, sides, dressings, sweet extras) come from the menu photos. Paid extras reuse the SKU and price of the matching product. Which products get which group, and the prices of products the menu groups together, were confirmed by Carlos on 17 Nov 2026 and are recorded in EVL-112. The sweet croissants are Biscoff, Crema de cacahuate and Nutella (their own SKUs), plus the Croissant Dulce, which asks for one of three jams: fresa, frutos rojos or zarzamora c/ queso.
 
 `src/domain/catalog.ts` (`parseCatalog`) validates the file; the app refuses to start with an invalid catalog.
 
