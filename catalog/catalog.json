@@ -1,7 +1,7 @@
 {
   "schema": "karma.catalog/v2",
   "catalogId": "karma-cafe",
-  "revision": 4,
+  "revision": 5,
   "currency": "MXN",
   "taxRateBps": 1600,
   "pricesIncludeTax": true,
@@ -55,22 +55,22 @@
         {
           "id": "deslactosada",
           "name": "Deslactosada",
-          "priceDeltaCents": 1000
+          "priceDeltaCents": 0
         },
         {
           "id": "coco",
           "name": "Coco",
-          "priceDeltaCents": 1000
+          "priceDeltaCents": 0
         },
         {
           "id": "almendras",
           "name": "Almendras",
-          "priceDeltaCents": 1000
+          "priceDeltaCents": 0
         },
         {
           "id": "avena",
           "name": "Avena",
-          "priceDeltaCents": 1000
+          "priceDeltaCents": 0
         }
       ]
     },
@@ -336,7 +336,7 @@
         },
         {
           "id": "52000822116",
-          "name": "Platano (Extra)",
+          "name": "Plátano (Extra)",
           "priceDeltaCents": 1000,
           "sku": "52000822116"
         },
@@ -407,6 +407,29 @@
           "sku": "52000822130"
         }
       ]
+    },
+    {
+      "id": "sabor",
+      "name": "Sabor",
+      "min": 1,
+      "max": 1,
+      "options": [
+        {
+          "id": "mermelada-fresa",
+          "name": "Mermelada de fresa",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "mermelada-frutos-rojos",
+          "name": "Mermelada de frutos rojos",
+          "priceDeltaCents": 0
+        },
+        {
+          "id": "mermelada-zarzamora",
+          "name": "Mermelada de zarzamora c/ queso",
+          "priceDeltaCents": 0
+        }
+      ]
     }
   ],
   "products": [
@@ -449,7 +472,7 @@
     {
       "id": "52000822116",
       "sku": "52000822116",
-      "name": "Platano (Extra)",
+      "name": "Plátano (Extra)",
       "categoryId": "extras",
       "priceCents": 1000,
       "available": true,
@@ -852,7 +875,7 @@
     {
       "id": "52000822156",
       "sku": "52000822156",
-      "name": "Frappe de Chocolate",
+      "name": "Frappé de Chocolate",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -864,7 +887,7 @@
     {
       "id": "52000822157",
       "sku": "52000822157",
-      "name": "Frappe de Caramelo",
+      "name": "Frappé de Caramelo",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -876,7 +899,7 @@
     {
       "id": "52000822158",
       "sku": "52000822158",
-      "name": "Frappe de Cajeta",
+      "name": "Frappé de Cajeta",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -888,7 +911,7 @@
     {
       "id": "52000822159",
       "sku": "52000822159",
-      "name": "Frappe de Café",
+      "name": "Frappé de Café",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -900,7 +923,7 @@
     {
       "id": "52000822160",
       "sku": "52000822160",
-      "name": "Frappe Caramel Macchiato",
+      "name": "Frappé Caramel Macchiato",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -912,7 +935,7 @@
     {
       "id": "52000822161",
       "sku": "52000822161",
-      "name": "Frappe de Chocolate blanco",
+      "name": "Frappé de Chocolate blanco",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -924,7 +947,7 @@
     {
       "id": "52000822162",
       "sku": "52000822162",
-      "name": "Frappe de Taro",
+      "name": "Frappé de Taro",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -936,7 +959,7 @@
     {
       "id": "52000822163",
       "sku": "52000822163",
-      "name": "Frappe de Fresa con crema",
+      "name": "Frappé de Fresa con crema",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -948,7 +971,7 @@
     {
       "id": "52000822164",
       "sku": "52000822164",
-      "name": "Frappe de Vainilla Francesa",
+      "name": "Frappé de Vainilla Francesa",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -960,7 +983,7 @@
     {
       "id": "52000822165",
       "sku": "52000822165",
-      "name": "Frappe de Matcha",
+      "name": "Frappé de Matcha",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -972,7 +995,7 @@
     {
       "id": "52000822166",
       "sku": "52000822166",
-      "name": "Frappe de Mocha blanco",
+      "name": "Frappé de Mocha blanco",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -984,7 +1007,7 @@
     {
       "id": "52000822167",
       "sku": "52000822167",
-      "name": "Frappe de Mocha",
+      "name": "Frappé de Mocha",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -996,7 +1019,7 @@
     {
       "id": "52000822168",
       "sku": "52000822168",
-      "name": "Frappe de Chai",
+      "name": "Frappé de Chai",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -1008,7 +1031,7 @@
     {
       "id": "52000822170",
       "sku": "52000822170",
-      "name": "Frappe de Biscoff",
+      "name": "Frappé de Biscoff",
       "categoryId": "bebidas",
       "priceCents": 7500,
       "available": true,
@@ -1024,7 +1047,9 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822173",
@@ -1033,16 +1058,20 @@
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822174",
       "sku": "52000822174",
-      "name": "Smoothie de Platano",
+      "name": "Smoothie de Plátano",
       "categoryId": "bebidas",
       "priceCents": 6500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822175",
@@ -1051,7 +1080,9 @@
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822176",
@@ -1060,7 +1091,9 @@
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822177",
@@ -1069,7 +1102,9 @@
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822178",
@@ -1078,7 +1113,9 @@
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822179",
@@ -1087,7 +1124,9 @@
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822180",
@@ -1096,7 +1135,9 @@
       "categoryId": "bebidas",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822181",
@@ -1105,7 +1146,9 @@
       "categoryId": "bebidas",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822182",
@@ -1114,7 +1157,9 @@
       "categoryId": "bebidas",
       "priceCents": 4500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822183",
@@ -1123,16 +1168,20 @@
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822184",
       "sku": "52000822184",
-      "name": "Paraiso Azul (Tisana)",
+      "name": "Paraíso Azul (Tisana)",
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822185",
@@ -1141,7 +1190,9 @@
       "categoryId": "bebidas",
       "priceCents": 5500,
       "available": true,
-      "modifierGroupIds": []
+      "modifierGroupIds": [
+        "shot"
+      ]
     },
     {
       "id": "52000822186",
@@ -1174,6 +1225,7 @@
       "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
+        "sabor",
         "fruta-acompanamiento",
         "extras-dulces"
       ]
@@ -1359,12 +1411,13 @@
     {
       "id": "52000822207",
       "sku": "52000822207",
-      "name": "Crepa de Jamon c/Queso",
+      "name": "Crepa de Jamón c/Queso",
       "categoryId": "salado",
       "priceCents": 6000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1377,6 +1430,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1389,6 +1443,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1401,6 +1456,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1413,18 +1469,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
-        "aderezo-extra"
-      ]
-    },
-    {
-      "id": "52000822212",
-      "sku": "52000822212",
-      "name": "Crepa de Champiñones c/Queso",
-      "categoryId": "salado",
-      "priceCents": 6000,
-      "available": true,
-      "modifierGroupIds": [
-        "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1437,18 +1482,20 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
     {
       "id": "52000822214",
       "sku": "52000822214",
-      "name": "Emparedado de Jamon c/Queso",
+      "name": "Emparedado de Jamón c/Queso",
       "categoryId": "salado",
       "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1461,6 +1508,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1473,6 +1521,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1485,6 +1534,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1497,18 +1547,20 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
     {
       "id": "52000822219",
       "sku": "52000822219",
-      "name": "Croissant de Jamon c/Queso",
+      "name": "Croissant de Jamón c/Queso",
       "categoryId": "salado",
       "priceCents": 7000,
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1521,6 +1573,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },
@@ -1533,6 +1586,7 @@
       "available": true,
       "modifierGroupIds": [
         "acompanamiento",
+        "aderezo-incluido",
         "aderezo-extra"
       ]
     },

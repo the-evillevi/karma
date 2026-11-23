@@ -1,16 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import { saveOrder } from "../domain/commands.ts";
-import { emptyState } from "../domain/journal.ts";
+import { applyBatch, emptyState, replay } from "../domain/journal.ts";
 import type { CommandBatch } from "../domain/journal.ts";
 import {
+  createModifierGroup,
+  menuFor,
+  setProductGroups,
+} from "../domain/menu.ts";
+import {
+  admin,
   americano,
   brownie,
+  catalog,
   linesOf,
   luis,
   mesa,
   meta,
   mostrador,
   sofi,
+  withoutGroup,
 } from "../domain/testing.ts";
 import type { JournalStorage } from "./pos-store.ts";
 
@@ -90,6 +98,52 @@ export function describeJournalStorage(
       const loaded = await subject.storage.load();
       expect(loaded).toEqual(batches);
       expect(loaded[0]).not.toBe(batches[0]);
+      await subject.cleanup();
+    });
+
+    it("keeps a group created in the app and its assignment after the app is reopened", async () => {
+      const subject = await make();
+      const menuBeforeSabor = withoutGroup(catalog, "sabor");
+      const created = createModifierGroup(
+        emptyState(),
+        meta("crear-sabor", admin),
+        {
+          groupId: "sabor-de-carlos",
+          name: "Sabor",
+          min: 1,
+          max: 1,
+          options: [
+            {
+              optionId: "fresa",
+              name: "Mermelada de fresa",
+              priceDeltaCents: 0,
+            },
+            {
+              optionId: "zarzamora",
+              name: "Mermelada de zarzamora c/ queso",
+              priceDeltaCents: 0,
+            },
+          ],
+        },
+        menuBeforeSabor,
+      );
+      const assigned = setProductGroups(
+        applyBatch(emptyState(), created),
+        meta("asignar-sabor", admin, "10:01"),
+        {
+          productId: "52000822188",
+          groupIds: ["sabor-de-carlos", "fruta-acompanamiento"],
+        },
+        menuBeforeSabor,
+      );
+      await subject.storage.append(created);
+      await subject.storage.append(assigned);
+      const reopened = await subject.reopen();
+      const loaded = await reopened.load();
+      expect(loaded).toEqual([created, assigned]);
+      expect(menuFor(catalog, replay(loaded).menu)).toEqual(
+        menuFor(catalog, replay([created, assigned]).menu),
+      );
       await subject.cleanup();
     });
 

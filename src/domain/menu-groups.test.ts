@@ -532,6 +532,20 @@ describe("EVL-112 [D] Un grupo creado en la app y el menú base", () => {
     return modifierGroupsFor(menu, item).map((group) => group.id);
   };
 
+  it("does not create a group with the id of a base group that Carlos's group hides", () => {
+    const state = createdByCarlos();
+    expect(
+      rejectionOf(() =>
+        createModifierGroup(
+          state,
+          at(),
+          { ...sabor, groupId: "sabor", name: "Mermeladas" },
+          catalog,
+        ),
+      ),
+    ).toBe("duplicate-group");
+  });
+
   it("[D] Un Sabor creado en la app no se duplica", () => {
     const assigned = assign(createdByCarlos(), croissant, [
       "sabor-de-carlos",

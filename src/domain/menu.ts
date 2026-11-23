@@ -239,6 +239,17 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
     (category, index) =>
       index === 0 || category.sortOrder > categories[index - 1].sortOrder,
   );
+  const baseGroupIds = new Set(base.modifierGroups.map((group) => group.id));
+  const aliases = new Map<string, string>();
+  for (const group of base.modifierGroups) {
+    const created = menu.createdGroups.find(
+      (candidate) =>
+        candidate.id !== group.id &&
+        !baseGroupIds.has(candidate.id) &&
+        normalizedName(candidate.name) === normalizedName(group.name),
+    );
+    if (created) aliases.set(group.id, created.id);
+  }
   const products = [...base.products];
   const productIds = new Set(products.map((product) => product.id));
   for (const product of menu.created) {
@@ -246,15 +257,24 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
     products.push(product);
     productIds.add(product.id);
   }
-  const patchedProducts = products.map((product) => ({
-    ...product,
-    ...(Object.hasOwn(menu.products, product.id)
-      ? menu.products[product.id].changes
-      : {}),
-    ...(Object.hasOwn(menu.productGroups, product.id)
-      ? { modifierGroupIds: menu.productGroups[product.id] }
-      : {}),
-  }));
+  const patchedProducts = products.map((product) => {
+    const patched = {
+      ...product,
+      ...(Object.hasOwn(menu.products, product.id)
+        ? menu.products[product.id].changes
+        : {}),
+      ...(Object.hasOwn(menu.productGroups, product.id)
+        ? { modifierGroupIds: menu.productGroups[product.id] }
+        : {}),
+    };
+    if (aliases.size === 0) return patched;
+    return {
+      ...patched,
+      modifierGroupIds: [
+        ...new Set(patched.modifierGroupIds.map((id) => aliases.get(id) ?? id)),
+      ],
+    };
+  });
   const orderedProducts = new Map<string, Product[]>();
   for (const [categoryId, ids] of Object.entries(menu.productOrder)) {
     const ranks = new Map(ids.map((id, index) => [id, index]));
@@ -278,24 +298,26 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
   }
   return {
     ...base,
-    modifierGroups: groups.map((group) => {
-      const edits = Object.hasOwn(menu.modifierOptions, group.id)
-        ? menu.modifierOptions[group.id]
-        : undefined;
-      if (!edits) return group;
-      const baseIds = new Set(group.options.map((option) => option.id));
-      return {
-        ...group,
-        options: [
-          ...group.options,
-          ...edits.added.filter((option) => !baseIds.has(option.id)),
-        ].map((option) =>
-          Object.hasOwn(edits.changes, option.id)
-            ? { ...option, ...edits.changes[option.id] }
-            : option,
-        ),
-      };
-    }),
+    modifierGroups: groups
+      .filter((group) => !aliases.has(group.id))
+      .map((group) => {
+        const edits = Object.hasOwn(menu.modifierOptions, group.id)
+          ? menu.modifierOptions[group.id]
+          : undefined;
+        if (!edits) return group;
+        const baseIds = new Set(group.options.map((option) => option.id));
+        return {
+          ...group,
+          options: [
+            ...group.options,
+            ...edits.added.filter((option) => !baseIds.has(option.id)),
+          ].map((option) =>
+            Object.hasOwn(edits.changes, option.id)
+              ? { ...option, ...edits.changes[option.id] }
+              : option,
+          ),
+        };
+      }),
     categories: categories.map((category, index) => ({
       ...category,
       ...(Object.hasOwn(menu.categories, category.id)
@@ -715,7 +737,11 @@ export function createModifierGroup(
   ) {
     throw new CommandRejectedError("duplicate-group");
   }
-  if (current.modifierGroups.some((group) => group.id === groupId)) {
+  if (
+    [...current.modifierGroups, ...base.modifierGroups].some(
+      (group) => group.id === groupId,
+    )
+  ) {
     throw new CommandRejectedError("duplicate-group");
   }
   if (input.options.length === 0) {
