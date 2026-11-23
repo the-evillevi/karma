@@ -15,7 +15,6 @@ import type {
 import { can } from "./access.ts";
 import { findProduct, productsInCategory } from "./catalog.ts";
 import { CommandRejectedError } from "./commands.ts";
-import { applyBatch } from "./journal.ts";
 
 export type ProductChanges = Partial<
   Pick<Product, "priceCents" | "available" | "name" | "categoryId" | "active">
@@ -833,12 +832,7 @@ export function updateProductAndGroups(
       : undefined;
   const second =
     groupIds !== undefined
-      ? setProductGroups(
-          first ? applyBatch(state, first) : state,
-          meta,
-          { productId, groupIds },
-          base,
-        )
+      ? setProductGroups(state, meta, { productId, groupIds }, base)
       : undefined;
   return {
     ...meta,

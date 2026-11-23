@@ -476,3 +476,20 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
     ).toBe("not-allowed");
   });
 });
+
+describe("EVL-119 [E] Review regressions", () => {
+  it("deciding the same product edit again on the applied state is ignored by the journal", () => {
+    const retry = at();
+    const input = {
+      productId: latte.id,
+      name: "Latte Grande",
+      groupIds: ["leche"],
+    };
+    const once = applyBatch(
+      emptyState(),
+      updateProductAndGroups(emptyState(), retry, input, catalog),
+    );
+    const again = updateProductAndGroups(once, retry, input, catalog);
+    expect(applyBatch(once, again)).toBe(once);
+  });
+});
