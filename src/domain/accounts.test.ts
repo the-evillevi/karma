@@ -7,7 +7,7 @@ import type { CommandBatch, PosState } from "./journal.ts";
 import { orderTotals } from "./order.ts";
 import {
   americano,
-  avena,
+  amareto,
   brownie,
   catalog,
   latte,
@@ -119,7 +119,7 @@ describe("EVL-122 [C] Cuentas abiertas", () => {
         saveOrder(current, meta("op-2", sofi, "10:12"), {
           orderId: "o-ana",
           header: recoger("Ana", "4421234567"),
-          lines: linesOf([latte, 1, [avena]], [americano, 1, [], "tibio"]),
+          lines: linesOf([latte, 1, [amareto]], [americano, 1, [], "tibio"]),
         }),
       (current) =>
         saveOrder(current, meta("op-1", luis, "10:05"), {

@@ -10,15 +10,19 @@ import {
 import { saveOrder } from "./commands.ts";
 import { applyBatch, emptyState } from "./journal.ts";
 import type { CommandBatch, OrderHeader, PosState } from "./journal.ts";
+import { resolveModifiers } from "./modifiers.ts";
+import { addLine, lineUnitCents } from "./order.ts";
 import type { OrderLine } from "./order.ts";
 import {
-  avena,
+  amareto,
   brownie,
+  catalog,
   latte,
   linesOf,
   luis,
   mesa,
   meta,
+  product,
   recoger,
   rejectionOf,
   sofi,
@@ -55,11 +59,11 @@ function sent(
   );
 }
 
-const latteAvena = () => linesOf([latte, 1, [avena], "extra caliente"]);
+const latteAmareto = () => linesOf([latte, 1, [amareto], "extra caliente"]);
 
 describe("EVL-124 [A] Comandas", () => {
   it("[A] La comanda copia las partidas sin precios", () => {
-    const state = sent(saved(emptyState(), latteAvena()), "c-1");
+    const state = sent(saved(emptyState(), latteAmareto()), "c-1");
     expect(state.comandas["c-1"]).toEqual({
       comandaId: "c-1",
       orderId: "o-1",
@@ -70,7 +74,7 @@ describe("EVL-124 [A] Comandas", () => {
           lineId: "l1",
           name: "Latte",
           quantity: 1,
-          modifiers: ["Avena"],
+          modifiers: ["Amareto"],
           note: "extra caliente",
         },
       ],
@@ -85,10 +89,10 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] Enviar de nuevo sólo manda lo nuevo", () => {
-    let state = sent(saved(emptyState(), latteAvena()), "c-1");
+    let state = sent(saved(emptyState(), latteAmareto()), "c-1");
     const first = state.comandas["c-1"];
     const grown: OrderLine[] = [
-      { ...latteAvena()[0], quantity: 2 },
+      { ...latteAmareto()[0], quantity: 2 },
       { ...linesOf([brownie])[0], lineId: "l2" },
     ];
     state = saved(state, grown);
@@ -106,7 +110,7 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] Sin productos nuevos no hay comanda", () => {
-    const state = sent(saved(emptyState(), latteAvena()), "c-1");
+    const state = sent(saved(emptyState(), latteAmareto()), "c-1");
     expect(
       rejectionOf(() =>
         sendComanda(state, meta("op-x", sofi), {
@@ -126,7 +130,7 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] Lo enviado a cocina no se quita desde la estación", () => {
-    const two: OrderLine[] = [{ ...latteAvena()[0], quantity: 2 }];
+    const two: OrderLine[] = [{ ...latteAmareto()[0], quantity: 2 }];
     const state = sent(saved(emptyState(), two), "c-1");
     const resave = (lines: OrderLine[]) =>
       rejectionOf(() =>
@@ -146,7 +150,7 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] La preparación avanza un paso a la vez", () => {
-    let state = sent(saved(emptyState(), latteAvena()), "c-1");
+    let state = sent(saved(emptyState(), latteAmareto()), "c-1");
     expect(
       rejectionOf(() =>
         advancePreparation(state, meta("op-x", sofi), {
@@ -195,7 +199,7 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("[A] Reintentar el envío no duplica la comanda", () => {
-    const before = saved(emptyState(), latteAvena());
+    const before = saved(emptyState(), latteAmareto());
     const batch: CommandBatch = sendComanda(before, meta("op-200", sofi), {
       orderId: "o-1",
       comandaId: "c-1",
@@ -207,7 +211,7 @@ describe("EVL-124 [A] Comandas", () => {
   });
 
   it("lists pending comandas from oldest to newest", () => {
-    let state = saved(emptyState(), latteAvena());
+    let state = saved(emptyState(), latteAmareto());
     state = saved(
       state,
       linesOf([brownie]),
@@ -232,5 +236,24 @@ describe("EVL-124 [A] Comandas", () => {
     expect(pendingComandas(state).map((comanda) => comanda.folio)).toEqual([
       "A-0002",
     ]);
+  });
+});
+
+describe("EVL-112 [D] Respuestas de Carlos en la comanda", () => {
+  it("[D] El aderezo de cortesía aparece en la comanda", () => {
+    const crepa = product("52000822208");
+    const lines = addLine([], crepa, {
+      lineId: "l1",
+      modifiers: resolveModifiers(catalog, crepa, {
+        acompanamiento: ["papas"],
+        "aderezo-incluido": ["ranch"],
+      }),
+    });
+    const state = sent(saved(emptyState(), lines), "c-1");
+    expect(state.comandas["c-1"].lines[0]).toMatchObject({
+      name: "Crepa de Pollo",
+      modifiers: ["Papas", "Ranch"],
+    });
+    expect(lineUnitCents(state.orders["o-1"].lines[0])).toBe(6000);
   });
 });

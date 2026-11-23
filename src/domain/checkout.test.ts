@@ -9,7 +9,7 @@ import { PaymentRejectedError } from "./payment.ts";
 import {
   admin,
   americano,
-  avena,
+  amareto,
   brownie,
   catalog,
   latte,
@@ -144,7 +144,7 @@ describe("EVL-123 [D] Cierre de la venta", () => {
       saveOrder(emptyState(), meta("save-1", sofi), {
         orderId: "o-1",
         header: mesa(3),
-        lines: linesOf([latte, 1, [avena]], [brownie]),
+        lines: linesOf([latte, 1, [amareto]], [brownie]),
       }),
     );
     state = applyBatch(

@@ -27,13 +27,20 @@ import {
   latte,
   luis,
   mostrador,
-  product,
   rejectionOf,
   sofi,
+  withoutGroup,
 } from "./testing.ts";
 
-const croissant = product("52000822188");
-const crepaPollo = product("52000822208");
+const menuBeforeSabor = withoutGroup(catalog, "sabor");
+
+function productIn(menu: Catalog, id: string): Product {
+  const found = findProduct(menu, id);
+  if (!found) throw new Error(`No product ${id}`);
+  return found;
+}
+
+const croissant = productIn(menuBeforeSabor, "52000822188");
 
 const sabor: NewGroupInput = {
   groupId: "sabor",
@@ -73,7 +80,8 @@ function run(
   return applyBatch(state, decide(state));
 }
 
-const menuOf = (state: PosState): Catalog => menuFor(catalog, state.menu);
+const menuOf = (state: PosState): Catalog =>
+  menuFor(menuBeforeSabor, state.menu);
 
 function inMenu(state: PosState, item: Product): Product {
   const found = findProduct(menuOf(state), item.id);
@@ -89,21 +97,31 @@ function group(menu: Catalog, groupId: string): ModifierGroup {
 
 const withSabor = () =>
   run(emptyState(), (current) =>
-    createModifierGroup(current, at(), sabor, catalog),
+    createModifierGroup(current, at(), sabor, menuBeforeSabor),
   );
 
 const assign = (state: PosState, item: Product, groupIds: string[]) =>
   run(state, (current) =>
-    setProductGroups(current, at(), { productId: item.id, groupIds }, catalog),
+    setProductGroups(
+      current,
+      at(),
+      { productId: item.id, groupIds },
+      menuBeforeSabor,
+    ),
   );
 
 describe("EVL-119 [E] Grupos de modificadores", () => {
   it("[E] Admin crea un grupo de modificadores", () => {
-    const batch = createModifierGroup(emptyState(), at(), sabor, catalog);
+    const batch = createModifierGroup(
+      emptyState(),
+      at(),
+      sabor,
+      menuBeforeSabor,
+    );
     const state = applyBatch(emptyState(), batch);
     const groups = menuOf(state).modifierGroups;
     expect(groups.map((item) => item.id).at(-1)).toBe("sabor");
-    expect(groups).toHaveLength(catalog.modifierGroups.length + 1);
+    expect(groups).toHaveLength(menuBeforeSabor.modifierGroups.length + 1);
     expect(group(menuOf(state), "sabor")).toMatchObject({
       name: "Sabor",
       min: 1,
@@ -130,7 +148,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
           current,
           at(),
           { ...sabor, groupId: "otro", name: "Otro", ...changes },
-          catalog,
+          menuBeforeSabor,
         ),
       );
     expect(attempt({ name: "  " })).toBe("invalid-group-name");
@@ -182,7 +200,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
         productId: croissant.id,
         groupIds: ["sabor", "fruta-acompanamiento", "extras-dulces"],
       },
-      catalog,
+      menuBeforeSabor,
     );
     state = applyBatch(state, batch);
     const menu = menuOf(state);
@@ -208,23 +226,12 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
       "Mermelada de fresa",
       "Durazno",
     ]);
-
-    state = assign(state, crepaPollo, [
-      "acompanamiento",
-      "aderezo-incluido",
-      "aderezo-extra",
-    ]);
-    expect(
-      modifierGroupsFor(menuOf(state), inMenu(state, crepaPollo)).map(
-        (g) => g.name,
-      ),
-    ).toEqual(["Acompañamiento", "Aderezo incluido", "Aderezo extra"]);
   });
 
   it("[E] Admin quita un grupo de un producto", () => {
     const captured = addLine([], latte, {
       lineId: "l1",
-      modifiers: resolveModifiers(catalog, latte, {
+      modifiers: resolveModifiers(menuBeforeSabor, latte, {
         leche: ["entera"],
         shot: ["amareto"],
       }),
@@ -265,7 +272,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
           state,
           at(),
           { productId: latte.id, groupIds },
-          catalog,
+          menuBeforeSabor,
         ),
       );
     expect(attempt(["leche", "toppings"])).toBe("unknown-modifier-group");
@@ -277,7 +284,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
           state,
           at(),
           { productId: "52000822999", groupIds: [] },
-          catalog,
+          menuBeforeSabor,
         ),
       ),
     ).toBe("unknown-product");
@@ -295,7 +302,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
           name: "Nutella",
           priceDeltaCents: 1000,
         },
-        catalog,
+        menuBeforeSabor,
       ),
     );
     state = run(state, (current) =>
@@ -303,7 +310,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
         current,
         at(),
         { groupId: "sabor", optionId: "fresa", name: "Fresa" },
-        catalog,
+        menuBeforeSabor,
       ),
     );
     state = run(state, (current) =>
@@ -311,7 +318,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
         current,
         at(),
         { groupId: "sabor", optionId: "frutos-rojos", active: false },
-        catalog,
+        menuBeforeSabor,
       ),
     );
     const offered = group(menuOf(state), "sabor")
@@ -328,7 +335,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
     for (const actor of [luis, sofi]) {
       expect(
         rejectionOf(() =>
-          createModifierGroup(emptyState(), at(actor), sabor, catalog),
+          createModifierGroup(emptyState(), at(actor), sabor, menuBeforeSabor),
         ),
       ).toBe("not-allowed");
       expect(
@@ -337,7 +344,7 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
             emptyState(),
             at(actor),
             { productId: latte.id, groupIds: ["leche"] },
-            catalog,
+            menuBeforeSabor,
           ),
         ),
       ).toBe("not-allowed");
@@ -349,9 +356,9 @@ describe("EVL-119 [E] Grupos sobre el menú base", () => {
   it("lets the base menu win when a later deploy adds a group with the same id", () => {
     const state = withSabor();
     const later: Catalog = {
-      ...catalog,
+      ...menuBeforeSabor,
       modifierGroups: [
-        ...catalog.modifierGroups,
+        ...menuBeforeSabor.modifierGroups,
         {
           id: "sabor",
           name: "Sabor base",
@@ -371,13 +378,15 @@ describe("EVL-119 [E] Grupos sobre el menú base", () => {
   });
 
   it("keeps the base menu when nothing changed and skips assigned groups a menu lacks", () => {
-    expect(menuFor(catalog, emptyState().menu)).toEqual(catalog);
+    expect(menuFor(menuBeforeSabor, emptyState().menu)).toEqual(
+      menuBeforeSabor,
+    );
     const state = assign(withSabor(), croissant, [
       "sabor",
       "fruta-acompanamiento",
     ]);
     const item = inMenu(state, croissant);
-    expect(modifierGroupsFor(catalog, item).map((g) => g.id)).toEqual([
+    expect(modifierGroupsFor(menuBeforeSabor, item).map((g) => g.id)).toEqual([
       "fruta-acompanamiento",
     ]);
   });
@@ -394,7 +403,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
         name: " Croissant de Mermelada ",
         groupIds: ["sabor", "fruta-acompanamiento", "extras-dulces"],
       },
-      catalog,
+      menuBeforeSabor,
     );
     expect(batch.events.map((event) => event.type)).toEqual([
       "product-updated",
@@ -414,7 +423,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
       emptyState(),
       at(),
       { productId: latte.id, groupIds: ["leche"] },
-      catalog,
+      menuBeforeSabor,
     );
     expect(batch.events.map((event) => event.type)).toEqual([
       "product-groups-set",
@@ -429,7 +438,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
       emptyState(),
       at(),
       { productId: latte.id, name: "Latte Grande" },
-      catalog,
+      menuBeforeSabor,
     );
     expect(batch.events.map((event) => event.type)).toEqual([
       "product-updated",
@@ -447,7 +456,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
             name: "Latte Grande",
             groupIds: ["leche", "leche"],
           },
-          catalog,
+          menuBeforeSabor,
         ),
       ),
     ).toBe("repeated-group");
@@ -457,7 +466,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
           emptyState(),
           at(),
           { productId: latte.id, name: "", groupIds: ["leche"] },
-          catalog,
+          menuBeforeSabor,
         ),
       ),
     ).toBe("invalid-name");
@@ -470,7 +479,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
           emptyState(),
           at(sofi),
           { productId: latte.id, groupIds: [] },
-          catalog,
+          menuBeforeSabor,
         ),
       ),
     ).toBe("not-allowed");
@@ -487,9 +496,79 @@ describe("EVL-119 [E] Review regressions", () => {
     };
     const once = applyBatch(
       emptyState(),
-      updateProductAndGroups(emptyState(), retry, input, catalog),
+      updateProductAndGroups(emptyState(), retry, input, menuBeforeSabor),
     );
-    const again = updateProductAndGroups(once, retry, input, catalog);
+    const again = updateProductAndGroups(once, retry, input, menuBeforeSabor);
     expect(applyBatch(once, again)).toBe(once);
+  });
+});
+
+describe("EVL-112 [D] Un grupo creado en la app y el menú base", () => {
+  const carlosSabor: NewGroupInput = { ...sabor, groupId: "sabor-de-carlos" };
+
+  const createdByCarlos = () =>
+    run(
+      run(emptyState(), (current) =>
+        createModifierGroup(current, at(), carlosSabor, menuBeforeSabor),
+      ),
+      (current) =>
+        addModifierOption(
+          current,
+          at(),
+          {
+            groupId: "sabor-de-carlos",
+            optionId: "nutella",
+            name: "Nutella",
+            priceDeltaCents: 1000,
+          },
+          menuBeforeSabor,
+        ),
+    );
+
+  const croissantGroupIds = (state: PosState) => {
+    const menu = menuFor(catalog, state.menu);
+    const item = findProduct(menu, croissant.id);
+    if (!item) throw new Error("No Croissant Dulce");
+    return modifierGroupsFor(menu, item).map((group) => group.id);
+  };
+
+  it("does not create a group with the id of a base group that Carlos's group hides", () => {
+    const state = createdByCarlos();
+    expect(
+      rejectionOf(() =>
+        createModifierGroup(
+          state,
+          at(),
+          { ...sabor, groupId: "sabor", name: "Mermeladas" },
+          catalog,
+        ),
+      ),
+    ).toBe("duplicate-group");
+  });
+
+  it("[D] Un Sabor creado en la app no se duplica", () => {
+    const assigned = assign(createdByCarlos(), croissant, [
+      "sabor-de-carlos",
+      "fruta-acompanamiento",
+      "extras-dulces",
+    ]);
+    const sabores = menuFor(catalog, assigned.menu).modifierGroups.filter(
+      (group) => group.name.toLowerCase() === "sabor",
+    );
+    expect(sabores.map((group) => group.id)).toEqual(["sabor-de-carlos"]);
+    expect(sabores[0].options.map((option) => option.name)).toContain(
+      "Nutella",
+    );
+    expect(croissantGroupIds(assigned)).toEqual([
+      "sabor-de-carlos",
+      "fruta-acompanamiento",
+      "extras-dulces",
+    ]);
+
+    expect(croissantGroupIds(createdByCarlos())).toEqual([
+      "sabor-de-carlos",
+      "fruta-acompanamiento",
+      "extras-dulces",
+    ]);
   });
 });

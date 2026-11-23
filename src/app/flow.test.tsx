@@ -298,7 +298,7 @@ describe("EVL-124 [B] Pantalla de cocina", () => {
     await renderApp(<App />, { as: "mesero" });
     await click(button(/^Latte\s*\$/));
     const dialog = within(screen.getByRole("dialog"));
-    await click(dialog.getByRole("radio", { name: "Avena +$10.00" }));
+    await click(dialog.getByRole("checkbox", { name: "Amareto +$10.00" }));
     await userEvent.type(
       dialog.getByLabelText("Nota de preparación"),
       "extra caliente",
@@ -314,7 +314,7 @@ describe("EVL-124 [B] Pantalla de cocina", () => {
     );
     expect(card.getByText("Mesa 3")).toBeDefined();
     expect(card.getByText("Latte")).toBeDefined();
-    expect(card.getByText("Avena")).toBeDefined();
+    expect(card.getByText("Entera · Amareto")).toBeDefined();
     expect(card.getByText("Nota: extra caliente")).toBeDefined();
     expect(card.getByText("En cola")).toBeDefined();
     expect(screen.getByRole("main").textContent).not.toContain("$");

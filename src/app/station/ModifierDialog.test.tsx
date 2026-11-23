@@ -10,7 +10,7 @@ import { ModifierDialog } from "./ModifierDialog.tsx";
 const captured = addLine([], latte, {
   lineId: "l1",
   modifiers: resolveModifiers(catalog, latte, {
-    leche: ["avena"],
+    leche: ["entera"],
     shot: ["amareto"],
   }),
 })[0];
@@ -31,26 +31,29 @@ describe("EVL-119 [D] Captured modifiers that the menu no longer offers", () => 
     const dialog = within(screen.getByRole("dialog"));
     expect(dialog.getByText("Amareto +$10.00")).toBeDefined();
     await userEvent.click(
-      dialog.getByRole("button", { name: "Guardar cambios · $85.00" }),
+      dialog.getByRole("button", { name: "Guardar cambios · $75.00" }),
     );
     expect(
       onConfirm.mock.calls[0][0].map((m: { optionId: string }) => m.optionId),
-    ).toEqual(["avena", "amareto"]);
+    ).toEqual(["entera", "amareto"]);
   });
 
   it("keeps a captured option that its group no longer lists", async () => {
-    const withoutAvena: Catalog = {
+    const withoutAmareto: Catalog = {
       ...catalog,
       modifierGroups: catalog.modifierGroups.map((group) =>
-        group.id === "leche"
-          ? { ...group, options: group.options.filter((o) => o.id !== "avena") }
+        group.id === "shot"
+          ? {
+              ...group,
+              options: group.options.filter((o) => o.id !== "amareto"),
+            }
           : group,
       ),
     };
     const onConfirm = vi.fn();
     render(
       <ModifierDialog
-        catalog={withoutAvena}
+        catalog={withoutAmareto}
         product={latte}
         line={captured}
         onCancel={() => {}}
@@ -60,11 +63,11 @@ describe("EVL-119 [D] Captured modifiers that the menu no longer offers", () => 
     const dialog = within(screen.getByRole("dialog"));
     expect(
       dialog
-        .getByRole("radio", { name: "Avena +$10.00" })
+        .getByRole("checkbox", { name: "Amareto +$10.00" })
         .getAttribute("aria-checked"),
     ).toBe("true");
     await userEvent.click(
-      dialog.getByRole("button", { name: "Guardar cambios · $85.00" }),
+      dialog.getByRole("button", { name: "Guardar cambios · $75.00" }),
     );
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });

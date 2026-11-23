@@ -10,3 +10,5 @@
 - Modifier groups (milk, flavour shots, sides, dressings, sweet extras) come from the menu photos. Paid extras reuse the SKU and price of the matching product. Which products get which group, and the price assumptions for products the menu groups together, are recorded in EVL-112 until Carlos confirms them.
 
 `src/domain/catalog.ts` (`parseCatalog`) validates the file; the app refuses to start with an invalid catalog.
+
+Carlos's answers from 17 Nov 2026 (EVL-112 [D], revision 5): non-dairy and lactose-free milk cost nothing extra; flavour shots are offered on every prepared drink but not on bottled ones; crepas, emparedados and savoury croissants include a side and a free dressing ("Aderezo incluido"), and another dressing costs extra; names take their accents (Plátano, Jamón, Paraíso, Frappé); the Crepa de Champiñones c/Queso is discontinued; the generic Croissant Dulce asks for its jam flavour ("Sabor").

@@ -25,12 +25,13 @@ describe("EVL-112 [B] Grupos de modificadores", () => {
     expect([leche.min, leche.max]).toEqual([1, 1]);
     expect(leche.defaultOptionId).toBe(option(leche, "Entera").id);
     expect(option(leche, "Entera").priceDeltaCents).toBe(0);
-    expect(
-      ["Deslactosada", "Coco", "Almendras", "Avena"].map(
-        (name) => option(leche, name).priceDeltaCents,
-      ),
-    ).toEqual([1000, 1000, 1000, 1000]);
-    expect(leche.options).toHaveLength(5);
+    expect(leche.options.map((candidate) => candidate.name)).toEqual([
+      "Entera",
+      "Deslactosada",
+      "Coco",
+      "Almendras",
+      "Avena",
+    ]);
 
     expect(shot.name).toBe("Shot de sabor");
     expect(shot.min).toBe(0);
@@ -52,7 +53,14 @@ describe("EVL-112 [B] Grupos de modificadores", () => {
 
   it("[B] Crepas, emparedados y croissants salados incluyen ensalada o papas", () => {
     for (const sku of ["52000822208", "52000822213", "52000822218"]) {
-      const [side, dressing] = groupsOf(sku);
+      const groups = groupsOf(sku);
+      const named = (name: string) => {
+        const found = groups.find((candidate) => candidate.name === name);
+        if (!found) throw new Error(`No group ${name} on ${sku}`);
+        return found;
+      };
+      const side = named("Acompañamiento");
+      const dressing = named("Aderezo extra");
       expect(side.name).toBe("Acompañamiento");
       expect([side.min, side.max]).toEqual([1, 1]);
       expect(side.defaultOptionId).toBeUndefined();

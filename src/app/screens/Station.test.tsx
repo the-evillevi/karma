@@ -31,7 +31,7 @@ async function addProduct(name: RegExp) {
 describe("EVL-121 [B] Estación de venta", () => {
   it("[B] El menú muestra categorías y búsqueda", async () => {
     await renderApp(<Station />, { as: "barra" });
-    expect(productNames()).toHaveLength(112);
+    expect(productNames()).toHaveLength(111);
 
     await userEvent.click(menu().getByRole("button", { name: "Postres" }));
     expect(productNames()).toHaveLength(20);
@@ -51,7 +51,7 @@ describe("EVL-121 [B] Estación de venta", () => {
     expect(found).toContain("Crepa de Nutella");
     await userEvent.clear(menu().getByLabelText("Buscar producto"));
     await userEvent.type(menu().getByLabelText("Buscar producto"), "cafe");
-    expect(productNames()).toContain("Frappe de Café");
+    expect(productNames()).toContain("Frappé de Café");
   });
 
   it("[B] Tocar un producto sin modificadores lo agrega de inmediato", async () => {
@@ -135,12 +135,14 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     expect(
       milk.getByRole("radio", { name: "Entera" }).getAttribute("aria-checked"),
     ).toBe("true");
-    expect(milk.getByRole("radio", { name: "Avena +$10.00" })).toBeDefined();
+    expect(milk.getByRole("radio", { name: /^Avena/ })).toBeDefined();
     const shots = within(dialog.getByRole("group", { name: "Shot de sabor" }));
     expect(shots.getByText(/Opcional/)).toBeDefined();
     expect(dialog.getByTestId("modifier-price").textContent).toBe("$65.00");
 
-    await userEvent.click(milk.getByRole("radio", { name: "Avena +$10.00" }));
+    await userEvent.click(
+      shots.getByRole("checkbox", { name: "Amareto +$10.00" }),
+    );
     await userEvent.click(
       shots.getByRole("checkbox", { name: "Vainilla +$10.00" }),
     );
@@ -154,7 +156,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     );
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(order().getByText("Avena · Vainilla")).toBeDefined();
+    expect(order().getByText("Entera · Amareto · Vainilla")).toBeDefined();
     expect(order().getByText("Nota: extra caliente")).toBeDefined();
     expect(total()).toBe("$85.00");
   });
@@ -179,7 +181,13 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     await userEvent.click(
       dialog.getByRole("button", { name: "Agregar · $60.00" }),
     );
-    expect(order().getByText("Papas")).toBeDefined();
+    expect(dialog.getByRole("alert").textContent).toContain("Aderezo incluido");
+    expect(total()).toBe("$0.00");
+    await userEvent.click(dialog.getByRole("radio", { name: "Ranch" }));
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Agregar · $60.00" }),
+    );
+    expect(order().getByText("Papas · Ranch")).toBeDefined();
     expect(total()).toBe("$60.00");
   });
 
@@ -198,12 +206,14 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
       order().getByRole("button", { name: "Editar Latte" }),
     );
     const dialog = within(screen.getByRole("dialog"));
-    await userEvent.click(dialog.getByRole("radio", { name: "Coco +$10.00" }));
+    await userEvent.click(
+      dialog.getByRole("checkbox", { name: "Amareto +$10.00" }),
+    );
     await userEvent.click(
       dialog.getByRole("button", { name: "Guardar cambios · $75.00" }),
     );
     expect(order().getByLabelText("Cantidad de Latte").textContent).toBe("2");
-    expect(order().getByText("Coco")).toBeDefined();
+    expect(order().getByText("Entera · Amareto")).toBeDefined();
     expect(total()).toBe("$150.00");
   });
 });
