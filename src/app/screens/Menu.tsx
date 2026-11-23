@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import type { FormEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +54,9 @@ import {
   editButtonId,
   focusTarget,
 } from "../menu/ProductDialogs.tsx";
+import { NewGroupDialog } from "../menu/GroupDialogs.tsx";
 import { ModifierGroupsView } from "../menu/ModifierGroupsView.tsx";
+import { MoveButtons, refocusMove } from "../menu/MoveButtons.tsx";
 import {
   EditOptionDialog,
   NewOptionDialog,
@@ -69,6 +70,7 @@ type OpenDialog =
   | { kind: "new"; trigger: HTMLElement }
   | { kind: "edit"; productId: string; trigger: HTMLElement }
   | { kind: "new-category"; trigger: HTMLElement }
+  | { kind: "new-group"; trigger: HTMLElement }
   | { kind: "rename-category"; categoryId: string; trigger: HTMLElement }
   | { kind: "new-option"; groupId: string; trigger: HTMLElement }
   | {
@@ -229,63 +231,6 @@ function PriceDialog({
   );
 }
 
-function moveButtonId(idPrefix: string, direction: MoveDirection): string {
-  return `${idPrefix}-${direction}`;
-}
-
-function refocusMove(idPrefix: string, direction: MoveDirection) {
-  requestAnimationFrame(() => {
-    const same = document.getElementById(moveButtonId(idPrefix, direction));
-    const other = document.getElementById(
-      moveButtonId(idPrefix, direction === "up" ? "down" : "up"),
-    );
-    const target =
-      same instanceof HTMLButtonElement && !same.disabled ? same : other;
-    target?.focus();
-  });
-}
-
-function MoveButtons({
-  idPrefix,
-  label,
-  isFirst,
-  isLast,
-  disabled,
-  onMove,
-}: {
-  idPrefix: string;
-  label: string;
-  isFirst: boolean;
-  isLast: boolean;
-  disabled: boolean;
-  onMove: (direction: MoveDirection) => void;
-}) {
-  return (
-    <span className="flex items-center gap-1">
-      <Button
-        variant="outline"
-        size="icon"
-        id={moveButtonId(idPrefix, "up")}
-        aria-label={`Subir ${label}`}
-        disabled={disabled || isFirst}
-        onClick={() => onMove("up")}
-      >
-        <ChevronUp aria-hidden="true" />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        id={moveButtonId(idPrefix, "down")}
-        aria-label={`Bajar ${label}`}
-        disabled={disabled || isLast}
-        onClick={() => onMove("down")}
-      >
-        <ChevronDown aria-hidden="true" />
-      </Button>
-    </span>
-  );
-}
-
 export function Menu() {
   const state = usePosState();
   const menu = useMenu();
@@ -428,6 +373,7 @@ export function Menu() {
         {mayEditMenu && tab === "modificadores" ? (
           <ModifierGroupsView
             pending={pending}
+            onNewGroup={(trigger) => setOpen({ kind: "new-group", trigger })}
             onAdd={(group, trigger) =>
               setOpen({ kind: "new-option", groupId: group.id, trigger })
             }
@@ -689,6 +635,9 @@ export function Menu() {
       )}
       {open?.kind === "new-category" && (
         <NewCategoryDialog returnFocus={open.trigger} onClose={close} />
+      )}
+      {open?.kind === "new-group" && (
+        <NewGroupDialog returnFocus={open.trigger} onClose={close} />
       )}
       {open?.kind === "rename-category" && (
         <RenameCategoryDialog

@@ -1171,6 +1171,7 @@ function groupChoices(): string[] {
 
 async function addGroup(name: string) {
   await userEvent.selectOptions(dialog().getByLabelText("Agregar grupo"), name);
+  await click(dialog().getByRole("button", { name: "Agregar" }));
 }
 
 async function editProduct(name: string) {
@@ -1384,12 +1385,22 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
     await click(screen.getByRole("button", { name: "Abrir" }));
     await click(screen.getAllByRole("button", { name: "Editar Latte" })[0]);
     const edit = within(screen.getByRole("dialog"));
+    expect(
+      within(edit.getByRole("region", { name: "También incluye" })).getByText(
+        /Amareto/,
+      ),
+    ).toBeDefined();
     await userEvent.type(
       edit.getByLabelText("Nota de preparación"),
       "sin espuma",
     );
     await click(edit.getByRole("button", { name: "Guardar cambios · $75.00" }));
     expect(screen.getAllByTestId("order-total")[0].textContent).toBe("$75.00");
+    expect(
+      app.store
+        .getState()
+        .orders["o-1"].lines[0].modifiers.map((modifier) => modifier.optionId),
+    ).toContain("amareto");
     app.store.close();
   });
 
@@ -1433,14 +1444,23 @@ describe("EVL-119 [E] Grupos de modificadores", () => {
   });
 
   it("[E] Solo Admin crea grupos y los asigna", async () => {
-    const app = await renderApp(<App />, { as: "barra" });
+    const barra = await renderApp(<App />, { as: "barra" });
     goTo("#/menu");
     expect(screen.queryByRole("tab", { name: "Modificadores" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Nuevo grupo" })).toBeNull();
     expect(
       row("Latte").queryByRole("button", { name: "Editar Latte" }),
     ).toBeNull();
-    app.store.close();
+    barra.store.close();
+    barra.unmount();
+
+    const mesero = await renderApp(<App />, { as: "mesero" });
+    goTo("#/menu");
+    expect(
+      screen.getByRole("link", { name: "Venta" }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(screen.queryByRole("button", { name: "Nuevo grupo" })).toBeNull();
+    mesero.store.close();
   });
 });
 

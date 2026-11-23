@@ -62,7 +62,9 @@ test("[E] Un grupo nuevo asignado a un producto sobrevive a una recarga sin red"
   await create.getByLabel("Máximo").fill("1");
   await create.getByLabel("Nombre de la opción 1").fill("Mermelada de fresa");
   await create.getByRole("button", { name: "Guardar grupo" }).click();
-  await expect(page.getByRole("region", { name: "Sabor" })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Sabor", exact: true }),
+  ).toBeVisible();
 
   await page.getByRole("tab", { name: "Productos" }).click();
   await page
@@ -71,6 +73,7 @@ test("[E] Un grupo nuevo asignado a un producto sobrevive a una recarga sin red"
     .click();
   const edit = page.getByRole("dialog", { name: "Editar producto" });
   await edit.getByLabel("Agregar grupo").selectOption("Sabor");
+  await edit.getByRole("button", { name: "Agregar", exact: true }).click();
   await edit.getByRole("button", { name: "Guardar cambios" }).click();
   await expect(edit).toBeHidden();
 
@@ -83,7 +86,7 @@ test("[E] Un grupo nuevo asignado a un producto sobrevive a una recarga sin red"
     .click();
   await expect(
     page
-      .getByRole("radiogroup", { name: "Sabor" })
+      .getByRole("radiogroup", { name: "Sabor", exact: true })
       .getByRole("radio", { name: "Mermelada de fresa" }),
   ).toBeVisible();
 });

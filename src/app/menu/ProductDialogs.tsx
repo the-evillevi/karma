@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import type { Catalog } from "../../domain/catalog.ts";
+import type { Catalog, ModifierGroup } from "../../domain/catalog.ts";
 import { findProduct } from "../../domain/catalog.ts";
 import type {
   CommandBatch,
@@ -22,13 +22,16 @@ import type {
 import {
   createProduct,
   suggestedSku,
-  updateProduct,
+  updateProductAndGroups,
 } from "../../domain/menu.ts";
+import type { MoveDirection } from "../../domain/menu.ts";
 import { parsePesos } from "../../domain/money.ts";
 import { catalog } from "../catalog.ts";
 import { useCommand, useMenu } from "../context.tsx";
 import { errorMessage } from "../errors.ts";
+import { requirement } from "../station/ModifierDialog.tsx";
 import { useToast } from "../toast.tsx";
+import { MoveButtons, refocusMove } from "./MoveButtons.tsx";
 
 type Command = (state: PosState, meta: CommandMeta) => CommandBatch;
 
@@ -63,6 +66,11 @@ export function useGuardedSave(onClose: () => void) {
   return { failure, busy, save };
 }
 
+export const nativeSelectClass = cn(
+  "min-h-11 w-full min-w-0 rounded-[var(--radius-control)] border border-primary bg-background px-3 py-2 text-base outline-none md:text-sm",
+  "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+);
+
 function CategorySelect({
   id,
   menu,
@@ -82,10 +90,7 @@ function CategorySelect({
       id={id}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className={cn(
-        "min-h-11 w-full min-w-0 rounded-[var(--radius-control)] border border-primary bg-background px-3 py-2 text-base outline-none md:text-sm",
-        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-      )}
+      className={nativeSelectClass}
     >
       <option value="">Elige una categoría</option>
       {categories.map((category) => (
@@ -145,18 +150,20 @@ export function ProductDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent
-        className="sm:max-w-sm"
+        className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-sm"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           focusTarget(returnFocus)?.focus();
         }}
       >
-        <form onSubmit={submit} className="flex flex-col gap-4">
+        <form onSubmit={submit} className="flex min-h-0 flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
-          {children}
+          <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pb-1">
+            {children}
+          </div>
           {failure !== "" && (
             <p role="alert" className="text-sm font-medium">
               {failure}
@@ -259,6 +266,131 @@ export function NewProductDialog({
   );
 }
 
+function sameOrder(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
+function moved(ids: string[], groupId: string, direction: MoveDirection) {
+  const from = ids.indexOf(groupId);
+  const to = direction === "up" ? from - 1 : from + 1;
+  if (from < 0 || to < 0 || to >= ids.length) return ids;
+  const next = [...ids];
+  [next[from], next[to]] = [next[to], next[from]];
+  return next;
+}
+
+function addGroupSelectId(productId: string): string {
+  return `agregar-grupo-${productId}`;
+}
+
+function refocusById(id: string) {
+  requestAnimationFrame(() => document.getElementById(id)?.focus());
+}
+
+function ProductGroupsField({
+  productId,
+  assigned,
+  available,
+  onChange,
+}: {
+  productId: string;
+  assigned: ModifierGroup[];
+  available: ModifierGroup[];
+  onChange: (groupIds: string[]) => void;
+}) {
+  const ids = assigned.map((group) => group.id);
+  const selectId = addGroupSelectId(productId);
+  const [picked, setPicked] = useState("");
+  const choice = available.some((group) => group.id === picked) ? picked : "";
+
+  function add() {
+    if (choice === "") return;
+    onChange([...ids, choice]);
+    setPicked("");
+    refocusById(selectId);
+  }
+
+  function move(groupId: string, direction: MoveDirection) {
+    onChange(moved(ids, groupId, direction));
+    refocusMove(`mover-grupo-${productId}-${groupId}`, direction);
+  }
+
+  function remove(groupId: string) {
+    onChange(ids.filter((id) => id !== groupId));
+    refocusById(selectId);
+  }
+
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 text-sm font-medium">Modificadores</legend>
+      {assigned.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin modificadores</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border">
+          {assigned.map((group, index) => (
+            <li
+              key={group.id}
+              aria-label={group.name}
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1"
+            >
+              <div className="flex min-w-0 flex-1 flex-col py-1">
+                <span className="text-sm font-medium">{group.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {requirement(group)}
+                </span>
+              </div>
+              <MoveButtons
+                idPrefix={`mover-grupo-${productId}-${group.id}`}
+                label={group.name}
+                isFirst={index === 0}
+                isLast={index === assigned.length - 1}
+                disabled={false}
+                onMove={(direction) => move(group.id, direction)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11"
+                aria-label={`Quitar ${group.name}`}
+                onClick={() => remove(group.id)}
+              >
+                Quitar
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Field id={selectId} label="Agregar grupo">
+        <div className="flex gap-2">
+          <select
+            id={selectId}
+            value={choice}
+            onChange={(event) => setPicked(event.target.value)}
+            className={nativeSelectClass}
+          >
+            <option value="">Elige un grupo</option>
+            {available.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 shrink-0"
+            disabled={choice === ""}
+            onClick={add}
+          >
+            Agregar
+          </Button>
+        </div>
+      </Field>
+    </fieldset>
+  );
+}
+
 export function EditProductDialog({
   productId,
   returnFocus,
@@ -273,19 +405,38 @@ export function EditProductDialog({
   const { failure, busy, save } = useGuardedSave(onClose);
   const [nameDraft, setName] = useState<string | null>(null);
   const [categoryDraft, setCategoryId] = useState<string | null>(null);
+  const [groupDraft, setGroupDraft] = useState<string[] | null>(null);
 
   if (!product) return null;
   const name = nameDraft ?? product.name;
   const categoryId = categoryDraft ?? product.categoryId;
+  const groupsById = new Map(
+    menu.modifierGroups.map((group) => [group.id, group]),
+  );
+  const exists = (groupId: string) => groupsById.has(groupId);
+  const live = product.modifierGroupIds.filter(exists);
+  const shownIds = (groupDraft ?? live).filter(exists);
+  const assigned = shownIds.flatMap((groupId) => {
+    const group = groupsById.get(groupId);
+    return group ? [group] : [];
+  });
+  const available = menu.modifierGroups.filter(
+    (group) => !shownIds.includes(group.id),
+  );
 
   function submit() {
-    const edit = {
-      productId,
+    const changes = {
       ...(nameDraft !== null ? { name: nameDraft } : {}),
       ...(categoryDraft !== null ? { categoryId: categoryDraft } : {}),
+      ...(!sameOrder(shownIds, live) ? { groupIds: shownIds } : {}),
     };
+    if (Object.keys(changes).length === 0) {
+      onClose();
+      return;
+    }
+    const edit = { productId, ...changes };
     void save(
-      (state, meta) => updateProduct(state, meta, edit, catalog),
+      (state, meta) => updateProductAndGroups(state, meta, edit, catalog),
       "Cambios guardados",
     );
   }
@@ -317,6 +468,12 @@ export function EditProductDialog({
           onChange={setCategoryId}
         />
       </Field>
+      <ProductGroupsField
+        productId={productId}
+        assigned={assigned}
+        available={available}
+        onChange={setGroupDraft}
+      />
       <p className="text-sm text-muted-foreground tabular-nums">
         {`SKU ${product.sku}`}
       </p>
