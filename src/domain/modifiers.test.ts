@@ -64,13 +64,23 @@ describe("EVL-120 [A] Modificadores y nota", () => {
   });
 
   it("[A] Un modificador con costo suma al precio", () => {
-    const [line] = capture(latte, { leche: ["avena"], shot: ["vainilla"] });
+    const [line] = capture(latte, {
+      leche: ["entera"],
+      shot: ["amareto", "vainilla"],
+    });
     expect(line.modifiers).toEqual([
       {
         groupId: "leche",
         groupName: "Tipo de leche",
-        optionId: "avena",
-        name: "Avena",
+        optionId: "entera",
+        name: "Entera",
+        priceDeltaCents: 0,
+      },
+      {
+        groupId: "shot",
+        groupName: "Shot de sabor",
+        optionId: "amareto",
+        name: "Amareto",
         priceDeltaCents: 1000,
       },
       {
@@ -149,7 +159,10 @@ describe("EVL-120 [A] Modificadores y nota", () => {
     });
     expect(lineTotalCents(lines[0])).toBe(13000);
     const edited = editLine(lines, "l1", {
-      modifiers: resolveModifiers(catalog, latte, { leche: ["coco"] }),
+      modifiers: resolveModifiers(catalog, latte, {
+        leche: ["entera"],
+        shot: ["amareto"],
+      }),
       note: " tibio ",
     });
     expect(edited).toHaveLength(1);

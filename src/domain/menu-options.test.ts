@@ -75,20 +75,22 @@ function latteWith(
 
 describe("EVL-119 [D] Opciones de un grupo", () => {
   it("[D] Admin cambia el precio de una opción", () => {
-    expect(lineUnitCents(latteWith(catalog, { leche: ["avena"] }))).toBe(7500);
+    expect(lineUnitCents(latteWith(catalog, { shot: ["avellana"] }))).toBe(
+      7500,
+    );
     const batch = updateModifierOption(
       emptyState(),
       at(),
-      { groupId: "leche", optionId: "avena", priceDeltaCents: 0 },
+      { groupId: "shot", optionId: "avellana", priceDeltaCents: 0 },
       catalog,
     );
     const state = applyBatch(emptyState(), batch);
     expect(
-      group(menuOf(state), "leche").options.find((o) => o.id === "avena"),
-    ).toMatchObject({ name: "Avena", priceDeltaCents: 0, active: true });
-    expect(lineUnitCents(latteWith(menuOf(state), { leche: ["avena"] }))).toBe(
-      6500,
-    );
+      group(menuOf(state), "shot").options.find((o) => o.id === "avellana"),
+    ).toMatchObject({ name: "Avellana", priceDeltaCents: 0, active: true });
+    expect(
+      lineUnitCents(latteWith(menuOf(state), { shot: ["avellana"] })),
+    ).toBe(6500);
     expect(replay([batch])).toEqual(state);
     for (const priceDeltaCents of [-100, 1.5, Number.NaN]) {
       expect(
@@ -96,7 +98,7 @@ describe("EVL-119 [D] Opciones de un grupo", () => {
           updateModifierOption(
             emptyState(),
             at(),
-            { groupId: "leche", optionId: "avena", priceDeltaCents },
+            { groupId: "shot", optionId: "avellana", priceDeltaCents },
             catalog,
           ),
         ),
@@ -105,19 +107,19 @@ describe("EVL-119 [D] Opciones de un grupo", () => {
   });
 
   it("[D] El cambio de opciones no toca cuentas ya capturadas", () => {
-    const avena = latteWith(catalog, { leche: ["avena"] }, "l1");
+    const avellana = latteWith(catalog, { shot: ["avellana"] }, "l1");
     const amareto = latteWith(catalog, { shot: ["amareto"] }, "l2");
     let state = run(emptyState(), (current) =>
       saveOrder(current, at(luis), {
         orderId: "o-1",
         header: mostrador,
-        lines: [avena, amareto],
+        lines: [avellana, amareto],
       }),
     );
     const captured = structuredClone(state.orders["o-1"]);
     state = editOption(state, {
-      groupId: "leche",
-      optionId: "avena",
+      groupId: "shot",
+      optionId: "avellana",
       priceDeltaCents: 0,
     });
     state = editOption(state, {
@@ -132,7 +134,7 @@ describe("EVL-119 [D] Opciones de un grupo", () => {
     const kept1 = resolveModifiers(
       menu,
       latte,
-      { leche: ["avena"] },
+      { leche: ["entera"], shot: ["avellana"] },
       line1.modifiers,
     );
     const kept2 = resolveModifiers(
@@ -155,12 +157,13 @@ describe("EVL-119 [D] Opciones de un grupo", () => {
     const withNewShot = resolveModifiers(
       menu,
       latte,
-      { leche: ["avena"], shot: ["avellana"] },
+      { leche: ["entera"], shot: ["avellana", "vainilla"] },
       line1.modifiers,
     );
     expect(withNewShot.map((m) => [m.optionId, m.priceDeltaCents])).toEqual([
-      ["avena", 1000],
+      ["entera", 0],
       ["avellana", 1000],
+      ["vainilla", 1000],
     ]);
   });
 

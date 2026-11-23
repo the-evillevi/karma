@@ -35,11 +35,11 @@ const entera: LineModifier = {
   name: "Entera",
   priceDeltaCents: 0,
 };
-const avena: LineModifier = {
-  groupId: "leche",
-  groupName: "Tipo de leche",
-  optionId: "avena",
-  name: "Avena",
+const amareto: LineModifier = {
+  groupId: "shot",
+  groupName: "Shot de sabor",
+  optionId: "amareto",
+  name: "Amareto",
   priceDeltaCents: 1000,
 };
 const vainilla: LineModifier = {
@@ -89,13 +89,19 @@ describe("EVL-121 [A] Partidas y totales", () => {
 
   it("[A] El mismo producto con otros modificadores es otra partida", () => {
     const one = addLine([], latte, { lineId: "l1", modifiers: [entera] });
-    const two = addLine(one, latte, { lineId: "l2", modifiers: [avena] });
+    const two = addLine(one, latte, { lineId: "l2", modifiers: [amareto] });
     expect(two.map((line) => line.lineId)).toEqual(["l1", "l2"]);
     expect(lineUnitCents(two[1])).toBe(7500);
     expect(orderTotals(two, IVA).totalCents).toBe(14000);
 
-    const a = addLine([], latte, { lineId: "a", modifiers: [avena, vainilla] });
-    const b = addLine(a, latte, { lineId: "b", modifiers: [vainilla, avena] });
+    const a = addLine([], latte, {
+      lineId: "a",
+      modifiers: [amareto, vainilla],
+    });
+    const b = addLine(a, latte, {
+      lineId: "b",
+      modifiers: [vainilla, amareto],
+    });
     expect(b).toHaveLength(1);
     expect(b[0].quantity).toBe(2);
     expect(lineTotalCents(b[0])).toBe(17000);
@@ -129,7 +135,7 @@ describe("EVL-121 [A] Partidas y totales", () => {
 
   it("[A] El total desglosa el IVA incluido", () => {
     const lines = addLine(
-      addLine([], latte, { lineId: "l1", modifiers: [avena] }),
+      addLine([], latte, { lineId: "l1", modifiers: [amareto] }),
       brownie,
       { lineId: "l2" },
     );

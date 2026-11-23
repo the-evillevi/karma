@@ -135,12 +135,14 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     expect(
       milk.getByRole("radio", { name: "Entera" }).getAttribute("aria-checked"),
     ).toBe("true");
-    expect(milk.getByRole("radio", { name: "Avena +$10.00" })).toBeDefined();
+    expect(milk.getByRole("radio", { name: /^Avena/ })).toBeDefined();
     const shots = within(dialog.getByRole("group", { name: "Shot de sabor" }));
     expect(shots.getByText(/Opcional/)).toBeDefined();
     expect(dialog.getByTestId("modifier-price").textContent).toBe("$65.00");
 
-    await userEvent.click(milk.getByRole("radio", { name: "Avena +$10.00" }));
+    await userEvent.click(
+      shots.getByRole("checkbox", { name: "Amareto +$10.00" }),
+    );
     await userEvent.click(
       shots.getByRole("checkbox", { name: "Vainilla +$10.00" }),
     );
@@ -154,7 +156,7 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
     );
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(order().getByText("Avena · Vainilla")).toBeDefined();
+    expect(order().getByText("Entera · Amareto · Vainilla")).toBeDefined();
     expect(order().getByText("Nota: extra caliente")).toBeDefined();
     expect(total()).toBe("$85.00");
   });
@@ -198,12 +200,14 @@ describe("EVL-120 [B] Hoja de modificadores", () => {
       order().getByRole("button", { name: "Editar Latte" }),
     );
     const dialog = within(screen.getByRole("dialog"));
-    await userEvent.click(dialog.getByRole("radio", { name: "Coco +$10.00" }));
+    await userEvent.click(
+      dialog.getByRole("checkbox", { name: "Amareto +$10.00" }),
+    );
     await userEvent.click(
       dialog.getByRole("button", { name: "Guardar cambios · $75.00" }),
     );
     expect(order().getByLabelText("Cantidad de Latte").textContent).toBe("2");
-    expect(order().getByText("Coco")).toBeDefined();
+    expect(order().getByText("Entera · Amareto")).toBeDefined();
     expect(total()).toBe("$150.00");
   });
 });

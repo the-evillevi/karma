@@ -30,7 +30,7 @@ import {
 } from "./testing.ts";
 
 const croissant = product("52000822188");
-const crepa = product("52000822212");
+const crepa = product("52000822210");
 
 const chai: NewProductInput = {
   sku: "52000822227",
@@ -222,7 +222,7 @@ describe("EVL-119 [B] Crear y editar productos", () => {
   it("[B] Admin oculta un producto y lo vuelve a mostrar", () => {
     const opened = withOpenAccount(crepa);
     const hidden = edit(opened, { productId: crepa.id, active: false }, "hide");
-    expect(forSaleIds(hidden)).not.toContain("52000822212");
+    expect(forSaleIds(hidden)).not.toContain("52000822210");
     expect(inMenu(hidden, crepa.id)).toMatchObject({
       active: false,
       available: true,
@@ -233,9 +233,9 @@ describe("EVL-119 [B] Crear y editar productos", () => {
     expect(hidden.orders["o-1"].lines).toEqual(opened.orders["o-1"].lines);
 
     const shown = edit(hidden, { productId: crepa.id, active: true }, "show");
-    expect(forSaleIds(shown)).toContain("52000822212");
+    expect(forSaleIds(shown)).toContain("52000822210");
     expect(addLine([], inMenu(shown, crepa.id), { lineId: "l1" })[0].name).toBe(
-      "Crepa de Champiñones c/Queso",
+      "Crepa Hawaiana",
     );
   });
 

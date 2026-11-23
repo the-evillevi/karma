@@ -47,7 +47,7 @@ test("[B] Cuenta de mesa guardada, enviada a cocina y cobrada", async ({
   await signIn(page, PIN.mesero);
   await addProduct(page, "Latte");
   const modifiers = page.getByRole("dialog", { name: "Latte" });
-  await modifiers.getByRole("radio", { name: "Avena +$10.00" }).click();
+  await modifiers.getByRole("checkbox", { name: "Amareto +$10.00" }).click();
   await modifiers.getByRole("button", { name: "Agregar · $75.00" }).click();
   await order(page).getByRole("radio", { name: "Mesa", exact: true }).click();
   await order(page).getByRole("radio", { name: "Mesa 3" }).click();
@@ -61,7 +61,7 @@ test("[B] Cuenta de mesa guardada, enviada a cocina y cobrada", async ({
   await page.getByRole("link", { name: "Cocina" }).click();
   const comanda = page.getByRole("listitem", { name: "Comanda A-0001" });
   await expect(comanda).toContainText("Mesa 3");
-  await expect(comanda).toContainText("Avena");
+  await expect(comanda).toContainText("Amareto");
   await expect(comanda).toContainText("En cola");
 
   await page.getByRole("link", { name: "Cuentas abiertas" }).click();

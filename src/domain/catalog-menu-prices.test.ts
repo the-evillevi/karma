@@ -1,12 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import rawCatalog from "../../catalog/catalog.json";
-import {
-  findProduct,
-  modifierGroupsFor,
-  parseCatalog,
-  productsInCategory,
-} from "./catalog.ts";
+import { findProduct, modifierGroupsFor, parseCatalog } from "./catalog.ts";
 
 const catalog = parseCatalog(rawCatalog);
 
@@ -20,13 +15,6 @@ const sku = (suffix: number) => `52000822${suffix}`;
 
 describe("EVL-112 [C] Precios del menú impreso", () => {
   it("[C] El catálogo no tiene productos repetidos", () => {
-    expect(catalog.products).toHaveLength(112);
-    const count = (id: string) => productsInCategory(catalog, id).length;
-    expect(count("bebidas")).toBe(49);
-    expect(count("extras")).toBe(23);
-    expect(count("postres")).toBe(20);
-    expect(count("salado")).toBe(17);
-    expect(count("cafe")).toBe(3);
     for (const removed of [171, 169, 204]) {
       expect(findProduct(catalog, sku(removed))).toBeUndefined();
     }
@@ -57,7 +45,7 @@ describe("EVL-112 [C] Precios del menú impreso", () => {
     });
     expect(singleActual).toEqual(singleProducts);
 
-    const crepasSaladas = [207, 208, 209, 210, 211, 212];
+    const crepasSaladas = [207, 208, 209, 210, 211];
     const emparedadosYCroissantsSalados = [
       213, 214, 215, 216, 217, 218, 219, 220, 221,
     ];

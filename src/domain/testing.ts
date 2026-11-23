@@ -1,6 +1,6 @@
 import rawCatalog from "../../catalog/catalog.json";
 import { findProduct, parseCatalog } from "./catalog.ts";
-import type { Product } from "./catalog.ts";
+import type { Catalog, Product } from "./catalog.ts";
 import type { Actor, CommandMeta, OrderHeader } from "./journal.ts";
 import { addLine } from "./order.ts";
 import type { LineModifier, OrderLine } from "./order.ts";
@@ -17,13 +17,24 @@ export const americano = product("52000822146");
 export const latte = product("52000822148");
 export const brownie = product("52000822189");
 
-export const avena: LineModifier = {
-  groupId: "leche",
-  groupName: "Tipo de leche",
-  optionId: "avena",
-  name: "Avena",
+export const amareto: LineModifier = {
+  groupId: "shot",
+  groupName: "Shot de sabor",
+  optionId: "amareto",
+  name: "Amareto",
   priceDeltaCents: 1000,
 };
+
+export function withoutGroup(base: Catalog, groupId: string): Catalog {
+  return {
+    ...base,
+    modifierGroups: base.modifierGroups.filter((group) => group.id !== groupId),
+    products: base.products.map((item) => ({
+      ...item,
+      modifierGroupIds: item.modifierGroupIds.filter((id) => id !== groupId),
+    })),
+  };
+}
 
 export const admin: Actor = { userId: "u-admin", name: "Admin", role: "admin" };
 export const luis: Actor = { userId: "u-luis", name: "Luis", role: "barra" };
