@@ -41,7 +41,11 @@ export type CommandRejection =
   | "invalid-option-name"
   | "duplicate-option"
   | "invalid-option-price"
-  | "group-needs-option";
+  | "group-needs-option"
+  | "invalid-group-name"
+  | "duplicate-group"
+  | "invalid-group-limits"
+  | "repeated-group";
 
 export class CommandRejectedError extends Error {
   readonly reason: CommandRejection;

@@ -40,6 +40,10 @@ const REJECTIONS: Record<CommandRejectedError["reason"], string> = {
   "invalid-option-price": "Escribe un precio de $0.00 o más.",
   "group-needs-option":
     "Un grupo obligatorio necesita al menos una opción visible.",
+  "invalid-group-name": "Escribe el nombre del grupo.",
+  "duplicate-group": "Ya existe un grupo con ese nombre.",
+  "invalid-group-limits": "Revisa el mínimo y el máximo del grupo.",
+  "repeated-group": "Un grupo solo se puede asignar una vez.",
 };
 
 export function errorMessage(error: unknown): string {

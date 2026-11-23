@@ -1,4 +1,10 @@
-import type { Catalog, Category, ModifierOption, Product } from "./catalog.ts";
+import type {
+  Catalog,
+  Category,
+  ModifierGroup,
+  ModifierOption,
+  Product,
+} from "./catalog.ts";
 import type {
   Actor,
   CommandBatch,
@@ -37,6 +43,8 @@ export type MenuState = {
   categoryOrder: string[];
   productOrder: Record<string, string[]>;
   modifierOptions: Record<string, GroupOptionEdits>;
+  createdGroups: ModifierGroup[];
+  productGroups: Record<string, string[]>;
 };
 
 export const SKU_SERIES = "52000822";
@@ -64,6 +72,8 @@ export function emptyMenu(): MenuState {
     categoryOrder: [],
     productOrder: {},
     modifierOptions: {},
+    createdGroups: [],
+    productGroups: {},
   };
 }
 
@@ -236,11 +246,15 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
     products.push(product);
     productIds.add(product.id);
   }
-  const patchedProducts = products.map((product) =>
-    Object.hasOwn(menu.products, product.id)
-      ? { ...product, ...menu.products[product.id].changes }
-      : product,
-  );
+  const patchedProducts = products.map((product) => ({
+    ...product,
+    ...(Object.hasOwn(menu.products, product.id)
+      ? menu.products[product.id].changes
+      : {}),
+    ...(Object.hasOwn(menu.productGroups, product.id)
+      ? { modifierGroupIds: menu.productGroups[product.id] }
+      : {}),
+  }));
   const orderedProducts = new Map<string, Product[]>();
   for (const [categoryId, ids] of Object.entries(menu.productOrder)) {
     const ranks = new Map(ids.map((id, index) => [id, index]));
@@ -255,9 +269,16 @@ export function menuFor(base: Catalog, menu: MenuState): Catalog {
     );
   }
   const positions = new Map<string, number>();
+  const groups = [...base.modifierGroups];
+  const groupIds = new Set(groups.map((group) => group.id));
+  for (const group of menu.createdGroups) {
+    if (groupIds.has(group.id)) continue;
+    groups.push(group);
+    groupIds.add(group.id);
+  }
   return {
     ...base,
-    modifierGroups: base.modifierGroups.map((group) => {
+    modifierGroups: groups.map((group) => {
       const edits = Object.hasOwn(menu.modifierOptions, group.id)
         ? menu.modifierOptions[group.id]
         : undefined;
@@ -661,4 +682,161 @@ function optionName(value: string, others: ModifierOption[]): string {
     throw new CommandRejectedError("duplicate-option");
   }
   return name;
+}
+
+export type NewGroupInput = {
+  groupId: string;
+  name: string;
+  min: number;
+  max: number;
+  defaultOptionId?: string;
+  options: { optionId: string; name: string; priceDeltaCents: number }[];
+};
+
+export function createModifierGroup(
+  state: PosState,
+  meta: CommandMeta,
+  input: NewGroupInput,
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const current = menuFor(base, state.menu);
+  const { groupId, min, max, defaultOptionId } = input;
+  const name = input.name.trim();
+  if (name === "") {
+    throw new CommandRejectedError("invalid-group-name");
+  }
+  if (
+    current.modifierGroups.some(
+      (group) => normalizedName(group.name) === normalizedName(name),
+    )
+  ) {
+    throw new CommandRejectedError("duplicate-group");
+  }
+  if (current.modifierGroups.some((group) => group.id === groupId)) {
+    throw new CommandRejectedError("duplicate-group");
+  }
+  if (input.options.length === 0) {
+    throw new CommandRejectedError("group-needs-option");
+  }
+  const options: ModifierOption[] = [];
+  for (const option of input.options) {
+    const optionLabel = optionName(option.name, options);
+    if (options.some((existing) => existing.id === option.optionId)) {
+      throw new CommandRejectedError("duplicate-option");
+    }
+    if (
+      !Number.isSafeInteger(option.priceDeltaCents) ||
+      option.priceDeltaCents < 0
+    ) {
+      throw new CommandRejectedError("invalid-option-price");
+    }
+    options.push({
+      id: option.optionId,
+      name: optionLabel,
+      priceDeltaCents: option.priceDeltaCents,
+      active: true,
+    });
+  }
+  if (
+    !Number.isSafeInteger(min) ||
+    !Number.isSafeInteger(max) ||
+    min < 0 ||
+    min > max ||
+    max < 1 ||
+    max > options.length
+  ) {
+    throw new CommandRejectedError("invalid-group-limits");
+  }
+  if (
+    defaultOptionId !== undefined &&
+    !options.some((option) => option.id === defaultOptionId)
+  ) {
+    throw new CommandRejectedError("unknown-option");
+  }
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      {
+        type: "modifier-group-created",
+        group: {
+          id: groupId,
+          name,
+          min,
+          max,
+          ...(defaultOptionId !== undefined ? { defaultOptionId } : {}),
+          options,
+        },
+      },
+    ],
+  };
+}
+
+export function setProductGroups(
+  state: PosState,
+  meta: CommandMeta,
+  input: { productId: string; groupIds: string[] },
+  base: Catalog,
+): CommandBatch {
+  if (!can(meta.actor.role, "edit-menu")) {
+    throw new CommandRejectedError("not-allowed", "edit-menu");
+  }
+  const current = menuFor(base, state.menu);
+  const { productId, groupIds } = input;
+  if (!findProduct(current, productId)) {
+    throw new CommandRejectedError("unknown-product");
+  }
+  const knownIds = new Set(current.modifierGroups.map((group) => group.id));
+  if (groupIds.some((id) => !knownIds.has(id))) {
+    throw new CommandRejectedError("unknown-modifier-group");
+  }
+  if (new Set(groupIds).size !== groupIds.length) {
+    throw new CommandRejectedError("repeated-group");
+  }
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [
+      { type: "product-groups-set", productId, groupIds: [...groupIds] },
+    ],
+  };
+}
+
+export function updateProductAndGroups(
+  state: PosState,
+  meta: CommandMeta,
+  input: {
+    productId: string;
+    name?: string;
+    categoryId?: string;
+    groupIds?: string[];
+  },
+  base: Catalog,
+): CommandBatch {
+  const { productId, name, categoryId, groupIds } = input;
+  const first =
+    name !== undefined || categoryId !== undefined || groupIds === undefined
+      ? updateProduct(
+          state,
+          meta,
+          {
+            productId,
+            ...(name !== undefined ? { name } : {}),
+            ...(categoryId !== undefined ? { categoryId } : {}),
+          },
+          base,
+        )
+      : undefined;
+  const second =
+    groupIds !== undefined
+      ? setProductGroups(state, meta, { productId, groupIds }, base)
+      : undefined;
+  return {
+    ...meta,
+    actor: structuredClone(meta.actor),
+    events: [...(first?.events ?? []), ...(second?.events ?? [])],
+  };
 }

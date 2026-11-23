@@ -6,13 +6,17 @@ import { useMenu } from "../context.tsx";
 import { requirement } from "../station/ModifierDialog.tsx";
 import { addOptionButtonId, editOptionButtonId } from "./OptionDialogs.tsx";
 
+export const newGroupButtonId = "nuevo-grupo";
+
 export function ModifierGroupsView({
   pending,
+  onNewGroup,
   onAdd,
   onEdit,
   onToggle,
 }: {
   pending: boolean;
+  onNewGroup: (trigger: HTMLElement) => void;
   onAdd: (group: ModifierGroup, trigger: HTMLElement) => void;
   onEdit: (
     group: ModifierGroup,
@@ -23,7 +27,7 @@ export function ModifierGroupsView({
 }) {
   const menu = useMenu();
 
-  return menu.modifierGroups.map((group) => {
+  const groups = menu.modifierGroups.map((group) => {
     const headingId = `menu-grupo-${group.id}`;
     return (
       <section
@@ -98,4 +102,19 @@ export function ModifierGroupsView({
       </section>
     );
   });
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          className="min-h-11 shrink-0"
+          id={newGroupButtonId}
+          onClick={(event) => onNewGroup(event.currentTarget)}
+        >
+          Nuevo grupo
+        </Button>
+      </div>
+      {groups}
+    </>
+  );
 }
