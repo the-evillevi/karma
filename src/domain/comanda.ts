@@ -143,16 +143,28 @@ function minutesBetween(from: string, to: string): number {
   return Math.max(0, Math.floor((Date.parse(to) - Date.parse(from)) / 60_000));
 }
 
+function clockEnd(comanda: Comanda, now: string): string {
+  if (comanda.status !== "served") return now;
+  for (let index = comanda.statusHistory.length - 1; index >= 0; index--) {
+    const entry = comanda.statusHistory[index];
+    if (entry.status === "served") return entry.at;
+  }
+  return comanda.updatedAt;
+}
+
 export function timeInStatus(comanda: Comanda, now: string): StatusTime[] {
   return comanda.statusHistory.map((item, index, history) => ({
     status: item.status,
-    minutes: minutesBetween(item.at, history[index + 1]?.at ?? now),
+    minutes: minutesBetween(
+      item.at,
+      history[index + 1]?.at ?? clockEnd(comanda, now),
+    ),
     current: index === history.length - 1,
   }));
 }
 
 export function totalMinutes(comanda: Comanda, now: string): number {
-  return minutesBetween(comanda.sentAt, now);
+  return minutesBetween(comanda.sentAt, clockEnd(comanda, now));
 }
 
 export function durationLabel(minutes: number): string {
