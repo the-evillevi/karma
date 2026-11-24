@@ -843,9 +843,11 @@ export function saveProductEdit(
   },
   base: Catalog,
 ): CommandBatch {
-  const { productId, name, categoryId, groupIds } = input;
+  const { productId, name, categoryId, priceCents, groupIds } = input;
   const first =
-    name !== undefined || categoryId !== undefined || groupIds === undefined
+    name !== undefined ||
+    categoryId !== undefined ||
+    (priceCents === undefined && groupIds === undefined)
       ? updateProduct(
           state,
           meta,
@@ -857,6 +859,10 @@ export function saveProductEdit(
           base,
         )
       : undefined;
+  const price =
+    priceCents !== undefined
+      ? setProductPrice(state, meta, { productId, priceCents }, base)
+      : undefined;
   const second =
     groupIds !== undefined
       ? setProductGroups(state, meta, { productId, groupIds }, base)
@@ -864,6 +870,10 @@ export function saveProductEdit(
   return {
     ...meta,
     actor: structuredClone(meta.actor),
-    events: [...(first?.events ?? []), ...(second?.events ?? [])],
+    events: [
+      ...(first?.events ?? []),
+      ...(price?.events ?? []),
+      ...(second?.events ?? []),
+    ],
   };
 }

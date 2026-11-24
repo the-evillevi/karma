@@ -5,11 +5,12 @@ import { parsePesos } from "../../domain/money.ts";
 import { catalog } from "../catalog.ts";
 import { useMenu } from "../context.tsx";
 import { newId } from "../ids.ts";
-import { Field, ProductDialog, useGuardedSave } from "./ProductDialogs.tsx";
-
-export function pesosText(cents: number): string {
-  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
-}
+import {
+  Field,
+  ProductDialog,
+  pesosText,
+  useGuardedSave,
+} from "./ProductDialogs.tsx";
 
 export function editOptionButtonId(groupId: string, optionId: string): string {
   return `editar-opcion-${groupId}-${optionId}`;

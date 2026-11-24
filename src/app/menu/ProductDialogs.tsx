@@ -35,6 +35,10 @@ import { MoveButtons, refocusMove } from "./MoveButtons.tsx";
 
 type Command = (state: PosState, meta: CommandMeta) => CommandBatch;
 
+export function pesosText(cents: number): string {
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+}
+
 export function editButtonId(productId: string): string {
   return `editar-${productId}`;
 }
@@ -406,9 +410,11 @@ export function EditProductDialog({
   const [nameDraft, setName] = useState<string | null>(null);
   const [categoryDraft, setCategoryId] = useState<string | null>(null);
   const [groupDraft, setGroupDraft] = useState<string[] | null>(null);
+  const [priceDraft, setPriceDraft] = useState<string | null>(null);
 
   if (!product) return null;
   const name = nameDraft ?? product.name;
+  const priceText = priceDraft ?? pesosText(product.priceCents);
   const categoryId = categoryDraft ?? product.categoryId;
   const groupsById = new Map(
     menu.modifierGroups.map((group) => [group.id, group]),
@@ -429,6 +435,9 @@ export function EditProductDialog({
       ...(nameDraft !== null ? { name: nameDraft } : {}),
       ...(categoryDraft !== null ? { categoryId: categoryDraft } : {}),
       ...(!sameOrder(shownIds, live) ? { groupIds: shownIds } : {}),
+      ...(priceDraft !== null
+        ? { priceCents: parsePesos(priceDraft) ?? Number.NaN }
+        : {}),
     };
     if (Object.keys(changes).length === 0) {
       onClose();
@@ -474,6 +483,19 @@ export function EditProductDialog({
         available={available}
         onChange={setGroupDraft}
       />
+      <Field
+        id={`editar-precio-${productId}`}
+        label={`Precio de ${product.name}`}
+      >
+        <Input
+          id={`editar-precio-${productId}`}
+          inputMode="decimal"
+          autoComplete="off"
+          className="tabular-nums"
+          value={priceText}
+          onChange={(event) => setPriceDraft(event.target.value)}
+        />
+      </Field>
       <p className="text-sm text-muted-foreground tabular-nums">
         {`SKU ${product.sku}`}
       </p>
