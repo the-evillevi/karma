@@ -120,10 +120,13 @@ export type Comanda = {
   header: OrderHeader;
   lines: ComandaLine[];
   status: PreparationStatus;
+  statusHistory: StatusEntry[];
   sentAt: string;
   sentBy: Actor;
   updatedAt: string;
 };
+
+export type StatusEntry = { status: PreparationStatus; at: string };
 
 export type PosState = {
   orders: Record<string, Order>;
@@ -243,6 +246,7 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
             header: structuredClone(order.header),
             lines: event.lines,
             status: "queued",
+            statusHistory: [],
             sentAt: snapshot.at,
             sentBy: snapshot.actor,
             updatedAt: snapshot.at,

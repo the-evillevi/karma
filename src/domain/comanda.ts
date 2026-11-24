@@ -132,3 +132,21 @@ export function hasUnsentLines(state: PosState, orderId: string): boolean {
     ) ?? false
   );
 }
+
+export type StatusTime = {
+  status: PreparationStatus;
+  minutes: number;
+  current: boolean;
+};
+
+export function timeInStatus(comanda: Comanda, now: string): StatusTime[] {
+  throw new Error("not implemented");
+}
+
+export function totalMinutes(comanda: Comanda, now: string): number {
+  throw new Error("not implemented");
+}
+
+export function durationLabel(minutes: number): string {
+  throw new Error("not implemented");
+}

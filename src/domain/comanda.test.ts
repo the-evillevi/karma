@@ -79,6 +79,9 @@ describe("EVL-124 [A] Comandas", () => {
         },
       ],
       status: "queued",
+      statusHistory: [
+        { status: "queued", at: "2026-11-15T10:05:00.000-06:00" },
+      ],
       sentAt: "2026-11-15T10:05:00.000-06:00",
       sentBy: sofi,
       updatedAt: "2026-11-15T10:05:00.000-06:00",
