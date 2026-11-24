@@ -831,13 +831,14 @@ export function setProductGroups(
   };
 }
 
-export function updateProductAndGroups(
+export function saveProductEdit(
   state: PosState,
   meta: CommandMeta,
   input: {
     productId: string;
     name?: string;
     categoryId?: string;
+    priceCents?: number;
     groupIds?: string[];
   },
   base: Catalog,

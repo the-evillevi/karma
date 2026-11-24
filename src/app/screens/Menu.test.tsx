@@ -50,10 +50,10 @@ function navLinks(): string[] {
 }
 
 async function openPriceEditor(name: string) {
-  await click(
-    row(name).getByRole("button", { name: `Cambiar precio de ${name}` }),
-  );
-  return screen.getByLabelText(`Precio de ${name}`);
+  await click(row(name).getByRole("button", { name: `Editar ${name}` }));
+  return within(
+    screen.getByRole("dialog", { name: "Editar producto" }),
+  ).getByLabelText(`Precio de ${name}`);
 }
 
 describe("EVL-119 [A] Pantalla Menú", () => {
@@ -69,11 +69,14 @@ describe("EVL-119 [A] Pantalla Menú", () => {
       ),
     ).toBeDefined();
     expect(row("Latte").getByText("$65.00")).toBeDefined();
+    expect(
+      row("Latte").queryByRole("button", { name: "Cambiar precio de Latte" }),
+    ).toBeNull();
 
     const price = await openPriceEditor("Latte");
     await userEvent.clear(price);
     await userEvent.type(price, "70");
-    await click(screen.getByRole("button", { name: "Guardar precio" }));
+    await click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     expect(row("Latte").getByText("$70.00")).toBeDefined();
     expect(screen.queryByLabelText("Precio de Latte")).toBeNull();
@@ -126,10 +129,15 @@ describe("EVL-119 [A] Pantalla Menú", () => {
     const app = await renderApp(<App />, { as: "admin" });
     goTo("#/menu");
     const price = await openPriceEditor("Latte");
+    const name = within(
+      screen.getByRole("dialog", { name: "Editar producto" }),
+    ).getByLabelText("Nombre");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Latte Grande");
     for (const text of ["0", "", "abc", "12.345"]) {
       await userEvent.clear(price);
       if (text !== "") await userEvent.type(price, text);
-      await click(screen.getByRole("button", { name: "Guardar precio" }));
+      await click(screen.getByRole("button", { name: "Guardar cambios" }));
       expect(screen.getByRole("alert").textContent).toBe(
         "Escribe un precio mayor a $0.00.",
       );
@@ -145,8 +153,9 @@ describe("EVL-119 [A] Pantalla Menú", () => {
     goTo("#/menu");
     expect(row("Latte").getByText("$65.00")).toBeDefined();
     expect(
-      row("Latte").queryByRole("button", { name: "Cambiar precio de Latte" }),
+      row("Latte").queryByRole("button", { name: "Editar Latte" }),
     ).toBeNull();
+    expect(screen.queryByLabelText("Precio de Latte")).toBeNull();
     expect(
       row("Latte").getByRole("switch", { name: "Disponible" }),
     ).toBeDefined();
@@ -261,14 +270,14 @@ describe("EVL-119 [A] Review regressions", () => {
     app.store.close();
   });
 
-  it("closing the price dialog returns focus to its button", async () => {
+  it("an untouched price records nothing", async () => {
     const app = await renderApp(<App />, { as: "admin" });
     goTo("#/menu");
-    await openPriceEditor("Latte");
-    await click(screen.getByRole("button", { name: "Cancelar" }));
-    expect(document.activeElement).toBe(
-      row("Latte").getByRole("button", { name: "Cambiar precio de Latte" }),
-    );
+    const price = await openPriceEditor("Latte");
+    expect((price as HTMLInputElement).value).toBe("65.00");
+    await click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(app.store.getState().menu.products).toEqual({});
     app.store.close();
   });
 });

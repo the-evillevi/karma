@@ -61,7 +61,7 @@ Saves and charges also carry the account `version` the screen last saw (`expecte
 | `moveCategory`, `moveProduct` (`menu.ts`) | `categories-reordered`, `products-reordered` | Admin |
 | `updateModifierOption`, `addModifierOption` (`menu.ts`) | `modifier-option-updated`, `modifier-option-added` | Admin |
 | `createModifierGroup` (`menu.ts`) | `modifier-group-created` | Admin |
-| `setProductGroups`, `updateProductAndGroups` (`menu.ts`) | `product-groups-set` (the latter also `product-updated` in the same batch) | Admin |
+| `setProductGroups`, `saveProductEdit` (`menu.ts`) | `product-groups-set` (the latter also `product-updated` in the same batch) | Admin |
 
 Read-only helpers: `openOrders`, `accountSummary` (`accounts.ts`), `pendingComandas`, `hasUnsentLines` (`comanda.ts`), `closedSales` (`checkout.ts`), `daySummary` (`sales.ts`).
 

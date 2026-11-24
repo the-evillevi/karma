@@ -22,7 +22,7 @@ import type {
 import {
   createProduct,
   suggestedSku,
-  updateProductAndGroups,
+  saveProductEdit,
 } from "../../domain/menu.ts";
 import type { MoveDirection } from "../../domain/menu.ts";
 import { parsePesos } from "../../domain/money.ts";
@@ -436,7 +436,7 @@ export function EditProductDialog({
     }
     const edit = { productId, ...changes };
     void save(
-      (state, meta) => updateProductAndGroups(state, meta, edit, catalog),
+      (state, meta) => saveProductEdit(state, meta, edit, catalog),
       "Cambios guardados",
     );
   }

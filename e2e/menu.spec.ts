@@ -18,9 +18,11 @@ test("[A] Los cambios del menú sobreviven a una recarga sin red", async ({
 
   await page.getByRole("link", { name: "Menú" }).click();
   const latte = page.getByRole("listitem", { name: "Latte", exact: true });
-  await latte.getByRole("button", { name: "Cambiar precio de Latte" }).click();
-  await page.getByLabel("Precio de Latte", { exact: true }).fill("70");
-  await page.getByRole("button", { name: "Guardar precio" }).click();
+  await latte.getByRole("button", { name: "Editar Latte" }).click();
+  const edit = page.getByRole("dialog", { name: "Editar producto" });
+  await edit.getByLabel("Precio de Latte", { exact: true }).fill("70");
+  await edit.getByRole("button", { name: "Guardar cambios" }).click();
+  await expect(edit).toBeHidden();
   await expect(latte.getByText("$70.00")).toBeVisible();
   const croissant = page.getByRole("listitem", { name: "Croissant Dulce" });
   await croissant.getByRole("switch", { name: "Disponible" }).click();
