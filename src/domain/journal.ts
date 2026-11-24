@@ -246,7 +246,7 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
             header: structuredClone(order.header),
             lines: event.lines,
             status: "queued",
-            statusHistory: [],
+            statusHistory: [{ status: "queued", at: snapshot.at }],
             sentAt: snapshot.at,
             sentBy: snapshot.actor,
             updatedAt: snapshot.at,
@@ -266,6 +266,10 @@ export function applyBatch(state: PosState, batch: CommandBatch): PosState {
       case "preparation-advanced":
         next.comandas[event.comandaId].status = event.status;
         next.comandas[event.comandaId].updatedAt = snapshot.at;
+        next.comandas[event.comandaId].statusHistory = [
+          ...next.comandas[event.comandaId].statusHistory,
+          { status: event.status, at: snapshot.at },
+        ];
         break;
       case "sale-closed":
         next.orders = {

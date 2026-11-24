@@ -139,14 +139,26 @@ export type StatusTime = {
   current: boolean;
 };
 
+function minutesBetween(from: string, to: string): number {
+  return Math.max(0, Math.floor((Date.parse(to) - Date.parse(from)) / 60_000));
+}
+
 export function timeInStatus(comanda: Comanda, now: string): StatusTime[] {
-  throw new Error("not implemented");
+  return comanda.statusHistory.map((item, index, history) => ({
+    status: item.status,
+    minutes: minutesBetween(item.at, history[index + 1]?.at ?? now),
+    current: index === history.length - 1,
+  }));
 }
 
 export function totalMinutes(comanda: Comanda, now: string): number {
-  throw new Error("not implemented");
+  return minutesBetween(comanda.sentAt, now);
 }
 
 export function durationLabel(minutes: number): string {
-  throw new Error("not implemented");
+  if (minutes === 0) return "<1 min";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder === 0 ? `${hours} h` : `${hours} h ${remainder} min`;
 }
