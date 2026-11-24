@@ -132,3 +132,57 @@ export function hasUnsentLines(state: PosState, orderId: string): boolean {
     ) ?? false
   );
 }
+
+export type StatusTime = {
+  status: PreparationStatus;
+  minutes: number;
+  current: boolean;
+};
+
+function minutesBetween(from: string, to: string): number {
+  return Math.max(0, Math.floor((Date.parse(to) - Date.parse(from)) / 60_000));
+}
+
+function stepStarts(comanda: Comanda): string[] {
+  const starts: string[] = [];
+  for (const entry of comanda.statusHistory) {
+    const previous = starts[starts.length - 1];
+    starts.push(
+      previous === undefined || Date.parse(entry.at) >= Date.parse(previous)
+        ? entry.at
+        : previous,
+    );
+  }
+  return starts;
+}
+
+function clockEnd(comanda: Comanda, starts: string[], now: string): string {
+  return comanda.status === "served" ? starts[starts.length - 1] : now;
+}
+
+export function timeInStatus(comanda: Comanda, now: string): StatusTime[] {
+  const starts = stepStarts(comanda);
+  return comanda.statusHistory.map((item, index, history) => ({
+    status: item.status,
+    minutes: minutesBetween(
+      starts[index],
+      starts[index + 1] ?? clockEnd(comanda, starts, now),
+    ),
+    current: index === history.length - 1,
+  }));
+}
+
+export function totalMinutes(comanda: Comanda, now: string): number {
+  return minutesBetween(
+    comanda.sentAt,
+    clockEnd(comanda, stepStarts(comanda), now),
+  );
+}
+
+export function durationLabel(minutes: number): string {
+  if (minutes === 0) return "<1 min";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder === 0 ? `${hours} h` : `${hours} h ${remainder} min`;
+}

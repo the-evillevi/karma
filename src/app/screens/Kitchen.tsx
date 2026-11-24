@@ -1,24 +1,24 @@
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   NEXT_ACTION_LABELS,
-  PREPARATION_LABELS,
   advancePreparation,
   nextPreparationStatus,
   pendingComandas,
 } from "../../domain/comanda.ts";
 import type { Comanda } from "../../domain/journal.ts";
 import { headerLabel } from "../../domain/order-header.ts";
-import { timeOfDay } from "../clock.ts";
+import { timeOfDay, useNow } from "../clock.ts";
 import { useCommand, usePosState } from "../context.tsx";
 import { errorMessage } from "../errors.ts";
+import { StatusPill } from "../kitchen/StatusPill.tsx";
 
 export function Kitchen() {
   const state = usePosState();
   const run = useCommand();
   const [failure, setFailure] = useState("");
   const comandas = pendingComandas(state);
+  const now = useNow();
 
   async function advance(comanda: Comanda) {
     const to = nextPreparationStatus(comanda.status);
@@ -75,11 +75,7 @@ export function Kitchen() {
                     {comanda.sentBy.name}
                   </p>
                 </div>
-                <Badge
-                  variant={comanda.status === "queued" ? "pending" : "outline"}
-                >
-                  {PREPARATION_LABELS[comanda.status]}
-                </Badge>
+                <StatusPill comanda={comanda} now={now} />
               </div>
               <ul className="flex flex-col gap-2 border-y border-border py-3">
                 {comanda.lines.map((line) => (

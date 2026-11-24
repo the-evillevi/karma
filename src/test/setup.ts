@@ -10,6 +10,12 @@ if (typeof document !== "undefined") {
     });
   }
 
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+
   const { cleanup } = await import("@testing-library/react");
   afterEach(() => cleanup());
 }
