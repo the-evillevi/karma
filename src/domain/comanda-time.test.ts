@@ -99,6 +99,27 @@ describe("EVL-124 [F] Cronómetro de la comanda", () => {
     expect(totalMinutes(comanda, at("10:01:00"))).toBe(0);
   });
 
+  it("A step stamped before the previous one by a slower clock starts when the previous one did", () => {
+    let state = sentAt("10:05");
+    state = advanced(state, "preparing", "10:01");
+    const comanda = state.comandas["c-1"];
+    expect(timeInStatus(comanda, at("10:10:00"))).toEqual([
+      { status: "queued", minutes: 0, current: false },
+      { status: "preparing", minutes: 5, current: true },
+    ]);
+    expect(totalMinutes(comanda, at("10:10:00"))).toBe(5);
+
+    const served = advanced(
+      advanced(state, "ready", "10:03"),
+      "served",
+      "10:04",
+    ).comandas["c-1"];
+    expect(totalMinutes(served, at("10:30:00"))).toBe(0);
+    expect(
+      timeInStatus(served, at("10:30:00")).map((time) => time.minutes),
+    ).toEqual([0, 0, 0, 0]);
+  });
+
   it("Compara instantes aunque cambie la zona horaria", () => {
     const comanda = sentAt("10:05").comandas["c-1"];
     expect(totalMinutes(comanda, "2026-11-15T11:10:00.000-05:00")).toBe(5);

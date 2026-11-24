@@ -116,6 +116,34 @@ describe("EVL-124 [F] Cronómetro en Cocina", () => {
     app.store.close();
   });
 
+  it("[F] Un reloj adelantado no da tiempos negativos", async () => {
+    const storage = createMemoryStorage();
+    const store = await PosStore.open(storage);
+    await store.commit(
+      saveOrder(store.getState(), meta("save", sofi, "10:00"), {
+        orderId: "o-1",
+        header: mostrador,
+        lines: linesOf([latte]),
+      }),
+    );
+    await store.commit(
+      sendComanda(store.getState(), meta("send", sofi, "10:05"), {
+        orderId: "o-1",
+        comandaId: "c-1",
+      }),
+    );
+    store.close();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-15T10:01:00.000-06:00"));
+    goTo("#/cocina");
+    const app = await renderApp(<App />, { as: "barra", storage });
+
+    expect(
+      card().getByRole("button", { name: /^En cola\s*·\s*<1 min$/ }),
+    ).toBeDefined();
+    app.store.close();
+  });
+
   it("[F] El cronómetro avanza sin recargar", async () => {
     const storage = await comandaReadyAt1015();
     vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
