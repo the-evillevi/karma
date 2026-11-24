@@ -47,17 +47,27 @@ function advanced(
 
 const at = (time: string) => `2026-11-15T${time}.000-06:00`;
 
-describe("Tiempo en cada estado de una comanda", () => {
-  it("La comanda guarda cuándo entró a cada estado", () => {
+describe("EVL-124 [F] Cronómetro de la comanda", () => {
+  it("[F] La comanda guarda la hora de cada paso", () => {
     let state = sentAt("10:05");
-    state = advanced(state, "preparing", "10:09");
+    state = advanced(state, "preparing", "10:07");
     state = advanced(state, "ready", "10:15");
-    expect(state.comandas["c-1"].statusHistory).toEqual([
+    state = advanced(state, "served", "10:17");
+    const comanda = state.comandas["c-1"];
+    expect(comanda.statusHistory).toEqual([
       { status: "queued", at: at("10:05:00") },
-      { status: "preparing", at: at("10:09:00") },
+      { status: "preparing", at: at("10:07:00") },
       { status: "ready", at: at("10:15:00") },
+      { status: "served", at: at("10:17:00") },
     ]);
-    expect(state.comandas["c-1"].updatedAt).toBe(at("10:15:00"));
+    expect(comanda.updatedAt).toBe(at("10:17:00"));
+    expect(totalMinutes(comanda, at("10:30:00"))).toBe(12);
+    expect(timeInStatus(comanda, at("10:30:00"))).toEqual([
+      { status: "queued", minutes: 2, current: false },
+      { status: "preparing", minutes: 8, current: false },
+      { status: "ready", minutes: 2, current: false },
+      { status: "served", minutes: 0, current: true },
+    ]);
   });
 
   it("Cuenta los minutos completos en cada estado y en total", () => {
@@ -81,7 +91,7 @@ describe("Tiempo en cada estado de una comanda", () => {
     expect(totalMinutes(comanda, at("10:05:59"))).toBe(0);
   });
 
-  it("Un reloj atrasado de otro dispositivo nunca da minutos negativos", () => {
+  it("[F] Un reloj adelantado no da tiempos negativos", () => {
     const comanda = sentAt("10:05").comandas["c-1"];
     expect(timeInStatus(comanda, at("10:01:00"))).toEqual([
       { status: "queued", minutes: 0, current: true },

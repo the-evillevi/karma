@@ -1,4 +1,10 @@
-import { act, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PosStore, createMemoryStorage } from "../../data/pos-store.ts";
@@ -64,29 +70,53 @@ function card() {
   return within(screen.getByRole("listitem", { name: "Comanda A-0001" }));
 }
 
-describe("Tiempo en cada estado en Cocina", () => {
-  it("La pastilla de estado muestra cuánto lleva en ese estado", async () => {
+function expectTimes(text: string) {
+  expect(text).toContain("Tiempo en cada estado");
+  expect(text).toMatch(/En cola\s*4 min/);
+  expect(text).toMatch(/Preparando\s*6 min/);
+  expect(text).toMatch(/Lista\s*2 min/);
+  expect(text).toMatch(/Total\s*12 min/);
+  expect(text).not.toContain("Entregada");
+}
+
+describe("EVL-124 [F] Cronómetro en Cocina", () => {
+  it("[F] La pastilla de estado muestra cuánto lleva en ese estado", async () => {
     const storage = await comandaReadyAt1015();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-15T10:17:30.000-06:00"));
     goTo("#/cocina");
     const app = await renderApp(<App />, { as: "barra", storage });
 
-    const pill = card().getByRole("button", { name: /^Lista\s*·\s*2 min$/ });
+    expect(
+      card().getByRole("button", { name: /^Lista\s*·\s*2 min$/ }),
+    ).toBeDefined();
     expect(card().getByText("Lista")).toBeDefined();
-
-    await userEvent.hover(pill);
-    const tooltip = await screen.findByRole("tooltip");
-    const text = tooltip.textContent ?? "";
-    expect(text).toContain("Tiempo en cada estado");
-    expect(text).toMatch(/En cola\s*4 min/);
-    expect(text).toMatch(/Preparando\s*6 min/);
-    expect(text).toMatch(/Lista\s*2 min/);
-    expect(text).toMatch(/Total\s*12 min/);
     app.store.close();
   });
 
-  it("El tiempo avanza solo, sin recargar", async () => {
+  it("[F] La pastilla muestra el tiempo en cada estado", async () => {
+    const storage = await comandaReadyAt1015();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-15T10:17:30.000-06:00"));
+    goTo("#/cocina");
+    const app = await renderApp(<App />, { as: "barra", storage });
+    const pill = card().getByRole("button", { name: /^Lista\s*·\s*2 min$/ });
+
+    await userEvent.hover(pill);
+    expectTimes((await screen.findByRole("tooltip")).textContent ?? "");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+
+    fireEvent.pointerDown(pill);
+    fireEvent.click(pill, { detail: 1 });
+    expectTimes((await screen.findByRole("tooltip")).textContent ?? "");
+    fireEvent.pointerDown(pill);
+    fireEvent.click(pill, { detail: 1 });
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+    app.store.close();
+  });
+
+  it("[F] El cronómetro avanza sin recargar", async () => {
     const storage = await comandaReadyAt1015();
     vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
     vi.setSystemTime(new Date("2026-11-15T10:17:30.000-06:00"));
