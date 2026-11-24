@@ -143,28 +143,40 @@ function minutesBetween(from: string, to: string): number {
   return Math.max(0, Math.floor((Date.parse(to) - Date.parse(from)) / 60_000));
 }
 
-function clockEnd(comanda: Comanda, now: string): string {
-  if (comanda.status !== "served") return now;
-  for (let index = comanda.statusHistory.length - 1; index >= 0; index--) {
-    const entry = comanda.statusHistory[index];
-    if (entry.status === "served") return entry.at;
+function stepStarts(comanda: Comanda): string[] {
+  const starts: string[] = [];
+  for (const entry of comanda.statusHistory) {
+    const previous = starts[starts.length - 1];
+    starts.push(
+      previous === undefined || Date.parse(entry.at) >= Date.parse(previous)
+        ? entry.at
+        : previous,
+    );
   }
-  return comanda.updatedAt;
+  return starts;
+}
+
+function clockEnd(comanda: Comanda, starts: string[], now: string): string {
+  return comanda.status === "served" ? starts[starts.length - 1] : now;
 }
 
 export function timeInStatus(comanda: Comanda, now: string): StatusTime[] {
+  const starts = stepStarts(comanda);
   return comanda.statusHistory.map((item, index, history) => ({
     status: item.status,
     minutes: minutesBetween(
-      item.at,
-      history[index + 1]?.at ?? clockEnd(comanda, now),
+      starts[index],
+      starts[index + 1] ?? clockEnd(comanda, starts, now),
     ),
     current: index === history.length - 1,
   }));
 }
 
 export function totalMinutes(comanda: Comanda, now: string): number {
-  return minutesBetween(comanda.sentAt, clockEnd(comanda, now));
+  return minutesBetween(
+    comanda.sentAt,
+    clockEnd(comanda, stepStarts(comanda), now),
+  );
 }
 
 export function durationLabel(minutes: number): string {
