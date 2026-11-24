@@ -11,7 +11,7 @@ import {
   menuFor,
   setProductGroups,
   updateModifierOption,
-  updateProductAndGroups,
+  saveProductEdit,
 } from "./menu.ts";
 import type { NewGroupInput } from "./menu.ts";
 import {
@@ -395,7 +395,7 @@ describe("EVL-119 [E] Grupos sobre el menú base", () => {
 describe("EVL-119 [E] Saving a product edit in one batch", () => {
   it("records the rename and the new group list as one batch", () => {
     const state = withSabor();
-    const batch = updateProductAndGroups(
+    const batch = saveProductEdit(
       state,
       at(),
       {
@@ -419,7 +419,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
   });
 
   it("records only the group list when only the groups changed", () => {
-    const batch = updateProductAndGroups(
+    const batch = saveProductEdit(
       emptyState(),
       at(),
       { productId: latte.id, groupIds: ["leche"] },
@@ -434,7 +434,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
   });
 
   it("records only the rename when the groups did not change", () => {
-    const batch = updateProductAndGroups(
+    const batch = saveProductEdit(
       emptyState(),
       at(),
       { productId: latte.id, name: "Latte Grande" },
@@ -448,7 +448,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
   it("saves nothing when the group list is rejected", () => {
     expect(
       rejectionOf(() =>
-        updateProductAndGroups(
+        saveProductEdit(
           emptyState(),
           at(),
           {
@@ -462,7 +462,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
     ).toBe("repeated-group");
     expect(
       rejectionOf(() =>
-        updateProductAndGroups(
+        saveProductEdit(
           emptyState(),
           at(),
           { productId: latte.id, name: "", groupIds: ["leche"] },
@@ -475,7 +475,7 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
   it("only Admin saves product edits and groups", () => {
     expect(
       rejectionOf(() =>
-        updateProductAndGroups(
+        saveProductEdit(
           emptyState(),
           at(sofi),
           { productId: latte.id, groupIds: [] },
@@ -483,6 +483,82 @@ describe("EVL-119 [E] Saving a product edit in one batch", () => {
         ),
       ),
     ).toBe("not-allowed");
+  });
+});
+
+describe("EVL-119 [A] Precio en Editar producto", () => {
+  it("records the rename, the price and the group list as one batch", () => {
+    const batch = saveProductEdit(
+      emptyState(),
+      at(),
+      {
+        productId: latte.id,
+        name: "Latte Grande",
+        priceCents: 7000,
+        groupIds: ["leche"],
+      },
+      menuBeforeSabor,
+    );
+    expect(batch.events.map((event) => event.type)).toEqual([
+      "product-updated",
+      "product-updated",
+      "product-groups-set",
+    ]);
+    const item = inMenu(applyBatch(emptyState(), batch), latte);
+    expect(item.name).toBe("Latte Grande");
+    expect(item.priceCents).toBe(7000);
+    expect(item.modifierGroupIds).toEqual(["leche"]);
+  });
+
+  it("records only the price when only the price changed", () => {
+    const batch = saveProductEdit(
+      emptyState(),
+      at(),
+      { productId: latte.id, priceCents: 7000 },
+      menuBeforeSabor,
+    );
+    expect(batch.events).toEqual([
+      {
+        type: "product-updated",
+        productId: latte.id,
+        changes: { priceCents: 7000 },
+      },
+    ]);
+  });
+
+  it("saves nothing when the price is invalid", () => {
+    for (const priceCents of [0, -100, 12.5, Number.NaN]) {
+      expect(
+        rejectionOf(() =>
+          saveProductEdit(
+            emptyState(),
+            at(),
+            {
+              productId: latte.id,
+              name: "Latte Grande",
+              priceCents,
+              groupIds: ["leche"],
+            },
+            menuBeforeSabor,
+          ),
+        ),
+      ).toBe("invalid-price");
+    }
+  });
+
+  it("only Admin changes a price from Editar producto", () => {
+    for (const actor of [luis, sofi]) {
+      expect(
+        rejectionOf(() =>
+          saveProductEdit(
+            emptyState(),
+            at(actor),
+            { productId: latte.id, priceCents: 7000 },
+            menuBeforeSabor,
+          ),
+        ),
+      ).toBe("not-allowed");
+    }
   });
 });
 
@@ -496,9 +572,9 @@ describe("EVL-119 [E] Review regressions", () => {
     };
     const once = applyBatch(
       emptyState(),
-      updateProductAndGroups(emptyState(), retry, input, menuBeforeSabor),
+      saveProductEdit(emptyState(), retry, input, menuBeforeSabor),
     );
-    const again = updateProductAndGroups(once, retry, input, menuBeforeSabor);
+    const again = saveProductEdit(once, retry, input, menuBeforeSabor);
     expect(applyBatch(once, again)).toBe(once);
   });
 });

@@ -1,17 +1,7 @@
 import { useRef, useState } from "react";
-import type { FormEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { can } from "../../domain/access.ts";
 import type {
@@ -32,13 +22,12 @@ import {
   moveCategory,
   moveProduct,
   setProductAvailability,
-  setProductPrice,
   updateCategory,
   updateModifierOption,
   updateProduct,
 } from "../../domain/menu.ts";
 import type { MoveDirection } from "../../domain/menu.ts";
-import { formatMXN, parsePesos } from "../../domain/money.ts";
+import { formatMXN } from "../../domain/money.ts";
 import { catalog } from "../catalog.ts";
 import { useCommand, useMenu, usePosState, useSession } from "../context.tsx";
 import { errorMessage } from "../errors.ts";
@@ -57,16 +46,11 @@ import {
 import { NewGroupDialog } from "../menu/GroupDialogs.tsx";
 import { ModifierGroupsView } from "../menu/ModifierGroupsView.tsx";
 import { MoveButtons, refocusMove } from "../menu/MoveButtons.tsx";
-import {
-  EditOptionDialog,
-  NewOptionDialog,
-  pesosText,
-} from "../menu/OptionDialogs.tsx";
+import { EditOptionDialog, NewOptionDialog } from "../menu/OptionDialogs.tsx";
 import { normalize } from "../station/ProductGrid.tsx";
 import { useToast } from "../toast.tsx";
 
 type OpenDialog =
-  | { kind: "price"; product: Product; trigger: HTMLElement }
   | { kind: "new"; trigger: HTMLElement }
   | { kind: "edit"; productId: string; trigger: HTMLElement }
   | { kind: "new-category"; trigger: HTMLElement }
@@ -142,94 +126,6 @@ function MenuTabs({
 }
 
 type MenuCommand = (state: PosState, meta: CommandMeta) => CommandBatch;
-
-function PriceDialog({
-  product,
-  returnFocus,
-  onClose,
-}: {
-  product: Product;
-  returnFocus: HTMLElement;
-  onClose: () => void;
-}) {
-  const run = useCommand();
-  const notify = useToast();
-  const [text, setText] = useState(pesosText(product.priceCents));
-  const [failure, setFailure] = useState("");
-  const [busy, setBusy] = useState(false);
-  const inputId = `precio-${product.id}`;
-
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    if (busy) return;
-    const priceCents = parsePesos(text) ?? Number.NaN;
-    setBusy(true);
-    try {
-      await run((state, meta) =>
-        setProductPrice(
-          state,
-          meta,
-          { productId: product.id, priceCents },
-          catalog,
-        ),
-      );
-      onClose();
-      notify(`Precio de ${product.name}: ${formatMXN(priceCents)}`);
-    } catch (error) {
-      setFailure(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent
-        className="sm:max-w-sm"
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          returnFocus.focus();
-        }}
-      >
-        <form onSubmit={save} className="flex flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>Cambiar precio</DialogTitle>
-            <DialogDescription>{product.name}</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={inputId}>Precio de {product.name}</Label>
-            <Input
-              id={inputId}
-              inputMode="decimal"
-              autoComplete="off"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              className="tabular-nums"
-            />
-            {failure !== "" && (
-              <p role="alert" className="text-sm font-medium">
-                {failure}
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={onClose}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={busy}>
-              Guardar precio
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export function Menu() {
   const state = usePosState();
@@ -533,23 +429,6 @@ export function Menu() {
                                       variant="outline"
                                       size="sm"
                                       className="min-h-11"
-                                      aria-label={`Cambiar precio de ${product.name}`}
-                                      onClick={(event) =>
-                                        setOpen({
-                                          kind: "price",
-                                          product,
-                                          trigger: event.currentTarget,
-                                        })
-                                      }
-                                    >
-                                      Cambiar precio
-                                    </Button>
-                                  )}
-                                  {mayEditMenu && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="min-h-11"
                                       id={editButtonId(product.id)}
                                       aria-label={`Editar ${product.name}`}
                                       onClick={(event) =>
@@ -614,14 +493,6 @@ export function Menu() {
         )}
       </div>
 
-      {open?.kind === "price" && (
-        <PriceDialog
-          key={open.product.id}
-          product={open.product}
-          returnFocus={open.trigger}
-          onClose={close}
-        />
-      )}
       {open?.kind === "new" && (
         <NewProductDialog returnFocus={open.trigger} onClose={close} />
       )}
